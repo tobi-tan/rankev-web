@@ -4613,8 +4613,9 @@ function SupportDropdown({ options, selected, onToggle }) {
 
 // Each comment is itself a mini-vote: rank up / rank down, and shows which option the author supports.
 // getSupportLabel maps a comment's "supports" id to a display label + color (option or path result).
-function CommentsSection({ initialComments, getSupportLabel, supportOptions, promptLabel, supportPrefix, placeholder }) {
+function CommentsSection({ initialComments, getSupportLabel, supportOptions, promptLabel, supportPrefix, placeholder, postId = null, ending = null }) {
   const norm = (s) => (Array.isArray(s) ? s : s == null ? [] : [s]);
+  const apiMode = isUuid(postId); // bài THẬT → comment đọc/ghi qua backend
   const [comments, setComments] = useState(
     (initialComments || []).map((c) => ({ ...c, supports: norm(c.supports), myReaction: null, replies: c.replies || [] }))
   );
@@ -4625,6 +4626,17 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
   const [replyTo, setReplyTo] = useState(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [replyImage, setReplyImage] = useState(null);
+
+  // Nạp comment THẬT cho bài API (lọc theo ending nếu là thảo luận theo kết quả Path).
+  useEffect(() => {
+    if (!apiMode) return;
+    let alive = true;
+    api.comments
+      .list(postId, ending ? { ending } : {})
+      .then((res) => { if (alive) setComments(((res && res.items) || res || []).map(apiCommentToProto)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [apiMode, postId, ending]);
 
   const toggleSupport = (id) =>
     setDraftSupport((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -4642,20 +4654,49 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
         return { ...c, rankUp, rankDown, myReaction: next };
       })
     );
+    // Bài THẬT: gửi rank lên backend (tự toggle nếu bấm lại) rồi đồng bộ số đếm chuẩn.
+    if (apiMode && isUuid(id)) {
+      api.comments
+        .rank(id, kind)
+        .then((res) =>
+          setComments((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, rankUp: res.rankUp, rankDown: res.rankDown, myReaction: res.myRank === 1 ? "up" : res.myRank === -1 ? "down" : null } : c))
+          )
+        )
+        .catch(() => {});
+    }
   };
 
   const post = () => {
     if (!draft.trim() && !draftImage) return;
-    setComments((prev) => [
-      { id: "c" + Date.now(), user: "Bạn", text: draft.trim(), image: draftImage, rankUp: 0, rankDown: 0, supports: draftSupport, createdAt: Date.now(), myReaction: null, replies: [] },
-      ...prev,
-    ]);
+    if (apiMode) {
+      const body = { text: draft.trim() || undefined, supports: draftSupport.length ? draftSupport : undefined };
+      if (draftImage && /^https?:/.test(draftImage)) body.imageUrl = draftImage;
+      api.comments
+        .create(postId, body)
+        .then((c) => setComments((prev) => [apiCommentToProto(c), ...prev]))
+        .catch(() => {});
+    } else {
+      setComments((prev) => [
+        { id: "c" + Date.now(), user: "Bạn", text: draft.trim(), image: draftImage, rankUp: 0, rankDown: 0, supports: draftSupport, createdAt: Date.now(), myReaction: null, replies: [] },
+        ...prev,
+      ]);
+    }
     setDraft(""); setDraftSupport([]); setDraftImage(null);
   };
 
   const postReply = (cid) => {
     if (!replyDraft.trim() && !replyImage) return;
-    setComments((prev) => prev.map((c) => (c.id === cid ? { ...c, replies: [...(c.replies || []), { id: "r" + Date.now(), user: "Bạn", text: replyDraft.trim(), image: replyImage, createdAt: Date.now() }] } : c)));
+    if (apiMode && isUuid(cid)) {
+      api.comments
+        .create(postId, { text: replyDraft.trim() || undefined, parentId: cid })
+        .then((c) =>
+          setComments((prev) => prev.map((x) => (x.id === cid ? { ...x, replies: [...(x.replies || []), { id: c.id, user: (c.author && (c.author.name || c.author.handle)) || "Bạn", text: c.text || "", createdAt: Date.parse(c.createdAt) || Date.now() }] } : x)))
+        )
+        .catch(() => {});
+    } else {
+      setComments((prev) => prev.map((c) => (c.id === cid ? { ...c, replies: [...(c.replies || []), { id: "r" + Date.now(), user: "Bạn", text: replyDraft.trim(), image: replyImage, createdAt: Date.now() }] } : c)));
+    }
     setReplyTo(null); setReplyDraft(""); setReplyImage(null);
   };
 
@@ -5745,6 +5786,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         <div style={{ height: 14 }} />
 
         <CommentsSection
+          postId={rankie.id}
           initialComments={rankie.comments}
           supportOptions={options.map((o, i) => ({
             id: o.id,
@@ -6158,7 +6200,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             return (
               <div style={{ textAlign: "left", marginTop: 14 }}>
                 <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Bình luận chung</div>
-                <CommentsSection initialComments={pathComments} supportOptions={[]} />
+                <CommentsSection postId={path.id} initialComments={pathComments} supportOptions={[]} />
               </div>
             );
           }
@@ -6185,6 +6227,8 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
               )}
               <CommentsSection
                 key={activeThread}
+                postId={path.id}
+                ending={activeThread}
                 initialComments={threadComments}
                 supportOptions={[{ id: activeThread, label: activeThread, color: activeThread === step ? C.gold : C.teal }]}
                 getSupportLabel={(id) =>
@@ -7217,6 +7261,7 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
         {/* Comments — same component as Rankie/Path, but tags reference question number instead of an answer option */}
         <div style={{ marginTop: 18, borderTop: `1px solid ${C.border}`, paddingTop: 18 }}>
           <CommentsSection
+            postId={deck.id}
             initialComments={deck.deckComments || []}
             supportOptions={deck.questions.map((q, qi) => ({ id: q.id, label: `Câu ${qi + 1}`, color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][qi % 5] }))}
             getSupportLabel={(id) => {
@@ -11179,6 +11224,28 @@ function apiAuthorToProto(a) {
 
 // Feed summary (GET /feed) → shape đủ cho CARD trong feed. Options chưa có id thật
 // (chỉ để hiển thị); khi mở chi tiết sẽ fetch full /posts/:id để có id thật + vote được.
+// UUID thật (bài/comment API) vs id mock. Dùng ở cả component con (không có isApiId của RankevApp).
+function isUuid(id) {
+  return typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+// CommentView (API) → shape comment prototype.
+function apiCommentToProto(c) {
+  return {
+    id: c.id,
+    user: (c.author && (c.author.name || c.author.handle)) || "Người dùng",
+    text: c.text || "",
+    image: c.imageUrl || null,
+    rankUp: c.rankUp || 0,
+    rankDown: c.rankDown || 0,
+    supports: c.supports || [],
+    createdAt: Date.parse(c.createdAt) || Date.now(),
+    myReaction: c.myRank === 1 ? "up" : c.myRank === -1 ? "down" : null,
+    replies: [],
+    _api: true,
+  };
+}
+
 function apiSummaryToProto(s) {
   const base = {
     id: s.id,
