@@ -11804,18 +11804,25 @@ export default function RankevApp() {
   // Mixed feed: rankies + all paths + all decks.
   // "Đang thịnh hành" sorts by a composite trending score (participants × recency × live bonus);
   // any other category just uses newest-first so fresh content surfaces immediately.
-  const feedItemsAll = [...apiRankies, ...rankies, ...allPaths, ...allDecks]
-    .map(withMeta)
+  // Nhận diện bài của mình (bản author="me" từ state cục bộ, hoặc bản UUID từ /feed).
+  const isMinePost = (p) => p.author?.id === "me" || (currentUser.apiId && p.author?.id === currentUser.apiId);
+  // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để nổi đầu + khớp Hồ sơ).
+  const feedDedup = new Map();
+  for (const item of [...apiRankies, ...rankies, ...allPaths, ...allDecks].map(withMeta)) {
+    const existing = feedDedup.get(item.id);
+    if (!existing || (item.author?.id === "me" && existing.author?.id !== "me")) feedDedup.set(item.id, item);
+  }
+  const feedItemsAll = [...feedDedup.values()]
     .filter((item) => !item.hidden && !item.deletedAt && item.visibility !== "private")
-    // Bài của chính mình không hiện trên feed (giống Instagram/TikTok) — xem lại ở
-    // Hồ sơ → tab Bài viết. Feed là nơi khám phá nội dung của người khác.
-    .filter((item) => item.author?.id !== "me" && item.author?.id !== currentUser.apiId)
-    .slice()
-    .sort((a, b) =>
-      activeCategory === "Đang thịnh hành"
+    .sort((a, b) => {
+      // Kiểu Facebook: bài của mình nổi lên ĐẦU feed (mới nhất trước), rồi tới nội dung người khác.
+      const am = isMinePost(a), bm = isMinePost(b);
+      if (am !== bm) return am ? -1 : 1;
+      if (am && bm) return (b.createdAt || 0) - (a.createdAt || 0);
+      return activeCategory === "Đang thịnh hành"
         ? trendingScore(b) - trendingScore(a)
-        : (b.createdAt || 0) - (a.createdAt || 0)
-    );
+        : (b.createdAt || 0) - (a.createdAt || 0);
+    });
 
   // Apply the category filter and the content-type filter.
   // "Đang thịnh hành" (trending tab) shows everything — the sort already handles ranking.
