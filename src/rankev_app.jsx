@@ -6658,7 +6658,7 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
 }
 
 // Full Deck-taking experience: step-by-step or single-scroll, per the deck's answerMode.
-function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialSubmitted = false }) {
+function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialSubmitted = false, serverResult = null, serverStats = null }) {
   const [started, setStarted] = useState(!!initialSubmitted);
   const [answers, setAnswers] = useState(initialAnswers || {}); // { [questionId]: answer }
   const [stepIdx, setStepIdx] = useState(0);
@@ -6685,31 +6685,42 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
 
   const totalMax = deck.questions.reduce((s, q) => s + (q.votingType === "text" ? 0 : (q.points || 1)), 0) || 1;
   const totalEarned = deck.questions.reduce((s, q) => s + scoreQuestion(q).earned, 0);
-  const correctCount = deck.questions.filter((q) => scoreQuestion(q).correct).length;
-  const gradableCount = deck.questions.filter((q) => q.votingType !== "text").length || 1;
-  const score10 = Math.round((totalEarned / totalMax) * 100) / 10;
+  const localCorrect = deck.questions.filter((q) => scoreQuestion(q).correct).length;
+  const localGradable = deck.questions.filter((q) => q.votingType !== "text").length || 1;
+  const localScore10 = Math.round((totalEarned / totalMax) * 100) / 10;
+
+  // Dữ liệu THẬT từ backend cho deck API — thay grading local (client KHÔNG có cờ `correct`
+  // do chống gian lận → luôn ra 0) và thay peer giả lập bằng thống kê thật.
+  const sr = deck.deckMode === "exam" && serverResult && serverResult.score != null ? serverResult : null;
+  const realParticipants = serverStats && serverStats.participants != null ? serverStats.participants : null;
+  const realAvg = serverStats && serverStats.avgScore != null ? serverStats.avgScore : null;
+
+  const score10 = sr ? sr.score : localScore10;
+  const correctCount = sr ? sr.correctCount : localCorrect;
+  const gradableCount = sr ? (sr.totalGradable || localGradable) : localGradable;
   const grade = deck.deckMode === "exam" ? getGrade(score10) : null;
 
-  // Simulated distribution of other participants' scores, for the "how you compare" block
+  // Peer giả lập — CHỈ dùng cho deck mock (không có dữ liệu thật).
   const [peerScores] = useState(() => {
     const n = 40 + Math.floor(Math.random() * 60);
     return Array.from({ length: n }, () => Math.round((3 + Math.random() * 7) * 10) / 10);
   });
-  const percentile = deck.deckMode === "exam"
+  const percentile = deck.deckMode === "exam" && !sr
     ? Math.round((peerScores.filter((s) => s <= score10).length / peerScores.length) * 100)
     : null;
-  // Số liệu cộng đồng cho màn kết quả mới (tài liệu Exam Result): điểm trung bình,
-  // chênh lệch của bạn, % người bạn vượt qua, hạng "Top X%", điểm cao/thấp nhất.
-  const communityAvg = deck.deckMode === "exam" ? Math.round((peerScores.reduce((a, b) => a + b, 0) / peerScores.length) * 10) / 10 : 0;
+  // Số liệu cộng đồng. Deck THẬT: điểm TB + số người từ backend; KHÔNG bịa "% vượt qua"
+  // (backend không trả phân bố từng người). Deck mock: dùng peer giả lập như cũ.
+  const communityAvg = deck.deckMode !== "exam" ? 0
+    : sr ? (realAvg != null ? realAvg : score10)
+    : Math.round((peerScores.reduce((a, b) => a + b, 0) / peerScores.length) * 10) / 10;
   const diffFromAvg = Math.round((score10 - communityAvg) * 10) / 10;
-  const beatPct = deck.deckMode === "exam" ? Math.round((peerScores.filter((s) => s < score10).length / peerScores.length) * 100) : 0;
-  const topPct = Math.max(1, 100 - beatPct);
-  const highestScore = deck.deckMode === "exam" ? Math.max(...peerScores, score10) : 0;
-  const lowestScore = deck.deckMode === "exam" ? Math.min(...peerScores, score10) : 0;
+  const beatPct = sr ? null : (deck.deckMode === "exam" ? Math.round((peerScores.filter((s) => s < score10).length / peerScores.length) * 100) : 0);
+  const topPct = beatPct == null ? null : Math.max(1, 100 - beatPct);
+  const highestScore = deck.deckMode === "exam" && !sr ? Math.max(...peerScores, score10) : score10;
+  const lowestScore = deck.deckMode === "exam" && !sr ? Math.min(...peerScores, score10) : score10;
 
-  // Phân bố điểm theo xếp loại (A–F), gồm cả điểm của chính mình — để biết mình đang
-  // thuộc nhóm nào trong tổng số người đã thi.
-  const allScores = deck.deckMode === "exam" ? [...peerScores, score10] : [];
+  // Phân bố điểm. Deck thật: chỉ có điểm của mình (backend chưa trả phân bố) → hiện 1 điểm.
+  const allScores = deck.deckMode !== "exam" ? [] : sr ? [score10] : [...peerScores, score10];
   const gradeDistribution = GRADE_SCALE.map((g) => {
     const count = allScores.filter((s) => getGrade(s).grade === g.grade).length;
     return { ...g, count, pct: allScores.length > 0 ? Math.round((count / allScores.length) * 100) : 0 };
@@ -6881,11 +6892,23 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
                 <div style={{ animation: "popIn 0.4s ease", fontFamily: monoFont, fontWeight: 800, fontSize: 56, color: C.gold, lineHeight: 1 }}>
                   {score10}<span style={{ fontSize: 22, color: C.textFaint, fontWeight: 500 }}>/10</span>
                 </div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-                  <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
-                </div>
+                {topPct != null ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
+                  </div>
+                ) : realParticipants != null ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: C.gold }}>{fmt(realParticipants)} người đã làm</span>
+                  </div>
+                ) : null}
                 <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 10 }}>
-                  Bạn làm tốt hơn <strong style={{ color: C.text }}>{beatPct}%</strong> người tham gia
+                  {beatPct != null ? (
+                    <>Bạn làm tốt hơn <strong style={{ color: C.text }}>{beatPct}%</strong> người tham gia</>
+                  ) : realParticipants != null && realParticipants > 1 && realAvg != null ? (
+                    <>{score10 >= realAvg ? "Bạn trên mức trung bình cộng đồng 🎉" : "Bạn dưới mức trung bình — thử lại nhé"}</>
+                  ) : (
+                    <>Hãy là một trong những người đầu tiên hoàn thành 🎯</>
+                  )}
                 </div>
                 {deck.passingScore != null && (
                   <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: score10 >= deck.passingScore ? "#4ADE80" : C.coral, marginTop: 6 }}>
@@ -12485,6 +12508,8 @@ export default function RankevApp() {
                 }}
                 initialAnswers={apiDeckResults[selectedDeck?.id]?.answers || participationByKey[`deck:${selectedDeck?.id}`]?.answers || null}
                 initialSubmitted={apiDeckResults[selectedDeck?.id]?.submitted || !!participationByKey[`deck:${selectedDeck?.id}`]}
+                serverResult={apiDeckResults[selectedDeck?.id]?.result || null}
+                serverStats={apiDeckStats[selectedDeck?.id] || null}
               />
             </DeckDetailWithSwipe>
           )}
