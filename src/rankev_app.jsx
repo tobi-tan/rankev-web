@@ -11893,6 +11893,14 @@ export default function RankevApp() {
     else if (post.type === "path") setUserPaths((prev) => prev.map((p) => (p.id === post.id ? { ...p, ...patch } : p)));
     else if (post.type === "deck") setUserDecks((prev) => prev.map((d) => (d.id === post.id ? { ...d, ...patch } : d)));
     else if (post.type === "share") setSharedPosts((prev) => prev.map((s) => (s.id === post.id ? { ...s, ...patch } : s)));
+    // Bài THẬT: lưu chỉnh sửa lên backend (chỉ các trường metadata backend cho sửa).
+    if (isApiId(post.id)) {
+      const body = {};
+      ["title", "subtitle", "caption", "category"].forEach((k) => { if (patch[k] !== undefined) body[k] = patch[k]; });
+      if (Object.keys(body).length) {
+        api.posts.update(post.id, body).catch((err) => showToast(err?.message || "Lưu chỉnh sửa thất bại"));
+      }
+    }
   };
 
   // Tăng số lượt chia sẻ thật của bài gốc — gọi khi ShareModal báo chia sẻ thành công
