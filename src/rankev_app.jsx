@@ -5173,7 +5173,8 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
     if (opt) spawnBubble(opt, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useLiveTicker(setOptions, !isClosed, rankie.live, isUnlimited, handleLiveTick);
+  // Bài THẬT (_api): không giả lập vote ngẫu nhiên — số phiếu chỉ đến từ backend + WebSocket.
+  useLiveTicker(setOptions, !isClosed, rankie.live && !rankie._api, isUnlimited, handleLiveTick);
 
   // Which chart types the viewer can switch between for this rankie.
   // Head-to-head is offered only when there are exactly 2 options.
@@ -8351,7 +8352,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
   // Seeded from the rankie's current shared vote counts (not the original sample data),
   // so "giữ số liệu đang có" reflects whatever the viewer had already voted/seen.
   // Live votes only start ticking after a mode is chosen
-  const [options, setOptions] = useLiveVotes(initialOptions || rankie.options, mode !== null && !paused, rankie.live);
+  const [options, setOptions] = useLiveVotes(initialOptions || rankie.options, mode !== null && !paused, rankie.live && !rankie._api);
   const { remainingSec, expired } = useCountdown(durationMinutes, mode !== null);
 
   // When the countdown hits zero, auto-pause and reveal results so the session ends cleanly
@@ -11859,7 +11860,11 @@ export default function RankevApp() {
         .then((full) => {
           if (full && full.type === "rankie") {
             const proto = apiRankieToProto(full);
-            setApiPosts((prev) => prev.map((p) => (p.id === id ? proto : p)));
+            // Áp dữ liệu thật vào post dù nó nằm ở apiPosts (feed) hay rankies (bài của mình).
+            // Giữ mine/author của bản cũ để bài của mình không bị đẩy khỏi Hồ sơ.
+            const patch = (p) => (p.id === id ? { ...proto, mine: p.mine, author: p.mine ? currentUser : proto.author } : p);
+            setApiPosts((prev) => prev.map(patch));
+            setRankies((prev) => prev.map(patch));
             setLiveOptions((prev) => ({ ...prev, [id]: proto.options }));
           }
         })
