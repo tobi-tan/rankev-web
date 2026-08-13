@@ -11231,11 +11231,19 @@ function apiPathToProto(p) {
   const ordered = entry ? [entry, ...qs.filter((q) => q !== entry)] : qs;
   const branch = (a, fallbackLabel) =>
     a
-      ? { next: a.targetId, emoji: a.emoji || undefined, image: a.imageUrl || null, label: a.label || fallbackLabel }
-      : { next: null, emoji: undefined, image: null, label: fallbackLabel };
+      ? {
+          next: a.targetId,
+          emoji: a.emoji || undefined,
+          image: a.imageUrl || null,
+          label: a.label || fallbackLabel,
+          // Giữ toạ độ hotspot để play view đặt điểm lên ảnh cảnh (Visual Scene Builder).
+          hotspot: a.hotspotX != null && a.hotspotY != null ? { x: a.hotspotX, y: a.hotspotY } : null,
+        }
+      : { next: null, emoji: undefined, image: null, label: fallbackLabel, hotspot: null };
   const questions = ordered.map((q) => ({
     id: q.id,
     text: q.text || "",
+    sceneImage: q.sceneImageUrl || null,
     yes: branch(q.answers && q.answers[0], "Có"),
     no: branch(q.answers && q.answers[1], "Không"),
   }));
