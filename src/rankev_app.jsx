@@ -9226,7 +9226,7 @@ function CreateView({ onCreate }) {
             </div>
           )}
           <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 11, color: C.textFaint, lineHeight: 1.4 }}>
-            Ảnh/video ở bản demo là hình minh họa. Khi chạy app thật sẽ tải file lên được.
+            Ảnh được tải lên máy chủ. Video hiện chưa hỗ trợ (sắp có).
           </div>
         </div>
 
@@ -12015,7 +12015,9 @@ export default function RankevApp() {
       .then((full) => {
         const real =
           full.type === "path" ? apiPathToProto(full) : full.type === "deck" ? apiDeckToProto(full) : apiRankieToProto(full);
-        const merged = { ...real, mine: true };
+        // Giữ author = currentUser (id="me") để: (1) Hồ sơ hiện bài (lọc theo author.id==="me"),
+        // (2) feed vẫn ẩn bài của mình. Nếu để author.id = UUID thì bài "rơi vào khe" — không hiện đâu cả.
+        const merged = { ...real, mine: true, author: currentUser };
         const swap = (prev) => prev.map((x) => (x.id === tempId ? merged : x));
         if (item.type === "path") setUserPaths(swap);
         else if (item.type === "deck") setUserDecks(swap);
@@ -12125,6 +12127,23 @@ export default function RankevApp() {
           });
           return next;
         });
+      } catch { /* bỏ qua */ }
+    })();
+    // Nạp BÀI CỦA MÌNH thật (để không mất sau reload). author=currentUser (id="me")
+    // → hiện ở Hồ sơ, ẩn ở feed. Gộp không trùng vào rankies/userPaths/userDecks.
+    (async () => {
+      try {
+        const res = await api.posts.mine();
+        if (!alive) return;
+        const list = (res && res.items) || res || [];
+        const mine = list.map((s) => ({ ...apiSummaryToProto(s), mine: true, author: currentUser }));
+        const mergeUnique = (prev, add) => {
+          const ids = new Set(prev.map((p) => p.id));
+          return [...add.filter((p) => !ids.has(p.id)), ...prev];
+        };
+        setRankies((prev) => mergeUnique(prev, mine.filter((p) => p.type === "rankie")));
+        setUserPaths((prev) => mergeUnique(prev, mine.filter((p) => p.type === "path")));
+        setUserDecks((prev) => mergeUnique(prev, mine.filter((p) => p.type === "deck")));
       } catch { /* bỏ qua */ }
     })();
     return () => { alive = false; };
