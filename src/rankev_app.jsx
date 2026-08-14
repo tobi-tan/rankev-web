@@ -11749,12 +11749,25 @@ export default function RankevApp() {
       (wasBookmarked ? api.bookmarks.remove(post.id) : api.bookmarks.add(post.id)).catch(() => {});
     }
   };
+  // Cộng +1 lượt tham gia cho một bài (mọi nơi bài đó xuất hiện + màn chi tiết đang mở).
+  const bumpParticipants = (id) => {
+    const inc = (p) => (p && p.id === id ? { ...p, participants: (p.participants || 0) + 1 } : p);
+    setRankies((prev) => prev.map(inc));
+    setUserPaths((prev) => prev.map(inc));
+    setUserDecks((prev) => prev.map(inc));
+    setApiPosts((prev) => prev.map(inc));
+    setSelectedPath((prev) => inc(prev));
+    setSelectedDeck((prev) => inc(prev));
+  };
   const addToHistory = (entry) => {
     const key = `${entry.type}:${entry.itemId}`;
+    // Lần tham gia ĐẦU TIÊN với bài này → cộng lượt (thử lại không cộng thêm).
+    const isFirst = !participationHistory.some((h) => h.key === key);
     setParticipationHistory((prev) => [
       { ...entry, key, timestamp: Date.now() },
       ...prev.filter((h) => h.key !== key),
     ]);
+    if (isFirst && (entry.type === "path" || entry.type === "deck")) bumpParticipants(entry.itemId);
   };
   const clearHistory = () => setParticipationHistory([]);
   const removeFromHistory = (key) =>
@@ -12326,7 +12339,8 @@ export default function RankevApp() {
       .get(selectedDeck.id)
       .then((full) => {
         if (!alive || !full || full.type !== "deck") return;
-        const proto = apiDeckToProto(full);
+        // Giữ số lượt tham gia thật (từ summary) — apiDeckToProto để 0.
+        const proto = { ...apiDeckToProto(full), participants: selectedDeck.participants || 0 };
         setSelectedDeck(proto);
         setApiPosts((prev) => prev.map((p) => (p.id === proto.id ? proto : p)));
       })
@@ -12365,7 +12379,8 @@ export default function RankevApp() {
         .get(p.id)
         .then((full) => {
           if (!alive || !full || full.type !== "path") return;
-          const proto = apiPathToProto(full);
+          // Giữ số lượt tham gia thật (từ summary) — apiPathToProto để 0.
+          const proto = { ...apiPathToProto(full), participants: p.participants || 0 };
           setSelectedPath(proto);
           setApiPosts((prev) => prev.map((x) => (x.id === proto.id ? proto : x)));
         })
