@@ -12326,7 +12326,23 @@ export default function RankevApp() {
 
   // Sửa cấu trúc path/deck qua CreateView (chế độ sửa). rankie sửa qua EditPostModal.
   const [editStructPost, setEditStructPost] = useState(null);
-  const startStructEdit = (post) => { setEditStructPost(post); setView("create"); };
+  const startStructEdit = (post) => {
+    // Bài API: nạp FULL (questions/endings/options thật) trước khi mở editor — bản ở
+    // Hồ sơ là summary (rỗng), reverse-map cần cấu trúc đầy đủ.
+    if (isApiId(post.id)) {
+      api.posts
+        .get(post.id)
+        .then((full) => {
+          const proto = full.type === "path" ? apiPathToProto(full) : full.type === "deck" ? apiDeckToProto(full) : apiRankieToProto(full);
+          setEditStructPost({ ...proto, mine: true, author: currentUser });
+          setView("create");
+        })
+        .catch(() => { setEditStructPost(post); setView("create"); });
+    } else {
+      setEditStructPost(post);
+      setView("create");
+    }
+  };
   const openCreateNew = () => { setEditStructPost(null); setView("create"); };
   const handleUpdate = (item) => {
     api.posts
