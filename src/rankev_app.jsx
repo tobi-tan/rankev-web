@@ -1586,9 +1586,14 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
             flexShrink: 0,
             fontSize: size * 0.5,
             lineHeight: 1,
+            overflow: "hidden",
           }}
         >
-          {author.avatarEmoji || "🙂"}
+          {author.avatarUrl ? (
+            <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            author.avatarEmoji || "🙂"
+          )}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -3953,7 +3958,6 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
         opacity: closed ? 0.75 : 1,
       }}
     >
-      {menuSlot && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>{menuSlot}</div>}
       {(() => {
         const statusSlot = (
           <>
@@ -3979,7 +3983,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
           </>
         );
         return rankie.author ? (
-          <AuthorRow author={rankie.author} onOpenAuthor={onOpenAuthor} rightSlot={statusSlot} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
+          <AuthorRow author={rankie.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{statusSlot}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
         ) : (
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>{statusSlot}</div>
@@ -6336,9 +6340,8 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
         animation: "popIn 0.3s ease",
       }}
     >
-      {menuSlot && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>{menuSlot}</div>}
       {path.author ? (
-        <AuthorRow author={path.author} onOpenAuthor={onOpenAuthor} rightSlot={<Pill tone="gold"><GitBranch size={11} /> PATH</Pill>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
+        <AuthorRow author={path.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}<Pill tone="gold"><GitBranch size={11} /> PATH</Pill></>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
       ) : (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
@@ -7397,9 +7400,8 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
       onClick={onOpen}
       style={{ ...cardSurface, cursor: "pointer", animation: "popIn 0.3s ease" }}
     >
-      {menuSlot && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>{menuSlot}</div>}
       {deck.author ? (
-        <AuthorRow author={deck.author} onOpenAuthor={onOpenAuthor} rightSlot={badge} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
+        <AuthorRow author={deck.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{badge}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
       ) : (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           {badge}
@@ -7468,14 +7470,16 @@ function SharedPostCard({ post, onOpen, onOpenAuthor, menuSlot }) {
   const VisIcon = visIcon;
   return (
     <div onClick={onOpen} style={{ ...cardSurface, cursor: "pointer", animation: "popIn 0.3s ease" }}>
-      {menuSlot && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>{menuSlot}</div>}
       <AuthorRow
         author={post.author}
         onOpenAuthor={onOpenAuthor}
         rightSlot={
-          <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.textFaint }}>
-            <VisIcon size={12} />
-          </span>
+          <>
+            {menuSlot}
+            <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.textFaint }}>
+              <VisIcon size={12} />
+            </span>
+          </>
         }
       />
       {post.caption && (
@@ -10613,6 +10617,7 @@ function ProfileView({
   posts,
   authorId,
   onLogout,
+  onChangeAvatar,
   votedMap,
   participatedKeys,
   participationByKey,
@@ -10744,6 +10749,8 @@ function ProfileView({
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flex: 1, minWidth: 0 }}>
             <div
+              onClick={isMe && onChangeAvatar ? onChangeAvatar : undefined}
+              title={isMe && onChangeAvatar ? "Đổi ảnh đại diện" : undefined}
               style={{
                 width: 64,
                 height: 64,
@@ -10754,9 +10761,21 @@ function ProfileView({
                 placeItems: "center",
                 fontSize: 26,
                 flexShrink: 0,
+                overflow: "hidden",
+                position: "relative",
+                cursor: isMe && onChangeAvatar ? "pointer" : "default",
               }}
             >
-              {author.avatarEmoji || <User size={26} color={C.gold} />}
+              {author.avatarUrl ? (
+                <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                author.avatarEmoji || <User size={26} color={C.gold} />
+              )}
+              {isMe && onChangeAvatar && (
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.55)", padding: "3px 0", display: "grid", placeItems: "center" }}>
+                  <ImagePlus size={12} color="#fff" />
+                </div>
+              )}
             </div>
             <div style={{ minWidth: 0, paddingTop: 2 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -11235,6 +11254,7 @@ function apiAuthorToProto(a) {
     handle: (a.handle || "").startsWith("@") ? a.handle : "@" + (a.handle || "user"),
     avatarEmoji: a.avatarEmoji || "🙂",
     avatarColor: a.avatarColor || C.surfaceRaised,
+    avatarUrl: a.avatarUrl || null,
     followers: a.rankPoints || 0,
     verified: !!a.verified,
   };
@@ -12211,6 +12231,7 @@ export default function RankevApp() {
         handle: (u.handle || "").startsWith("@") ? u.handle : "@" + (u.handle || currentUser.handle.replace(/^@/, "")),
         avatarEmoji: u.avatarEmoji || currentUser.avatarEmoji,
         avatarColor: u.avatarColor || currentUser.avatarColor,
+        avatarUrl: u.avatarUrl != null ? u.avatarUrl : currentUser.avatarUrl,
         verified: !!u.verified,
         bio: u.bio != null ? u.bio : currentUser.bio,
         followers: u.rankPoints != null ? u.rankPoints : currentUser.followers,
@@ -12249,6 +12270,31 @@ export default function RankevApp() {
       setAuthed(false);
       setView("feed");
     });
+  }, []);
+
+  // Ảnh đại diện: chọn file → preview ngay → upload → PATCH /users/me {avatarUrl}.
+  const [avatarV, setAvatarV] = useState(0); // bump để re-render sau khi đổi currentUser (object mutable)
+  const handleChangeAvatar = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      currentUser.avatarUrl = URL.createObjectURL(file); // preview blob tức thì
+      setAvatarV((v) => v + 1);
+      api
+        .uploadImage(file, "image")
+        .then((res) => {
+          if (res && res.url) {
+            currentUser.avatarUrl = res.url;
+            setAvatarV((v) => v + 1);
+            return auth.updateProfile({ avatarUrl: res.url });
+          }
+        })
+        .catch(() => showToast("Đổi ảnh đại diện thất bại"));
+    };
+    input.click();
   }, []);
 
   // --- Nạp feed thật khi đã đăng nhập (Phần 2). Lỗi → giữ mock (fallback). ---
@@ -12641,6 +12687,7 @@ export default function RankevApp() {
               posts={allPosts}
               authorId="me"
               onLogout={handleLogout}
+              onChangeAvatar={handleChangeAvatar}
               votedMap={votedMap}
               participatedKeys={participatedKeys}
               participationByKey={participationByKey}
