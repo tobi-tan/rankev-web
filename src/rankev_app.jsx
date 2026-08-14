@@ -8824,10 +8824,15 @@ function CreateView({ onCreate }) {
 
   // Shared post content across all three content types (caption + optional media placeholder)
   const [caption, setCaption] = useState("");
-  const [media, setMedia] = useState(null); // { type: "image"|"video", color, emoji }
+  const [media, setMedia] = useState(null); // { type: "image"|"video", color, emoji, url }
   const addMockMedia = (type) => {
     const colors = ["#2E5D4E", "#5A4A2E", "#4A2E3D", "#2E3D5A"];
     setMedia({ type, color: colors[Math.floor(Math.random() * colors.length)], emoji: type === "video" ? "🎬" : "🖼️" });
+  };
+  // Ảnh bìa bài đăng: chọn file thật → upload lên máy chủ → lưu URL vào media.url.
+  const addImageMedia = () => {
+    const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='240'><rect width='400' height='240' fill='%232E5D4E'/><text x='200' y='135' font-size='64' text-anchor='middle'>🖼️</text></svg>`;
+    pickAndUpload((url) => setMedia({ type: "image", url, color: "#2E5D4E", emoji: "🖼️" }), "image", svg);
   };
 
   // ----- PATH builder state -----
@@ -9281,7 +9286,7 @@ function CreateView({ onCreate }) {
           ) : (
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
-                onClick={() => addMockMedia("image")}
+                onClick={addImageMedia}
                 style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <ImagePlus size={15} /> Thêm ảnh
