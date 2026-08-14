@@ -9670,7 +9670,7 @@ function CreateView({ onCreate, onUpdate, editItem = null }) {
             marginTop: 8,
           }}
         >
-          Đăng Rankie
+          {editing ? "Lưu thay đổi" : "Đăng Rankie"}
         </button>
         </>
         )}
@@ -9966,7 +9966,7 @@ function CreateView({ onCreate, onUpdate, editItem = null }) {
             marginTop: 8,
           }}
         >
-          Đăng Path
+          {editing ? "Lưu thay đổi" : "Đăng Path"}
         </button>
         </>
         )}
@@ -10179,7 +10179,7 @@ function CreateView({ onCreate, onUpdate, editItem = null }) {
 
         <button onClick={submitDeck} disabled={!canSubmitDeck}
           style={{ width: "100%", padding: 15, borderRadius: 12, border: "none", background: canSubmitDeck ? C.gold : C.surfaceRaised, color: canSubmitDeck ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 15, cursor: canSubmitDeck ? "pointer" : "not-allowed", marginTop: 8 }}>
-          {deckMode === "exam" ? "📝 Đăng Bài thi" : "📋 Đăng Survey"}
+          {editing ? "Lưu thay đổi" : (deckMode === "exam" ? "📝 Đăng Bài thi" : "📋 Đăng Survey")}
         </button>
         {!canSubmitDeck && deckSubmitIssues.length > 0 && (
           <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.coral, lineHeight: 1.5 }}>
