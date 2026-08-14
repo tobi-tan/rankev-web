@@ -8883,15 +8883,25 @@ function distributeExamPoints(questions) {
 
 const EMOJI_CHOICES = ["🎯", "🎨", "⚙️", "💚", "🤝", "🎧", "🔥", "⭐", "🏆", "🚀", "🎬", "⚽"];
 
-function CreateView({ onCreate }) {
-  const [contentType, setContentType] = useState("rankie"); // rankie | path
-  const [title, setTitle] = useState("");
+function CreateView({ onCreate, onUpdate, editItem = null }) {
+  // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
+  // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
+  const editing = !!editItem;
+  const pb = editing && editItem.type === "path" ? protoPathToBuilder(editItem) : null;
+  const dk = editing && editItem.type === "deck" ? protoDeckToBuilder(editItem) : null;
+  const emit = editing ? (item) => onUpdate?.({ ...item, id: editItem.id }) : onCreate;
+  // rankie | path | deck(survey) | exam. Deck exam → "exam"; survey → "deck".
+  const initContentType = editing
+    ? (editItem.type === "deck" ? (dk?.deckMode === "exam" ? "exam" : "deck") : editItem.type)
+    : "rankie";
+  const [contentType, setContentType] = useState(initContentType);
+  const [title, setTitle] = useState(editItem?.title || "");
   const [opts, setOpts] = useState([
     { label: "", emoji: "🎯", image: null },
     { label: "", emoji: "🎨", image: null },
   ]);
   const [votingType, setVotingType] = useState("single");
-  const [category, setCategory] = useState(Object.values(CATEGORY_NAMES)[0]); // defaults to first category
+  const [category, setCategory] = useState(editItem?.category || Object.values(CATEGORY_NAMES)[0]); // defaults to first category
   const [audience, setAudience] = useState("public");
   const [allowGuestPresent, setAllowGuestPresent] = useState(false); // cho phép người khác trình chiếu bài này
   // Series (Chapter) — bài này thuộc bộ nào. seriesId = id của series, seriesName = tên
@@ -8908,8 +8918,8 @@ function CreateView({ onCreate }) {
   const [voteMarkerPickerOpen, setVoteMarkerPickerOpen] = useState(false);
 
   // Shared post content across all three content types (caption + optional media placeholder)
-  const [caption, setCaption] = useState("");
-  const [media, setMedia] = useState(null); // { type: "image"|"video", color, emoji, url }
+  const [caption, setCaption] = useState(editItem?.caption || "");
+  const [media, setMedia] = useState(editItem?.media || null); // { type: "image"|"video", color, emoji, url }
   const addMockMedia = (type) => {
     const colors = ["#2E5D4E", "#5A4A2E", "#4A2E3D", "#2E3D5A"];
     setMedia({ type, color: colors[Math.floor(Math.random() * colors.length)], emoji: type === "video" ? "🎬" : "🖼️" });
@@ -8928,11 +8938,11 @@ function CreateView({ onCreate }) {
   // hiểu sơ đồ/flowchart. Chọn "tới câu hỏi mới" sẽ tự sinh câu hỏi bên dưới.
   const pathUid = useRef(0);
   const nextPathId = (p) => `${p}${Date.now()}_${pathUid.current++}`;
-  const [pathEndings, setPathEndings] = useState([
+  const [pathEndings, setPathEndings] = useState(pb?.endings || [
     { id: "e1", name: "", emoji: "🎯", image: null },
     { id: "e2", name: "", emoji: "🌟", image: null },
   ]);
-  const [pathQuestions, setPathQuestions] = useState([
+  const [pathQuestions, setPathQuestions] = useState(pb?.questions || [
     { id: "q1", text: "", answers: [
       { id: "a1", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e1" } },
       { id: "a2", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e2" } },
@@ -9046,7 +9056,7 @@ function CreateView({ onCreate }) {
       }
       return { ...base, answers: valid.map(buildAnswer) };
     });
-    onCreate({
+    emit({
       id: "p" + Date.now(),
       type: "path",
       title,
@@ -9071,9 +9081,9 @@ function CreateView({ onCreate }) {
 
   // ----- DECK builder state -----
   // A deck is a list of questions, each with its own votingType and text options.
-  const [deckMode, setDeckMode] = useState("survey"); // survey | exam
+  const [deckMode, setDeckMode] = useState(dk?.deckMode || "survey"); // survey | exam
   const [deckAnswerMode, setDeckAnswerMode] = useState("step"); // step | scroll
-  const [examPassingScore, setExamPassingScore] = useState(5);
+  const [examPassingScore, setExamPassingScore] = useState(editItem?.passingScore || 5);
   // Thời gian làm bài: "Không giới hạn" hoặc một con số + đơn vị (giây/phút/giờ/ngày).
   // Được quy đổi ra phút (examDurationMinutes) để tương thích với useCountdown hiện có.
   const [examDurationUnlimited, setExamDurationUnlimited] = useState(false);
@@ -9081,7 +9091,7 @@ function CreateView({ onCreate }) {
   const [examDurationUnit, setExamDurationUnit] = useState("phut"); // giay | phut | gio | ngay
   const DURATION_UNIT_TO_MIN = { giay: 1 / 60, phut: 1, gio: 60, ngay: 1440 };
   const examDurationMinutes = examDurationUnlimited ? null : Math.max(1 / 60, (examDurationValue || 0) * DURATION_UNIT_TO_MIN[examDurationUnit]);
-  const [deckQuestions, setDeckQuestions] = useState([
+  const [deckQuestions, setDeckQuestions] = useState(dk?.questions || [
     { text: "", votingType: "single", points: 1, pointsLocked: false, options: [{ label: "", correct: false }, { label: "", correct: false }] },
   ]);
   // Điểm mỗi câu Exam luôn tự chia đều để tổng = 10; host bấm vào ô điểm để tự
@@ -9137,7 +9147,7 @@ function CreateView({ onCreate }) {
 
   const submitDeck = () => {
     if (!canSubmitDeck) return;
-    onCreate({
+    emit({
       id: "d" + Date.now(),
       type: "deck",
       deckMode,
@@ -9217,7 +9227,7 @@ function CreateView({ onCreate }) {
       voters: 0,
       color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][i % 5],
     }));
-    onCreate({
+    emit({
       id: "r" + Date.now(),
       type: "rankie",
       chartType,
@@ -9294,7 +9304,7 @@ function CreateView({ onCreate }) {
 
   return (
     <div style={{ padding: 16 }}>
-      <TopBar title="Tạo bài đăng mới" />
+      <TopBar title={editing ? "Chỉnh sửa bài đăng" : "Tạo bài đăng mới"} />
       <div style={{ paddingTop: 16 }}>
         {/* Content type toggle: Rankie / Path / Survey / Exam */}
         <div style={{ display: "flex", gap: 6, marginBottom: 20, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, flexWrap: "wrap" }}>
@@ -9306,7 +9316,8 @@ function CreateView({ onCreate }) {
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
+              disabled={editing}
+              onClick={editing ? undefined : () => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
               style={{
                 flex: "1 1 21%",
                 minWidth: 70,
@@ -9318,7 +9329,8 @@ function CreateView({ onCreate }) {
                 fontFamily: bodyFont,
                 fontWeight: 700,
                 fontSize: 12.5,
-                cursor: "pointer",
+                cursor: editing ? "default" : "pointer",
+                opacity: editing && contentType !== t.id ? 0.4 : 1,
                 lineHeight: 1.3,
               }}
             >
@@ -10686,6 +10698,7 @@ function ProfileView({
   authorId,
   onLogout,
   onChangeAvatar,
+  onEditStructure,
   votedMap,
   participatedKeys,
   participationByKey,
@@ -10789,7 +10802,7 @@ function ProfileView({
         post={item}
         onPin={() => onPin(item)}
         onHide={() => onHide(item)}
-        onEdit={() => setEditingPost(item)}
+        onEdit={() => (item.type === "path" || item.type === "deck" ? onEditStructure?.(item) : setEditingPost(item))}
         onDuplicate={() => onDuplicate(item)}
         onDelete={() => onSoftDelete(item)}
         onVisibility={() => onCycleVisibility(item)}
@@ -11444,10 +11457,42 @@ function apiDeckToProto(d) {
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
     questions: (d.questions || []).map((q) => ({
       id: q.id, text: q.text || "", votingType: q.votingType || "single", points: q.points || 0,
-      options: (q.options || []).map((o) => ({ id: o.id, label: o.label || "", emoji: o.emoji || undefined, votes: 0 })),
+      options: (q.options || []).map((o) => ({ id: o.id, label: o.label || "", emoji: o.emoji || undefined, image: o.imageUrl || null, votes: 0, correct: o.correct })),
     })),
     _api: true,
   };
+}
+
+// Proto path (mở để SỬA) → state builder của CreateView (endings + questions với target/hotspot).
+function protoPathToBuilder(item) {
+  const endings = Object.entries(item.results || {}).map(([name, e], i) => ({ id: "e" + (i + 1), name, emoji: e.emoji || "🎯", image: e.image || null }));
+  const nameToEndingId = new Map(endings.map((e) => [e.name, e.id]));
+  const questions = (item.questions || []).map((q) => {
+    const branches = q.answers ? q.answers : [q.yes, q.no].filter(Boolean);
+    return {
+      id: q.id,
+      text: q.text || "",
+      sceneImage: q.sceneImage || null,
+      answers: branches.map((a, j) => {
+        const eid = nameToEndingId.get(a.next);
+        const target = eid ? { type: "ending", id: eid } : { type: "question", id: a.next };
+        return { id: q.id + "_a" + j, label: a.label || "", emoji: a.emoji || "➡️", image: a.image || null, hotspot: a.hotspot || null, target };
+      }),
+    };
+  });
+  return { endings: endings.length ? endings : null, questions: questions.length ? questions : null };
+}
+
+// Proto deck (mở để SỬA) → state builder deckQuestions của CreateView.
+function protoDeckToBuilder(item) {
+  const questions = (item.questions || []).map((q) => ({
+    text: q.text || "",
+    votingType: q.votingType || "single",
+    points: q.points || 1,
+    pointsLocked: false,
+    options: (q.options || []).map((o) => ({ label: o.label || "", correct: !!o.correct, emoji: o.emoji, image: o.image || null })),
+  }));
+  return { deckMode: item.deckMode || "survey", questions: questions.length ? questions : null };
 }
 
 // Proto item (do CreateView dựng) → payload cho POST /posts. Chỉ nhận URL http(s)/data
@@ -12279,6 +12324,27 @@ export default function RankevApp() {
       .catch((err) => showToast(err?.message || "Đăng bài thất bại — đang lưu tạm ngoại tuyến"));
   };
 
+  // Sửa cấu trúc path/deck qua CreateView (chế độ sửa). rankie sửa qua EditPostModal.
+  const [editStructPost, setEditStructPost] = useState(null);
+  const startStructEdit = (post) => { setEditStructPost(post); setView("create"); };
+  const openCreateNew = () => { setEditStructPost(null); setView("create"); };
+  const handleUpdate = (item) => {
+    api.posts
+      .update(item.id, protoToCreatePayload(item))
+      .then((full) => {
+        if (!full || !full.type) return;
+        const real = full.type === "path" ? apiPathToProto(full) : full.type === "deck" ? apiDeckToProto(full) : apiRankieToProto(full);
+        const merged = { ...real, mine: true, author: currentUser };
+        const swap = (prev) => prev.map((x) => (x.id === full.id ? merged : x));
+        setUserPaths(swap); setUserDecks(swap); setRankies(swap); setApiPosts(swap);
+        if (full.type === "path") setSelectedPath((p) => (p && p.id === full.id ? merged : p));
+        if (full.type === "deck") setSelectedDeck((d) => (d && d.id === full.id ? merged : d));
+      })
+      .catch((err) => showToast(err?.message || "Lưu chỉnh sửa thất bại"));
+    setEditStructPost(null);
+    setView("feed");
+  };
+
   // ---- CHAT STATE ----
   const [contacts, setContacts] = useState(CHAT_CONTACTS);
   const [chatMessages, setChatMessages] = useState(INITIAL_MESSAGES);
@@ -12764,7 +12830,7 @@ export default function RankevApp() {
               ? <ExamPresenterView deck={selectedDeck} onBack={() => setView("feed")} onShareToProfile={shareToProfile} contacts={contacts} onSessionEnd={(session) => saveDeckSession({ ...session, deckId: selectedDeck.id, deckTitle: selectedDeck.title, deckMode: selectedDeck.deckMode })} />
               : <DeckPresenterView deck={selectedDeck} onBack={() => setView("feed")} onShareToProfile={shareToProfile} contacts={contacts} onSessionEnd={(session) => saveDeckSession({ ...session, deckId: selectedDeck.id, deckTitle: selectedDeck.title, deckMode: selectedDeck.deckMode })} />
           )}
-          {view === "create" && <CreateView onCreate={handleCreate} />}
+          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} />}
           {view === "profile" && (
             <ProfileView
               pathUnlocks={pathUnlocks}
@@ -12772,6 +12838,7 @@ export default function RankevApp() {
               authorId="me"
               onLogout={handleLogout}
               onChangeAvatar={handleChangeAvatar}
+              onEditStructure={startStructEdit}
               votedMap={votedMap}
               participatedKeys={participatedKeys}
               participationByKey={participationByKey}
@@ -12895,7 +12962,7 @@ export default function RankevApp() {
           )}
         </div>
         {(!isOverlay || (view === "chat" && !openContact)) && (
-          <BottomNav active={view} setView={(v) => { setOpenContact(null); setView(v); }} chatUnread={chatUnread} />
+          <BottomNav active={view} setView={(v) => { setOpenContact(null); if (v === "create") setEditStructPost(null); setView(v); }} chatUnread={chatUnread} />
         )}
       </div>
     </div>
