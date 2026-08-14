@@ -2668,42 +2668,110 @@ function ModalShell({ title, onClose, children }) {
 // would silently invalidate collected data, which matters a lot for an app
 // centered on data collection and analysis.
 function EditPostModal({ post, onClose, onSave }) {
+  const isRankie = post.type === "rankie";
   const [title, setTitle] = useState(post.title || "");
   const [caption, setCaption] = useState(post.caption || "");
-  const inputStyle = {
-    width: "100%",
-    padding: "11px 12px",
-    borderRadius: 10,
-    border: `1px solid ${C.border}`,
-    background: C.surfaceRaised,
-    color: C.text,
-    fontFamily: bodyFont,
-    fontSize: 14,
-    marginTop: 6,
+  const [media, setMedia] = useState(post.media || null);
+  const toOpt = (o) => ({ id: isUuid(o.id) ? o.id : undefined, label: o.label || "", emoji: o.emoji || "🔘", image: o.image || o.imageUrl || null, color: o.color });
+  const [options, setOptions] = useState(isRankie ? (post.options || []).map(toOpt) : []);
+
+  // Rankie THẬT: nạp full để có option id thật (giữ phiếu khi sửa) nếu bản hiện tại là summary.
+  useEffect(() => {
+    if (!isRankie || !isUuid(post.id)) return;
+    if ((post.options || []).some((o) => isUuid(o.id))) return;
+    let alive = true;
+    api.posts.get(post.id).then((full) => { if (alive && full && full.type === "rankie") setOptions((full.options || []).map(toOpt)); }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRankie, post.id]);
+
+  const inputStyle = { width: "100%", padding: "11px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, marginTop: 6 };
+  const urlOK = (v) => (typeof v === "string" && /^(https?:|data:)/.test(v) ? v : undefined);
+  const uploadInto = (apply) => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      apply(URL.createObjectURL(file));
+      api.uploadImage(file, "image").then((res) => { if (res && res.url) apply(res.url); }).catch(() => {});
+    };
+    input.click();
   };
+  const setOpt = (i, patch) => setOptions((prev) => prev.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
+  const addOpt = () => setOptions((prev) => [...prev, { id: undefined, label: "", emoji: EMOJI_CHOICES[prev.length % EMOJI_CHOICES.length], image: null }]);
+  const delOpt = (i) => setOptions((prev) => (prev.length > 2 ? prev.filter((_, idx) => idx !== i) : prev));
+
+  const save = () => {
+    const patch = { title: title.trim() || post.title, caption: caption.trim() || null };
+    patch.media = media && (media.url || media.emoji || media.color) ? { type: media.type || "image", color: media.color, emoji: media.emoji, url: urlOK(media.url) } : null;
+    if (isRankie) {
+      const valid = options.filter((o) => (o.label || "").trim() || o.image);
+      if (valid.length >= 2) {
+        patch.options = valid.map((o) => {
+          const it = { label: (o.label || "").trim() || undefined, emoji: o.emoji || undefined, imageUrl: urlOK(o.image), color: o.color || undefined };
+          if (o.id) it.id = o.id;
+          return it;
+        });
+      }
+    }
+    onSave(patch);
+    onClose();
+  };
+
   return (
     <ModalShell title="Chỉnh sửa bài đăng" onClose={onClose}>
       <div style={{ marginBottom: 16 }}>
         <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Tiêu đề</span>
         <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
       </div>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Mô tả</span>
-        <textarea
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          rows={4}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: bodyFont }}
-        />
+        <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: bodyFont }} />
       </div>
-      <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 16, lineHeight: 1.4 }}>
-        Lưu ý: các phương án bình chọn không thể chỉnh sửa sau khi đã đăng, để tránh làm sai lệch số liệu đã thu thập.
+
+      {/* Ảnh bìa */}
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Ảnh bìa</span>
+        {media && (media.url || media.emoji) ? (
+          <div style={{ marginTop: 8, position: "relative" }}>
+            <PostMedia media={media} height={140} />
+            <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+              <button onClick={() => uploadInto((url) => setMedia({ type: "image", url }))} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }} title="Đổi ảnh"><ImagePlus size={15} /></button>
+              <button onClick={() => setMedia(null)} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }} title="Xoá ảnh"><X size={15} /></button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => uploadInto((url) => setMedia({ type: "image", url }))} style={{ ...inputStyle, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", color: C.textMuted }}><ImagePlus size={15} /> Thêm ảnh bìa</button>
+        )}
       </div>
+
+      {/* Phương án bình chọn (chỉ rankie) */}
+      {isRankie && (
+        <div style={{ marginBottom: 16 }}>
+          <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Phương án bình chọn</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+            {options.map((o, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => uploadInto((url) => setOpt(i, { image: url }))} title="Ảnh phương án" style={{ width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, cursor: "pointer", display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, fontSize: 18 }}>
+                  {o.image ? <img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (o.emoji || "🔘")}
+                </button>
+                <input value={o.label} onChange={(e) => setOpt(i, { label: e.target.value })} placeholder={`Phương án ${i + 1}`} style={{ ...inputStyle, marginTop: 0, flex: 1 }} />
+                <button onClick={() => delOpt(i)} disabled={options.length <= 2} title="Xoá phương án" style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: "transparent", color: options.length <= 2 ? C.textFaint : "#E4634A", cursor: options.length <= 2 ? "default" : "pointer", flexShrink: 0 }}><Trash2 size={16} /></button>
+              </div>
+            ))}
+          </div>
+          <button onClick={addOpt} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer" }}><PlusCircle size={15} /> Thêm phương án</button>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Phương án cũ giữ nguyên số phiếu; thêm mới bắt đầu từ 0; xoá thì bỏ phiếu của phương án đó. Phần trăm tự tính lại.</div>
+        </div>
+      )}
+      {!isRankie && (
+        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 16, lineHeight: 1.4 }}>
+          Chỉnh sửa câu hỏi/đáp án của {post.type === "path" ? "Path" : "bài Khảo sát/Thi"} sẽ được bổ sung ở bản sau. Hiện có thể sửa tiêu đề, mô tả và ảnh bìa.
+        </div>
+      )}
       <button
-        onClick={() => {
-          onSave({ title: title.trim() || post.title, caption: caption.trim() || null });
-          onClose();
-        }}
+        onClick={save}
         style={{
           width: "100%",
           padding: 13,
@@ -11940,16 +12008,32 @@ export default function RankevApp() {
   // Simple inline edit: title, subtitle/caption for now (options are left alone once
   // a post has live votes, to avoid silently invalidating collected data).
   const editPost = (post, patch) => {
-    if (post.type === "rankie") setRankies((prev) => prev.map((r) => (r.id === post.id ? { ...r, ...patch } : r)));
-    else if (post.type === "path") setUserPaths((prev) => prev.map((p) => (p.id === post.id ? { ...p, ...patch } : p)));
-    else if (post.type === "deck") setUserDecks((prev) => prev.map((d) => (d.id === post.id ? { ...d, ...patch } : d)));
-    else if (post.type === "share") setSharedPosts((prev) => prev.map((s) => (s.id === post.id ? { ...s, ...patch } : s)));
-    // Bài THẬT: lưu chỉnh sửa lên backend (chỉ các trường metadata backend cho sửa).
+    // Optimistic: chỉ áp METADATA (title/caption/media) — options để bản refresh từ API lo
+    // (tránh trạng thái trung gian vỡ vì options edit-format thiếu votes).
+    const meta = {};
+    ["title", "subtitle", "caption", "category", "media"].forEach((k) => { if (patch[k] !== undefined) meta[k] = patch[k]; });
+    const applyMeta = (prev) => prev.map((x) => (x.id === post.id ? { ...x, ...meta } : x));
+    if (post.type === "rankie") setRankies(applyMeta);
+    else if (post.type === "path") setUserPaths(applyMeta);
+    else if (post.type === "deck") setUserDecks(applyMeta);
+    else if (post.type === "share") setSharedPosts(applyMeta);
+
+    // Bài THẬT: gửi đầy đủ (kể cả options) → swap bản refresh (options mới + phiếu giữ theo id).
     if (isApiId(post.id)) {
       const body = {};
-      ["title", "subtitle", "caption", "category"].forEach((k) => { if (patch[k] !== undefined) body[k] = patch[k]; });
+      ["title", "subtitle", "caption", "category", "media", "options"].forEach((k) => { if (patch[k] !== undefined) body[k] = patch[k]; });
       if (Object.keys(body).length) {
-        api.posts.update(post.id, body).catch((err) => showToast(err?.message || "Lưu chỉnh sửa thất bại"));
+        api.posts
+          .update(post.id, body)
+          .then((full) => {
+            if (!full || !full.type) return;
+            const real = full.type === "rankie" ? apiRankieToProto(full) : full.type === "path" ? apiPathToProto(full) : apiDeckToProto(full);
+            const merged = { ...real, mine: true, author: currentUser };
+            const swap = (prev) => prev.map((x) => (x.id === full.id ? merged : x));
+            setRankies(swap); setUserPaths(swap); setUserDecks(swap); setApiPosts(swap);
+            if (full.type === "rankie") setLiveOptions((prev) => ({ ...prev, [full.id]: merged.options }));
+          })
+          .catch((err) => showToast(err?.message || "Lưu chỉnh sửa thất bại"));
       }
     }
   };
