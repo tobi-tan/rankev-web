@@ -1466,7 +1466,7 @@ function RankChevrons({ level, color = "currentColor", size = 18 }) {
 
 // RankUp/RankDown (hướng A): pill có chữ + popover chọn tầng. Luôn thấy đang ở tầng
 // nào; popover mô tả từng tầng, khoá "Fan cuồng" kèm thanh tiến độ, và có "Bỏ RankUp".
-function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10 }) {
+function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, variant = "icon", align = "right" }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   useEffect(() => {
@@ -1484,22 +1484,34 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10 }) 
   const tap = (e) => {
     e.stopPropagation();
     if (t === 0) onSetTier?.(1);
-    else setOpen(true);
+    else setOpen((v) => !v);
   };
 
   return (
     <div ref={rootRef} style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-      <button
-        onClick={tap}
-        title="RankUp"
-        aria-label="RankUp"
-        style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 999, background: t === 0 ? "transparent" : `${color}1A`, border: "none", cursor: "pointer", padding: 0 }}
-      >
-        <RankCircleChevrons level={t === 0 ? 1 : t} color={color} size={21} />
-      </button>
+      {variant === "pill" ? (
+        // Pill kèm chữ (kiểu nút Follow của Instagram) — đặt cạnh tên ở trang cá nhân.
+        <button
+          onClick={tap}
+          aria-label="RankUp"
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `${color}1A`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+        >
+          <RankChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={14} />
+          {t === 0 ? "RankUp" : info.label}
+        </button>
+      ) : (
+        <button
+          onClick={tap}
+          title="RankUp"
+          aria-label="RankUp"
+          style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 999, background: t === 0 ? "transparent" : `${color}1A`, border: "none", cursor: "pointer", padding: 0 }}
+        >
+          <RankCircleChevrons level={t === 0 ? 1 : t} color={color} size={21} />
+        </button>
+      )}
 
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 250, maxWidth: "82vw", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", zIndex: 40 }}>
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", [align === "left" ? "left" : "right"]: 0, width: 250, maxWidth: "82vw", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", zIndex: 200 }}>
           {[1, 2, 3].map((lv) => {
             const tinfo = RANK_TIERS[lv];
             const locked = lv === 3 && !fanUnlocked;
@@ -6068,9 +6080,18 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     return (
       <div style={{ padding: 24, textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 18 }}>
-          {Object.values(path.results).slice(0, 4).map((r, i) => (
-            <Illustration key={i} emoji={r.emoji} image={r.image} size={52} radius={12} />
-          ))}
+          {(() => {
+            // Không spoil kết quả: chỉ hiện ending THẬT khi tác giả bật revealMode="all",
+            // là chủ bài, hoặc người xem đã khám phá ending đó. Còn lại hiện dấu "?".
+            const revealAll = isOwner || (path.revealMode || "hidden") === "all";
+            const unlockedSet = new Set(unlockedEndings || []);
+            return Object.entries(path.results).slice(0, 4).map(([name, r], i) => {
+              const reveal = revealAll || unlockedSet.has(name);
+              return reveal
+                ? <Illustration key={i} emoji={r.emoji} image={r.image} size={52} radius={12} />
+                : <div key={i} style={{ width: 52, height: 52, borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", fontSize: 24, color: C.textFaint }}>?</div>;
+            });
+          })()}
         </div>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>
           RANKEV PATH
@@ -10868,6 +10889,9 @@ function ProfileView({
                     <Check size={9} color={C.bg} strokeWidth={3} />
                   </span>
                 )}
+                {!isMe && onSetRank && (
+                  <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
+                )}
               </div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{author.handle}</div>
               <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
@@ -10916,12 +10940,6 @@ function ProfileView({
           </div>
         )}
 
-        {!isMe && onSetRank && (
-          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
-            <RankUpControl tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
-            <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>RankUp để ưu tiên nội dung của kênh này</span>
-          </div>
-        )}
 
         {/* Thống kê rút gọn: icon + số, chạm để xem chi tiết */}
         <div style={{ marginTop: 14, position: "relative" }}>
