@@ -8904,7 +8904,7 @@ function distributeExamPoints(questions) {
 
 const EMOJI_CHOICES = ["🎯", "🎨", "⚙️", "💚", "🤝", "🎧", "🔥", "⭐", "🏆", "🚀", "🎬", "⚽"];
 
-function CreateView({ onCreate, onUpdate, editItem = null }) {
+function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
   // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
   // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
   const editing = !!editItem;
@@ -9445,11 +9445,28 @@ function CreateView({ onCreate, onUpdate, editItem = null }) {
           <input
             value={seriesInput}
             onChange={(e) => { setSeriesInput(e.target.value); setSelectedSeriesId(null); }}
-            placeholder="Tên series (để trống nếu bài đứng độc lập)"
+            placeholder="Tên series mới (để trống nếu bài đứng độc lập)"
             style={{ ...input, fontSize: 16 }}
           />
+          {mySeries.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, alignSelf: "center" }}>Thêm vào series có sẵn:</span>
+              {mySeries.map((s) => {
+                const active = selectedSeriesId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => { if (active) { setSelectedSeriesId(null); setSeriesInput(""); } else { setSelectedSeriesId(s.id); setSeriesInput(s.name); } }}
+                    style={{ padding: "5px 11px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {s.name} · {s.postCount}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
-            Gom bài vào một bộ (series). Người đọc sẽ vuốt trái/phải giữa các chapter.
+            Gom bài vào một bộ (series). Người đọc sẽ vuốt trái/phải giữa các chapter. Chọn series có sẵn để thêm chapter mới, hoặc gõ tên mới.
           </div>
         </div>
 
@@ -12338,8 +12355,22 @@ export default function RankevApp() {
         if (item.type === "path") setUserPaths(swap);
         else if (item.type === "deck") setUserDecks(swap);
         else setRankies(swap);
+        // Gom bài vào series (chapter) — persist lên backend.
+        if (item.seriesName) persistSeries(full.id, item.seriesName, item.seriesId);
       })
       .catch((err) => showToast(err?.message || "Đăng bài thất bại — đang lưu tạm ngoại tuyến"));
+  };
+
+  // ---- SERIES / CHAPTER (persist) ----
+  const [mySeries, setMySeries] = useState([]); // [{ id, name, postCount }]
+  const loadMySeries = useCallback(() => {
+    api.series.mine().then((r) => setMySeries(r.items || [])).catch(() => {});
+  }, []);
+  // seriesId: UUID thật (series có sẵn) → thêm bài vào; ngược lại (id local "s_..") → tạo series mới.
+  const persistSeries = (postId, seriesName, seriesId) => {
+    const addTo = (sid) => api.series.addPost(sid, postId).then(loadMySeries).catch(() => {});
+    if (isApiId(seriesId)) addTo(seriesId);
+    else api.series.create(seriesName).then((s) => addTo(s.id)).catch((err) => showToast(err?.message || "Lưu series thất bại"));
   };
 
   // Sửa cấu trúc path/deck qua CreateView (chế độ sửa). rankie sửa qua EditPostModal.
@@ -12493,6 +12524,7 @@ export default function RankevApp() {
         setApiCursor(res.nextCursor || null);
       } catch { /* giữ mock */ }
     })();
+    loadMySeries(); // nạp series của mình để chọn khi thêm chapter
     // Nạp danh sách đã lưu (bookmark) thật để đồng bộ trạng thái nút lưu.
     (async () => {
       try {
@@ -12864,7 +12896,7 @@ export default function RankevApp() {
               ? <ExamPresenterView deck={selectedDeck} onBack={() => setView("feed")} onShareToProfile={shareToProfile} contacts={contacts} onSessionEnd={(session) => saveDeckSession({ ...session, deckId: selectedDeck.id, deckTitle: selectedDeck.title, deckMode: selectedDeck.deckMode })} />
               : <DeckPresenterView deck={selectedDeck} onBack={() => setView("feed")} onShareToProfile={shareToProfile} contacts={contacts} onSessionEnd={(session) => saveDeckSession({ ...session, deckId: selectedDeck.id, deckTitle: selectedDeck.title, deckMode: selectedDeck.deckMode })} />
           )}
-          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} />}
+          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} />}
           {view === "profile" && (
             <ProfileView
               pathUnlocks={pathUnlocks}

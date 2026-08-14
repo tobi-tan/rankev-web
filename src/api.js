@@ -206,6 +206,7 @@ export const social = {
 
 export const series = {
   get(id) { return apiFetch(`/series/${id}`); },
+  mine() { return apiFetch('/series/mine'); }, // → { items: [{ id, name, postCount }] }
   create(name) { return apiFetch('/series', { method: 'POST', body: { name } }); },
   addPost(id, postId) { return apiFetch(`/series/${id}/posts`, { method: 'POST', body: { postId } }); },
 };
