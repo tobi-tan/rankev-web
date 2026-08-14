@@ -6052,16 +6052,29 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           {path.title}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14, background: C.goldSoft, border: `1px solid ${C.gold}55`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-          <div style={{ animation: "popIn 0.4s ease", flexShrink: 0 }}>
-            <Illustration emoji={r.emoji} image={r.image} size={60} radius={16} />
+        {r.image ? (
+          // Có ảnh đính kèm → hiện LỚN dạng ảnh bìa kết quả, chữ nằm dưới.
+          <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}55`, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            <img src={r.image} alt={step} style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block", animation: "popIn 0.4s ease" }} />
+            <div style={{ padding: 14 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
+              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, marginTop: 3 }}>{r.pct}% giống bạn · {fmt(r.count)} người</div>
+            </div>
           </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
-            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
-            <div style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, marginTop: 3 }}>{r.pct}% giống bạn · {fmt(r.count)} người</div>
+        ) : (
+          // Chỉ có emoji → giữ sticker nhỏ cạnh chữ như cũ.
+          <div style={{ display: "flex", alignItems: "center", gap: 14, background: C.goldSoft, border: `1px solid ${C.gold}55`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+            <div style={{ animation: "popIn 0.4s ease", flexShrink: 0 }}>
+              <Illustration emoji={r.emoji} image={r.image} size={60} radius={16} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
+              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, marginTop: 3 }}>{r.pct}% giống bạn · {fmt(r.count)} người</div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Companions — tài liệu PATH: ≤5 endings mỗi ending là 1 cộng đồng riêng;
             >5 endings tự chuyển sang cộng đồng chung (global) cho toàn Path. */}
