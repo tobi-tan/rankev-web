@@ -1866,26 +1866,52 @@ function sessionResultOptions(post) {
 }
 
 // Sinh danh sách người tham gia mô phỏng, ổn định theo id phiên (không đổi giữa các lần render).
+const SD_NAMES = ["Minh Khoa","Lan Anh","Tuấn Anh","Hà My","Quang Huy","Thu Trang","Bảo Long","Yến Nhi","Đức Khải","Kim Ngân","Hoài Nam","Phương Linh","Trọng Nghĩa","Gia Hân","Nhật Minh","Mỹ Linh","Văn Toàn","Thùy Dung","Hữu Đức","Ngọc Mai"];
 function makeSessionParticipants(session, post) {
   const n = Math.max(6, Math.min(400, session.participants || session.totalVotes || 40));
   const r = sdRng(sdHash(session.id || "s") ^ n);
   const results = sessionResultOptions(post);
-  return Array.from({ length: n }, (_, i) => ({
-    id: i,
-    gender: sdPick(SD_GENDERS, r),
-    age: sdPick(SD_AGES, r),
-    occupation: sdPick(SD_OCCUPATIONS, r),
-    resultId: sdPick(results, r).id,
-  }));
+  const isExam = post?.type === "deck" && post?.deckMode === "exam";
+  const questions = post?.questions || [];
+  return Array.from({ length: n }, (_, i) => {
+    const skill = 0.3 + r() * 0.65; // 30–95% khả năng chọn đúng (mô phỏng học lực)
+    const p = {
+      id: i,
+      name: SD_NAMES[i % SD_NAMES.length] + (i >= SD_NAMES.length ? ` ${Math.floor(i / SD_NAMES.length) + 1}` : ""),
+      gender: sdPick(SD_GENDERS, r),
+      age: sdPick(SD_AGES, r),
+      occupation: sdPick(SD_OCCUPATIONS, r),
+      resultId: sdPick(results, r).id,
+      skill,
+    };
+    if (isExam) {
+      let totalPts = 0, maxPts = 0;
+      questions.forEach((q, qi) => {
+        const pts = q.points || 1;
+        maxPts += pts;
+        const correctIds = (q.options || []).filter((o) => o.correct).map((o) => o.id);
+        if (!correctIds.length) return;
+        if (correctIds.includes(participantAnswerId(p, qi, q.options || []))) totalPts += pts;
+      });
+      p.score10 = maxPts > 0 ? Math.round((totalPts / maxPts) * 100) / 10 : 0;
+    }
+    return p;
+  });
 }
 
-// Đáp án cố định của 1 người tham gia cho câu hỏi qi (câu đầu = kết quả tổng của
-// phiên; câu sau suy ra ổn định theo id người + id câu). Dùng chung cho cả tính
-// phân bố hiển thị VÀ lọc crosstab để 2 bên luôn khớp nhau.
+// Đáp án cố định của 1 người cho câu qi — ổn định theo id người + id câu (dùng chung
+// cho tính phân bố VÀ lọc để luôn khớp). Exam: người skill cao dễ chọn ĐÚNG (phân bố
+// không còn đều 25%); Survey (không có đáp án đúng): phân bố đều theo lựa chọn.
 function participantAnswerId(p, qi, opts) {
-  if (qi === 0) return p.resultId;
-  if (!opts || !opts.length) return null;
+  if (!opts || !opts.length) return p.resultId ?? null;
   const seed = (p.id * 97 + qi * 13) >>> 0;
+  const correctIds = opts.filter((o) => o.correct).map((o) => o.id);
+  if (correctIds.length && p.skill != null) {
+    const coin = (seed % 1000) / 1000;
+    if (coin < p.skill) return correctIds[seed % correctIds.length];
+    const wrong = opts.filter((o) => !o.correct);
+    return (wrong.length ? wrong[seed % wrong.length] : opts[seed % opts.length]).id;
+  }
   return opts[seed % opts.length].id;
 }
 
