@@ -11449,7 +11449,7 @@ function apiSummaryToProto(s) {
       id: "opt" + i, label: o.label || "", emoji: o.emoji || undefined,
       votes: o.votes || 0, color: o.color || OPT_FALLBACK[i % OPT_FALLBACK.length],
     }));
-    return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: opts.length === 2 ? "head_to_head" : "bar", live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, options: opts, comments: [] };
+    return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: opts.length === 2 ? "head_to_head" : "bar", live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
   }
   if (s.type === "path") {
     return { ...base, type: "path", subtitle: `${s.size} kết quả`, questions: [], results: {}, comments: s.commentsCount || 0 };
@@ -11470,6 +11470,7 @@ function apiRankieToProto(r) {
     category: r.category || "Khác", live: !!r.live, mine: false, author: apiAuthorToProto(r.author),
     createdAt: Date.parse(r.createdAt) || Date.now(), closesAt: r.closesAt ? Date.parse(r.closesAt) : null,
     caption: r.caption || "", media: r.media || null, participants: r.totalVotes || 0,
+    voteMarker: r.voteMarker || null,
     options: opts, comments: [], _api: true,
   };
 }
@@ -11624,11 +11625,15 @@ function protoToCreatePayload(item) {
   }
 
   // rankie
+  const voteMarker = item.voteMarker && (item.voteMarker.emoji || item.voteMarker.image)
+    ? { emoji: item.voteMarker.emoji || undefined, image: urlOK(item.voteMarker.image) }
+    : undefined;
   return {
     type: "rankie",
     ...base,
     votingType: item.votingType || "single",
     chartType: item.chartType || "bar",
+    voteMarker,
     live: !!item.live,
     closesAt: item.closesAt ? new Date(item.closesAt).toISOString() : undefined,
     options: (item.options || []).map((o) => ({
