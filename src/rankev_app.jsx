@@ -7647,6 +7647,217 @@ function SharedPostCard({ post, onOpen, onOpenAuthor, menuSlot }) {
 
 // ---------- DECK PRESENTER (live check, one question at a time) ----------
 // ---------- EXAM PRESENTER VIEW ----------
+// ============ PHIÊN TRỰC TIẾP (join bằng mã) ============
+// Người tham gia THẬT: nhập mã → tên → làm bài → nộp. Không cần đăng nhập.
+function LiveJoinView({ code: initialCode = "", onExit }) {
+  const [code, setCode] = useState(initialCode);
+  const [phase, setPhase] = useState("code"); // code | name | answer | done
+  const [session, setSession] = useState(null); // { sessionId, name, post }
+  const [name, setName] = useState("");
+  const [participantId, setParticipantId] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const lookup = (c) => {
+    const cc = (c || "").trim().toUpperCase();
+    if (!cc) return;
+    setBusy(true); setErr(null);
+    api.live.byCode(cc)
+      .then((s) => { setSession(s); setPhase("name"); })
+      .catch((e) => setErr(e?.message || "Không tìm thấy phiên với mã này"))
+      .finally(() => setBusy(false));
+  };
+  useEffect(() => { if (initialCode) lookup(initialCode); /* eslint-disable-next-line */ }, []);
+
+  const join = () => {
+    setBusy(true); setErr(null);
+    api.live.join(session.sessionId, name.trim() || "Ẩn danh")
+      .then((r) => { setParticipantId(r.participantId); setPhase("answer"); })
+      .catch((e) => setErr(e?.message || "Không vào được phiên"))
+      .finally(() => setBusy(false));
+  };
+  const setAns = (qid, val) => setAnswers((prev) => ({ ...prev, [qid]: val }));
+  const toggleMulti = (qid, oid) => setAnswers((prev) => {
+    const cur = Array.isArray(prev[qid]) ? prev[qid] : [];
+    return { ...prev, [qid]: cur.includes(oid) ? cur.filter((x) => x !== oid) : [...cur, oid] };
+  });
+  const submit = () => {
+    setBusy(true); setErr(null);
+    api.live.submit(session.sessionId, participantId, answers)
+      .then((r) => { setResult(r); setPhase("done"); })
+      .catch((e) => setErr(e?.message || "Nộp bài thất bại"))
+      .finally(() => setBusy(false));
+  };
+
+  const wrap = { minHeight: "100vh", background: "#050A07", display: "flex", justifyContent: "center" };
+  const inner = { width: "100%", maxWidth: 480, padding: 20 };
+  const box = { ...cardSurface, padding: 20 };
+  const input = { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 16, marginTop: 8 };
+
+  return (
+    <div style={wrap}>
+      {FONT_IMPORT}
+      <div style={inner}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.gold }}>Rankev · Tham gia phiên</div>
+          {onExit && <button onClick={onExit} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontFamily: bodyFont, fontSize: 13 }}>Thoát</button>}
+        </div>
+
+        {err && <div style={{ background: `${C.coral}18`, border: `1px solid ${C.coral}55`, color: C.coral, borderRadius: 10, padding: "10px 12px", fontFamily: bodyFont, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+
+        {phase === "code" && (
+          <div style={box}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 4 }}>Nhập mã phiên</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>Mã do người trình chiếu cung cấp (6 ký tự).</div>
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="VD: ABC123" maxLength={6} style={{ ...input, fontFamily: monoFont, fontSize: 22, letterSpacing: 3, textAlign: "center" }} />
+            <button onClick={() => lookup(code)} disabled={busy || code.trim().length < 4} style={{ ...primaryButton, width: "100%", marginTop: 14, opacity: busy || code.trim().length < 4 ? 0.5 : 1 }}>Tiếp tục</button>
+          </div>
+        )}
+
+        {phase === "name" && session && (
+          <div style={box}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 4 }}>PHIÊN</div>
+            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text, marginBottom: 14 }}>{session.post?.title || session.name}</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>Tên của bạn</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nhập tên hiển thị" maxLength={60} style={input} />
+            <button onClick={join} disabled={busy} style={{ ...primaryButton, width: "100%", marginTop: 14, opacity: busy ? 0.5 : 1 }}>Vào làm bài</button>
+          </div>
+        )}
+
+        {phase === "answer" && session && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>{session.post?.title}</div>
+            {(session.post?.questions || []).map((q, qi) => (
+              <div key={q.id} style={box}>
+                <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}{q.votingType === "multiple" ? " · chọn nhiều" : ""}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
+                {q.votingType === "text" ? (
+                  <textarea value={answers[q.id] || ""} onChange={(e) => setAns(q.id, e.target.value)} rows={3} placeholder="Nhập câu trả lời..." style={{ ...input, resize: "vertical", marginTop: 0 }} />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(q.options || []).map((o) => {
+                      const multi = q.votingType === "multiple";
+                      const sel = multi ? (Array.isArray(answers[q.id]) && answers[q.id].includes(o.id)) : answers[q.id] === o.id;
+                      return (
+                        <button key={o.id} onClick={() => (multi ? toggleMulti(q.id, o.id) : setAns(q.id, o.id))}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, border: `1.5px solid ${sel ? C.gold : C.border}`, background: sel ? C.goldSoft : C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
+                          <span style={{ width: 20, height: 20, borderRadius: multi ? 5 : 99, border: `2px solid ${sel ? C.gold : C.border}`, background: sel ? C.gold : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>{sel && <Check size={12} color="#1A1305" strokeWidth={3} />}</span>
+                          {o.emoji ? o.emoji + " " : ""}{o.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+            <button onClick={submit} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.5 : 1 }}>Nộp bài</button>
+          </div>
+        )}
+
+        {phase === "done" && (
+          <div style={{ ...box, textAlign: "center" }}>
+            <div style={{ fontSize: 44, marginBottom: 8 }}>🎉</div>
+            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text, marginBottom: 6 }}>Đã nộp bài!</div>
+            {result && result.totalGradable > 0 ? (
+              <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 40, color: C.gold }}>{result.score}<span style={{ fontSize: 18, color: C.textFaint }}>/10</span>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 6 }}>{result.correctCount}/{result.totalGradable} câu đúng</div>
+              </div>
+            ) : (
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>Cảm ơn bạn đã tham gia khảo sát.</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Presenter: mở phiên trực tiếp, hiện MÃ + link, xem kết quả người thật (poll 3s).
+function LivePresenterView({ deck, onBack }) {
+  const [sess, setSess] = useState(null); // { id, code }
+  const [results, setResults] = useState(null);
+  const [err, setErr] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.live.create(deck.id, deck.title).then(setSess).catch((e) => setErr(e?.message || "Không mở được phiên"));
+  }, [deck.id]);
+  useEffect(() => {
+    if (!sess) return;
+    let alive = true;
+    const poll = () => api.live.results(sess.id).then((r) => { if (alive) setResults(r); }).catch(() => {});
+    poll();
+    const t = setInterval(poll, 3000);
+    return () => { alive = false; clearInterval(t); };
+  }, [sess]);
+
+  const joinUrl = sess ? `${window.location.origin}/?join=${sess.code}` : "";
+  const isExam = deck.deckMode === "exam";
+  const parts = results?.participants || [];
+  const sorted = [...parts].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
+        <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ChevronLeft size={20} /></button>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Trình chiếu trực tiếp</div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {err && <div style={{ background: `${C.coral}18`, border: `1px solid ${C.coral}55`, color: C.coral, borderRadius: 10, padding: "10px 12px", fontFamily: bodyFont, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+
+        {/* Mã + link chia sẻ */}
+        <div style={{ ...cardSurface, textAlign: "center", marginBottom: 14 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>MÃ THAM GIA</div>
+          <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 40, letterSpacing: 6, color: C.gold }}>{sess?.code || "····"}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 8 }}>Người tham gia vào <b style={{ color: C.text }}>rankev-web.vercel.app</b> → nhập mã, hoặc mở link:</div>
+          <button onClick={() => { if (joinUrl) { navigator.clipboard?.writeText(joinUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } }}
+            style={{ marginTop: 8, width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: copied ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer", wordBreak: "break-all" }}>
+            {copied ? "✓ Đã sao chép link" : joinUrl || "…"}
+          </button>
+        </div>
+
+        {/* Số liệu trực tiếp */}
+        <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 14 }}>
+          <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.gold }}>{results?.joined ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
+          <div style={{ width: 1, background: C.border }} />
+          <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.teal }}>{results?.submitted ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
+          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.text }}>{results?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+        </div>
+
+        {/* Danh sách người tham gia thật */}
+        <div style={{ ...cardSurface }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Người tham gia ({parts.length})</div>
+          {parts.length === 0 ? (
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Đang chờ người tham gia vào…</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {sorted.map((p, i) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                  {!p.submitted ? (
+                    <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đang làm…</span>
+                  ) : isExam ? (
+                    <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                  ) : (
+                    <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal }}>✓ đã nộp</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button onClick={() => { if (sess) api.live.end(sess.id).catch(() => {}); onBack(); }}
+          style={{ width: "100%", marginTop: 14, padding: 13, borderRadius: 12, border: `1px solid ${C.coral}55`, background: "transparent", color: C.coral, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+          Kết thúc phiên
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSessionEnd }) {
   const [phase, setPhase] = useState("setup"); // setup | waiting | live | results
   const [durationMinutes, setDurationMinutes] = useState(deck.examDurationMinutes !== undefined ? deck.examDurationMinutes : 10);
@@ -12498,6 +12709,7 @@ export default function RankevApp() {
   // giữ nguyên giá trị mock làm fallback khi API lỗi.
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [joinCode, setJoinCode] = useState(() => { try { return new URLSearchParams(window.location.search).get("join") || null; } catch { return null; } });
   const hydrateFromApi = useCallback((me) => {
     const u = me?.user;
     if (u) {
@@ -12726,6 +12938,7 @@ export default function RankevApp() {
     view === "deckDetail" ||
     view === "present" ||
     view === "deckPresent" ||
+    view === "livePresent" ||
     view === "pathPresent" ||
     view === "search" ||
     view === "authorProfile" ||
@@ -12737,6 +12950,10 @@ export default function RankevApp() {
     view === "chat";
 
   // Cổng đăng nhập (Phần 1): chờ kiểm tra phiên → nếu chưa đăng nhập thì hiện AuthGate.
+  // Tham gia phiên trực tiếp qua link ?join=CODE — KHÔNG cần đăng nhập.
+  if (joinCode) {
+    return <LiveJoinView code={joinCode} onExit={() => { setJoinCode(null); try { window.history.replaceState({}, "", window.location.pathname); } catch { /* */ } }} />;
+  }
   if (!authReady) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", background: C.bg, minHeight: "100vh", fontFamily: bodyFont, color: C.textMuted }}>
@@ -12921,7 +13138,7 @@ export default function RankevApp() {
                 right={
                   <DetailHeaderActions
                     item={selectedDeck}
-                    onPresent={() => setView("deckPresent")}
+                    onPresent={() => setView(isApiId(selectedDeck.id) ? "livePresent" : "deckPresent")}
                     isOwner={selectedDeck.mine || selectedDeck.author?.id === "me"}
                     participated={participatedKeys.has(`deck:${selectedDeck.id}`)}
                     allowGuestPresent={!!selectedDeck.allowGuestPresent}
@@ -12956,6 +13173,9 @@ export default function RankevApp() {
             selectedDeck?.deckMode === "exam"
               ? <ExamPresenterView deck={selectedDeck} onBack={() => setView("feed")} onShareToProfile={shareToProfile} contacts={contacts} onSessionEnd={(session) => saveDeckSession({ ...session, deckId: selectedDeck.id, deckTitle: selectedDeck.title, deckMode: selectedDeck.deckMode })} />
               : <DeckPresenterView deck={selectedDeck} onBack={() => setView("feed")} onShareToProfile={shareToProfile} contacts={contacts} onSessionEnd={(session) => saveDeckSession({ ...session, deckId: selectedDeck.id, deckTitle: selectedDeck.title, deckMode: selectedDeck.deckMode })} />
+          )}
+          {view === "livePresent" && selectedDeck && (
+            <LivePresenterView deck={selectedDeck} onBack={() => setView("deckDetail")} />
           )}
           {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} />}
           {view === "profile" && (

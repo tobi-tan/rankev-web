@@ -216,6 +216,16 @@ export const sessions = {
   create(postId, body) { return apiFetch(`/posts/${postId}/sessions`, { method: 'POST', body }); },
 };
 
+// ---------------- Live presentation sessions (join by code) ----------------
+export const live = {
+  create(postId, name) { return apiFetch('/live-sessions', { method: 'POST', body: { postId, name } }); },
+  byCode(code) { return apiFetch(`/live-sessions/code/${encodeURIComponent(code)}`, { auth: false }); },
+  join(sessionId, name) { return apiFetch(`/live-sessions/${sessionId}/join`, { auth: false, method: 'POST', body: { name } }); },
+  submit(sessionId, participantId, answers) { return apiFetch(`/live-sessions/${sessionId}/participants/${participantId}/answers`, { auth: false, method: 'POST', body: { answers } }); },
+  results(sessionId) { return apiFetch(`/live-sessions/${sessionId}/results`); },
+  end(sessionId) { return apiFetch(`/live-sessions/${sessionId}/end`, { method: 'POST' }); },
+};
+
 // ---------------- Uploads ----------------
 export async function uploadImage(file, kind = 'image') {
   const fd = new FormData();
@@ -287,6 +297,6 @@ export function voteRealtime(rankieId, optionIds) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, paths, decks, comments, bookmarks, social, series, sessions,
+  auth, posts, rankies, paths, decks, comments, bookmarks, social, series, sessions, live,
   uploadImage, subscribeRankie, voteRealtime, ApiError,
 };
