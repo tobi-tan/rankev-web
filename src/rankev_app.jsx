@@ -2173,6 +2173,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
   const [fOcc, setFOcc] = useState([]);
   const [fAnswers, setFAnswers] = useState({}); // key: q.id (deck) hoặc "result" (rankie/path) → [optionId,...]
   const [showFilter, setShowFilter] = useState(false);
+  const [examTab, setExamTab] = useState("results"); // exam: results (per-student) | stats (thống kê)
   const toggle = (setter) => (id) => setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleAnswer = (key) => (optId) => setFAnswers((prev) => {
     const cur = prev[key] || [];
@@ -2280,8 +2281,37 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
           </div>
         </div>
 
-        {/* === KQUAN TRỌNG NHẤT: KẾT QUẢ BÀI === */}
-        {(isSurvey || isExam) && post?.questions?.map((q, qi) => {
+        {/* Exam: tách 2 mục — Kết quả (từng học sinh) và Thống kê (phân bố câu hỏi). */}
+        {isExam && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 }}>
+            {[["results", "Kết quả"], ["stats", "Thống kê"]].map(([id, lbl]) => (
+              <button key={id} onClick={() => setExamTab(id)} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: examTab === id ? C.gold : "transparent", color: examTab === id ? "#1A1305" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+            ))}
+          </div>
+        )}
+
+        {/* KẾT QUẢ TỪNG HỌC SINH (exam) — điểm + đạt/chưa đạt, xếp theo điểm giảm dần. */}
+        {isExam && examTab === "results" && (
+          <div style={{ ...cardSurface, marginBottom: 12 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Kết quả từng người ({fmt(filtered.length)})</div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {[...filtered].sort((a, b) => (b.score10 || 0) - (a.score10 || 0)).map((p, i) => {
+                const passed = post.passingScore == null || (p.score10 || 0) >= post.passingScore;
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 22, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: passed ? "#4ADE80" : C.coral, background: passed ? "#4ADE8018" : `${C.coral}18`, borderRadius: 99, padding: "3px 9px", flexShrink: 0 }}>{passed ? "ĐẠT" : "CHƯA ĐẠT"}</span>
+                    <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold, flexShrink: 0, width: 54, textAlign: "right" }}>{p.score10}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* === THỐNG KÊ: PHÂN BỐ THEO CÂU HỎI === */}
+        {(isSurvey || (isExam && examTab === "stats")) && post?.questions?.map((q, qi) => {
           const opts = q.options || [];
           const dist = questionDist(qi, opts);
           const qTotal = dist.reduce((s, o) => s + o.filteredVotes, 0) || 1;
@@ -6944,7 +6974,7 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", marginBottom: ownerShowQuestions ? 10 : 16 }}
           >
             <BarChart3 size={15} />
-            <span style={{ flex: 1, textAlign: "left" }}>Xem trước câu hỏi &amp; đáp án đúng</span>
+            <span style={{ flex: 1, textAlign: "left" }}>Xem trước câu hỏi{deck.deckMode === "exam" ? " & đáp án đúng" : ""}</span>
             <ChevronDown size={15} style={{ transform: ownerShowQuestions ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
           </button>
 
@@ -7376,7 +7406,7 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
             }}
             promptLabel="Nhắc đến câu hỏi nào? (chọn nhiều, hoặc để trung lập)"
             supportPrefix="về:"
-            placeholder="VD: Câu này khó quá #4"
+            placeholder={deck.deckMode === "exam" ? "VD: Câu này khó quá #4" : "VD: Ý kiến của bạn về câu 2"}
           />
         </div>
       </div>
