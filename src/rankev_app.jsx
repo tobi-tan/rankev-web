@@ -12042,6 +12042,8 @@ function apiSummaryToProto(s) {
     mine: false,
     caption: "",
     participants: s.engagement || 0,
+    seriesId: s.seriesId || null,
+    seriesName: s.seriesName || null,
     _api: true,
   };
   if (s.type === "rankie") {
@@ -12067,7 +12069,7 @@ function apiRankieToProto(r) {
   return {
     id: r.id, type: "rankie", chartType: r.chartType || (opts.length === 2 ? "head_to_head" : "bar"),
     votingType: r.votingType || "single", title: r.title, subtitle: r.subtitle || "",
-    category: r.category || "Khác", live: !!r.live, mine: false, author: apiAuthorToProto(r.author),
+    category: r.category || "Khác", live: !!r.live, mine: false, seriesId: r.seriesId || null, seriesName: r.seriesName || null, author: apiAuthorToProto(r.author),
     createdAt: Date.parse(r.createdAt) || Date.now(), closesAt: r.closesAt ? Date.parse(r.closesAt) : null,
     caption: r.caption || "", media: r.media || null, participants: r.totalVotes || 0,
     voteMarker: r.voteMarker || null,
@@ -12107,7 +12109,7 @@ function apiPathToProto(p) {
   return {
     id: p.id, type: "path", title: p.title,
     subtitle: `${(p.questions || []).length} câu hỏi · ${(p.endings || []).length} kết quả`,
-    category: p.category || "Khác", mine: false, author: apiAuthorToProto(p.author),
+    category: p.category || "Khác", mine: false, seriesId: p.seriesId || null, seriesName: p.seriesName || null, author: apiAuthorToProto(p.author),
     createdAt: Date.parse(p.createdAt) || Date.now(), caption: p.caption || "", media: p.media || null,
     participants: 0, comments: 0, questions, results, _api: true,
   };
@@ -12117,7 +12119,7 @@ function apiPathToProto(p) {
 function apiDeckToProto(d) {
   return {
     id: d.id, type: "deck", deckMode: d.deckMode, title: d.title, subtitle: d.subtitle || "",
-    category: d.category || "Khác", mine: !!d.mine, allowGuestPresent: !!d.allowGuestPresent, author: apiAuthorToProto(d.author),
+    category: d.category || "Khác", mine: !!d.mine, allowGuestPresent: !!d.allowGuestPresent, seriesId: d.seriesId || null, seriesName: d.seriesName || null, author: apiAuthorToProto(d.author),
     createdAt: Date.parse(d.createdAt) || Date.now(), caption: d.caption || "", media: d.media || null,
     participants: 0, comments: 0, answerMode: "step", graded: d.deckMode === "exam",
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
@@ -12901,8 +12903,10 @@ export default function RankevApp() {
   const [seriesOverrides, setSeriesOverrides] = useState({}); // { seriesId: { name, order: [postId...] } }
   const allSeries = useMemo(() => {
     const map = {};
+    const seen = new Set(); // một post chỉ vào series 1 lần (nó có thể lặp ở list "mine" + "feed")
     [...rankies, ...allPaths, ...allDecks].forEach((p) => {
-      if (!p.seriesId) return;
+      if (!p.seriesId || seen.has(p.id)) return;
+      seen.add(p.id);
       if (!map[p.seriesId]) map[p.seriesId] = { id: p.seriesId, name: seriesOverrides[p.seriesId]?.name || p.seriesName || "Series", posts: [] };
       map[p.seriesId].posts.push(p);
     });
