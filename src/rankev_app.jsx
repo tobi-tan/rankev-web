@@ -7131,7 +7131,9 @@ function DeckResultsDashboard({ deck }) {
 }
 
 // Full Deck-taking experience: step-by-step or single-scroll, per the deck's answerMode.
-function DeckView({ deck, onPresent, onComplete, onCommentAdded, initialAnswers = null, initialSubmitted = false, serverResult = null, serverStats = null }) {
+function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfile, contacts = [], onShared, bookmarked = false, onToggleBookmark, initialAnswers = null, initialSubmitted = false, serverResult = null, serverStats = null }) {
+  const [ownerShareOpen, setOwnerShareOpen] = useState(false);
+  const ownerCommentsRef = useRef(null);
   const [started, setStarted] = useState(!!initialSubmitted);
   const [answers, setAnswers] = useState(initialAnswers || {}); // { [questionId]: answer }
   const [stepIdx, setStepIdx] = useState(0);
@@ -7312,6 +7314,35 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, initialAnswers 
               </button>
             )}
           </div>
+
+          {/* Engagement bar + bình luận — để chủ bài theo dõi ý kiến / chia sẻ (giống Rankie). */}
+          <div style={{ marginTop: 18 }}>
+            <EngagementBar
+              type={deck.deckMode === "exam" ? "exam" : "survey"}
+              participants={deck.participants}
+              comments={typeof deck.comments === "number" ? deck.comments : (deck.comments?.length || 0)}
+              shares={deck.shares || 0}
+              bookmarked={bookmarked}
+              onCommentClick={() => ownerCommentsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              onShareClick={() => setOwnerShareOpen(true)}
+              onBookmarkClick={() => onToggleBookmark?.(deck)}
+            />
+          </div>
+
+          <div ref={ownerCommentsRef} style={{ marginTop: 18, borderTop: `1px solid ${C.border}`, paddingTop: 18 }}>
+            <CommentsSection
+              postId={deck.id}
+              onCommentAdded={onCommentAdded}
+              initialComments={deck.deckComments || []}
+              supportOptions={deck.questions.map((q, qi) => ({ id: q.id, label: `Câu ${qi + 1}`, color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][qi % 5] }))}
+              getSupportLabel={(id) => {
+                const qi = deck.questions.findIndex((q) => q.id === id);
+                return qi === -1 ? null : { label: `Câu ${qi + 1}`, color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][qi % 5] };
+              }}
+            />
+          </div>
+
+          {ownerShareOpen && <ShareModal item={deck} onClose={() => setOwnerShareOpen(false)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={onShared} />}
         </div>
       );
     }
@@ -13702,6 +13733,11 @@ export default function RankevApp() {
                 key={(selectedDeck?.id || "") + ":" + (apiDeckResults[selectedDeck?.id]?.submitted ? "done" : "new")}
                 deck={selectedDeck}
                 onCommentAdded={() => bumpComments(selectedDeck.id)}
+                onShareToProfile={shareToProfile}
+                contacts={contacts}
+                onShared={() => bumpShares(selectedDeck)}
+                bookmarked={!!bookmarks?.[`deck:${selectedDeck.id}`]}
+                onToggleBookmark={() => toggleBookmark(selectedDeck)}
                 onPresent={() => setView(isApiId(selectedDeck.id) ? "livePresent" : "deckPresent")}
                 onComplete={(e) => {
                   addToHistory(e);
