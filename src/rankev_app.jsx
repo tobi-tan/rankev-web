@@ -4894,7 +4894,7 @@ function SupportDropdown({ options, selected, onToggle }) {
 
 // Each comment is itself a mini-vote: rank up / rank down, and shows which option the author supports.
 // getSupportLabel maps a comment's "supports" id to a display label + color (option or path result).
-function CommentsSection({ initialComments, getSupportLabel, supportOptions, promptLabel, supportPrefix, placeholder, postId = null, ending = null }) {
+function CommentsSection({ initialComments, getSupportLabel, supportOptions, promptLabel, supportPrefix, placeholder, postId = null, ending = null, onCommentAdded }) {
   const norm = (s) => (Array.isArray(s) ? s : s == null ? [] : [s]);
   const apiMode = isUuid(postId); // bài THẬT → comment đọc/ghi qua backend
   const [comments, setComments] = useState(
@@ -4955,13 +4955,14 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
       if (draftImage && /^https?:/.test(draftImage)) body.imageUrl = draftImage;
       api.comments
         .create(postId, body)
-        .then((c) => setComments((prev) => [apiCommentToProto(c), ...prev]))
+        .then((c) => { setComments((prev) => [apiCommentToProto(c), ...prev]); onCommentAdded?.(); })
         .catch(() => {});
     } else {
       setComments((prev) => [
         { id: "c" + Date.now(), user: "Bạn", text: draft.trim(), image: draftImage, rankUp: 0, rankDown: 0, supports: draftSupport, createdAt: Date.now(), myReaction: null, replies: [] },
         ...prev,
       ]);
+      onCommentAdded?.();
     }
     setDraft(""); setDraftSupport([]); setDraftImage(null);
   };
@@ -6160,7 +6161,8 @@ function ChoiceButton({ choice, onClick, accent, layout = "col", imageSize = 76 
   );
 }
 
-function PathView({ path = samplePath, startAtIntro = false, onComplete, onPresent, initialResultStep = null, unlockedEndings = [] }) {
+function PathView({ path = samplePath, startAtIntro = false, onComplete, onPresent, onCommentAdded, onShareToProfile, contacts = [], onShared, initialResultStep = null, unlockedEndings = [] }) {
+  const [shareSheet, setShareSheet] = useState(false);
   const [step, setStep] = useState(initialResultStep || (startAtIntro ? "intro" : "q1"));
   const [answered, setAnswered] = useState(0);
   const [shareCopied, setShareCopied] = useState(false);
@@ -6491,8 +6493,9 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         </button>
 
         <div style={{ marginTop: 24 }}>
-          <EngagementBar type="path" joined participants={path.participants} comments={path.comments} shares={path.shares || 0} onShareClick={() => shareResult(step)} />
+          <EngagementBar type="path" joined participants={path.participants} comments={path.comments} shares={path.shares || 0} onShareClick={() => setShareSheet(true)} />
         </div>
+        {shareSheet && <ShareModal item={path} onClose={() => setShareSheet(false)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={onShared} />}
 
         {/* Bình luận — tài liệu PATH: ≤5 endings mỗi ending là 1 thread riêng (chỉ xem
             thread ending đã mở, chuyển qua lại); >5 endings tự chuyển sang bình luận
@@ -6503,7 +6506,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             return (
               <div style={{ textAlign: "left", marginTop: 14 }}>
                 <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Bình luận chung</div>
-                <CommentsSection postId={path.id} initialComments={pathComments} supportOptions={[]} />
+                <CommentsSection postId={path.id} onCommentAdded={onCommentAdded} initialComments={pathComments} supportOptions={[]} />
               </div>
             );
           }
@@ -6531,6 +6534,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
               <CommentsSection
                 key={activeThread}
                 postId={path.id}
+                onCommentAdded={onCommentAdded}
                 ending={activeThread}
                 initialComments={threadComments}
                 supportOptions={[{ id: activeThread, label: activeThread, color: activeThread === step ? C.gold : C.teal }]}
@@ -7093,7 +7097,7 @@ function DeckResultsDashboard({ deck }) {
 }
 
 // Full Deck-taking experience: step-by-step or single-scroll, per the deck's answerMode.
-function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialSubmitted = false, serverResult = null, serverStats = null }) {
+function DeckView({ deck, onPresent, onComplete, onCommentAdded, initialAnswers = null, initialSubmitted = false, serverResult = null, serverStats = null }) {
   const [started, setStarted] = useState(!!initialSubmitted);
   const [answers, setAnswers] = useState(initialAnswers || {}); // { [questionId]: answer }
   const [stepIdx, setStepIdx] = useState(0);
@@ -7656,6 +7660,7 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
         <div style={{ marginTop: 18, borderTop: `1px solid ${C.border}`, paddingTop: 18 }}>
           <CommentsSection
             postId={deck.id}
+            onCommentAdded={onCommentAdded}
             initialComments={deck.deckComments || []}
             supportOptions={deck.questions.map((q, qi) => ({ id: q.id, label: `Câu ${qi + 1}`, color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][qi % 5] }))}
             getSupportLabel={(id) => {
@@ -12867,9 +12872,21 @@ export default function RankevApp() {
     }
   };
 
-  // Tăng số lượt chia sẻ thật của bài gốc — gọi khi ShareModal báo chia sẻ thành công
-  // (đăng vào hồ sơ hoặc gửi tin nhắn), để icon Chia sẻ trong EngagementBar hiện đúng số.
-  const bumpShares = (post) => { if (post) editPost(post, { shares: (post.shares || 0) + 1 }); };
+  // Vá một bài ở MỌI nơi đang giữ nó (list + detail đang mở) — để số liệu (chia sẻ,
+  // bình luận…) cập nhật ngay trên EngagementBar, kể cả khi đang xem chi tiết.
+  const patchPostEverywhere = (postId, patchFn) => {
+    const apply = (prev) => prev.map((x) => (x.id === postId ? patchFn(x) : x));
+    setRankies(apply); setUserPaths(apply); setUserDecks(apply); setApiPosts(apply); setSharedPosts(apply);
+    setSelectedDeck((d) => (d && d.id === postId ? patchFn(d) : d));
+    setSelectedPath((p) => (p && p.id === postId ? patchFn(p) : p));
+    // Rankie detail (`selected`) suy ra từ list nên đã được cập nhật qua setRankies/setApiPosts.
+  };
+
+  // Tăng số lượt chia sẻ của bài gốc — gọi khi ShareModal báo chia sẻ thành công.
+  const bumpShares = (post) => { if (post) patchPostEverywhere(post.id, (x) => ({ ...x, shares: (x.shares || 0) + 1 })); };
+
+  // Tăng số bình luận khi vừa đăng bình luận — cập nhật ngay EngagementBar.
+  const bumpComments = (postId) => { if (postId) patchPostEverywhere(postId, (x) => (Array.isArray(x.comments) ? x : { ...x, comments: (x.comments || 0) + 1 })); };
 
   // Mixed feed: rankies + all paths + all decks.
   // "Đang thịnh hành" sorts by a composite trending score (participants × recency × live bonus);
@@ -13585,6 +13602,10 @@ export default function RankevApp() {
                 key={selectedPath?.id}
                 path={selectedPath}
                 startAtIntro
+                onCommentAdded={() => bumpComments(selectedPath.id)}
+                onShareToProfile={shareToProfile}
+                contacts={contacts}
+                onShared={() => bumpShares(selectedPath)}
                 onComplete={(e) => {
                   addToHistory(e);
                   if (e.type === "path") {
@@ -13637,6 +13658,7 @@ export default function RankevApp() {
               <DeckView
                 key={(selectedDeck?.id || "") + ":" + (apiDeckResults[selectedDeck?.id]?.submitted ? "done" : "new")}
                 deck={selectedDeck}
+                onCommentAdded={() => bumpComments(selectedDeck.id)}
                 onPresent={() => setView(isApiId(selectedDeck.id) ? "livePresent" : "deckPresent")}
                 onComplete={(e) => {
                   addToHistory(e);
