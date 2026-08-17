@@ -6994,6 +6994,95 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
   );
 }
 
+// Bảng kết quả tổng hợp cho CHỦ bài — dữ liệu thật, tự làm mới ~5s.
+function DeckResultsDashboard({ deck }) {
+  const [data, setData] = useState(null);
+  const real = typeof deck.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deck.id);
+  useEffect(() => {
+    if (!real) return;
+    let alive = true;
+    const load = () => api.decks.ownerResults(deck.id).then((r) => { if (alive) setData(r); }).catch(() => {});
+    load();
+    const t = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(t); };
+  }, [deck.id, real]);
+  if (!real) return null; // deck mẫu: không có dữ liệu thật
+
+  const isExam = deck.deckMode === "exam";
+  const passing = data?.passingScore || deck.passingScore || 5;
+  const scores = data?.scores || [];
+  const passCount = scores.filter((s) => s >= passing).length;
+  const n = data?.participants ?? 0;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5 }}>KẾT QUẢ THỰC TẾ</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 11, color: C.teal }}>
+          <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> tự cập nhật
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 12 }}>
+        <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{n}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{data?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+      </div>
+
+      {isExam && scores.length > 0 && (
+        <div style={{ ...cardSurface, marginBottom: 12 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+          <ScoreSpectrum scores={scores} passing={passing} />
+        </div>
+      )}
+
+      {n === 0 ? (
+        <div style={{ ...cardSurface, textAlign: "center", padding: "20px 16px" }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted }}>Chưa có ai làm bài.</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>Chia sẻ bài hoặc mở phiên trình chiếu để thu kết quả.</div>
+        </div>
+      ) : (
+        <div style={{ ...cardSurface }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {(data?.questions || []).map((q, qi) => (
+              <div key={q.id}>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>
+                  {qi + 1}. {q.text || "(câu hỏi)"}
+                  {isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points}đ)</span>}
+                </div>
+                {q.votingType === "text" ? (
+                  <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontStyle: "italic" }}>{q.answered} câu trả lời tự luận</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {q.options.map((o) => {
+                      const pct = q.answered ? Math.round((o.count / q.answered) * 100) : 0;
+                      const barColor = o.correct ? C.teal : C.gold;
+                      return (
+                        <div key={o.id}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
+                            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
+                            </span>
+                            <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{o.count} · {pct}%</span>
+                          </div>
+                          <div style={{ height: 7, borderRadius: 99, background: C.border, overflow: "hidden" }}>
+                            <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 99, transition: "width .4s ease" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Full Deck-taking experience: step-by-step or single-scroll, per the deck's answerMode.
 function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialSubmitted = false, serverResult = null, serverStats = null }) {
   const [started, setStarted] = useState(!!initialSubmitted);
@@ -7126,6 +7215,9 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
               {deck.deckMode === "exam" && deck.passingScore != null && <> · Điểm đạt {deck.passingScore}/10</>}
             </div>
           </div>
+
+          {/* Bảng kết quả thật (tự cập nhật ~5s) — thay cho giao diện làm bài của khách. */}
+          <DeckResultsDashboard deck={deck} />
 
           <button
             onClick={() => setOwnerShowQuestions((v) => !v)}

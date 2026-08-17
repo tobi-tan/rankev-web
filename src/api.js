@@ -177,6 +177,7 @@ export const decks = {
   submit(id, payload) { return apiFetch(`/decks/${id}/submit`, { method: 'POST', body: payload }); },
   myResult(id) { return apiFetch(`/decks/${id}/my-result`); },
   stats(id) { return apiFetch(`/decks/${id}/stats`); },
+  ownerResults(id) { return apiFetch(`/decks/${id}/results`); }, // chủ bài: bảng tổng hợp
 };
 
 // ---------------- Comments / Bookmarks / Social ----------------
