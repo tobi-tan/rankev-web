@@ -2348,7 +2348,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
     return { ...prev, [key]: cur.includes(optId) ? cur.filter((x) => x !== optId) : [...cur, optId] };
   });
   const answerFilterCount = Object.values(fAnswers).reduce((s, a) => s + (a?.length || 0), 0);
-  const anyFilter = fGender.length || fAge.length || fOcc.length || answerFilterCount;
+  const anyFilter = !!(fGender.length || fAge.length || fOcc.length || answerFilterCount);
   const clearAll = () => { setFGender([]); setFAge([]); setFOcc([]); setFAnswers({}); };
 
   // Kết quả theo từng câu hỏi (Survey/Exam) hoặc phân bố đơn (Rankie/Path)
@@ -5440,7 +5440,7 @@ function DeckDetailWithSwipe({ selectedDeck, allSeries, navigateChapter, partici
 }
 
 // ---------- RANKIE DETAIL VIEW ----------
-function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession }) {
+function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded }) {
   const isUnlimited = rankie.votingType === "unlimited";
   const isClosed = isRankieClosed(rankie);
   const [shareOpen, setShareOpen] = useState(false);
@@ -6087,6 +6087,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
 
         <CommentsSection
           postId={rankie.id}
+          onCommentAdded={onCommentAdded}
           initialComments={rankie.comments}
           supportOptions={options.map((o, i) => ({
             id: o.id,
@@ -12903,8 +12904,16 @@ export default function RankevApp() {
   // Tăng số lượt chia sẻ của bài gốc — gọi khi ShareModal báo chia sẻ thành công.
   const bumpShares = (post) => { if (post) patchPostEverywhere(post.id, (x) => ({ ...x, shares: (x.shares || 0) + 1 })); };
 
-  // Tăng số bình luận khi vừa đăng bình luận — cập nhật ngay EngagementBar.
-  const bumpComments = (postId) => { if (postId) patchPostEverywhere(postId, (x) => (Array.isArray(x.comments) ? x : { ...x, comments: (x.comments || 0) + 1 })); };
+  // Tăng số bình luận khi vừa đăng — cập nhật ngay EngagementBar. Rankie đếm theo
+  // độ dài mảng `comments` → thêm 1 phần tử giữ chỗ; deck/path đếm bằng số.
+  const bumpComments = (postId) => {
+    if (!postId) return;
+    patchPostEverywhere(postId, (x) =>
+      Array.isArray(x.comments)
+        ? { ...x, comments: [...x.comments, { id: "local_" + Date.now() }] }
+        : { ...x, comments: (x.comments || 0) + 1 },
+    );
+  };
 
   // Mixed feed: rankies + all paths + all decks.
   // "Đang thịnh hành" sorts by a composite trending score (participants × recency × live bonus);
@@ -13572,6 +13581,7 @@ export default function RankevApp() {
             <RankieDetailWithSwipe selected={selected} allSeries={allSeries} navigateChapter={navigateChapter} participatedKeys={participatedKeys} resultData={chapterResultData} onOpenSeries={openSeriesDetail}>
             <RankieDetailView
               rankie={selected}
+              onCommentAdded={() => bumpComments(selected.id)}
               options={getOptions(selected)}
               setOptions={setOptionsFor(selected)}
               voted={votedMap[selected.id] ?? null}
