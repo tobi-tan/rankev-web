@@ -249,6 +249,25 @@ function getGrade(score10) {
   return GRADE_SCALE.find((g) => score10 >= g.min) || GRADE_SCALE[GRADE_SCALE.length - 1];
 }
 
+// Phổ điểm 0–10: histogram điểm làm tròn về nguyên (11 cột). Cột ≥ điểm đạt tô teal,
+// dưới ngưỡng tô coral. Dùng cho phiên live (thay cho phân loại A–F).
+function ScoreSpectrum({ scores = [], passing = 5 }) {
+  const buckets = Array.from({ length: 11 }, () => 0);
+  scores.forEach((s) => { buckets[Math.max(0, Math.min(10, Math.round(s)))]++; });
+  const maxB = Math.max(1, ...buckets);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 104 }}>
+      {buckets.map((cnt, k) => (
+        <div key={k} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }}>
+          <div style={{ fontFamily: monoFont, fontSize: 10, fontWeight: 700, color: cnt ? C.text : "transparent" }}>{cnt || 0}</div>
+          <div style={{ width: "100%", height: `${Math.round((cnt / maxB) * 100)}%`, minHeight: cnt ? 4 : 2, background: cnt ? (k >= passing ? C.teal : C.coral) : C.border, borderRadius: 3, transition: "height .4s ease" }} />
+          <div style={{ fontFamily: monoFont, fontSize: 10, color: C.textFaint }}>{k}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---------- ESSAY (TỰ LUẬN) AUTO-SCORE HEURISTIC ----------
 // Lightweight, fully client-side stand-in for "AI chấm điểm": compares the
 // participant's free-text answer against the model answer / keyword list the
@@ -2200,8 +2219,6 @@ function LiveSessionDetailView({ session, post, onBack }) {
   const submitted = parts.filter((p) => p.submitted);
   const avgScore = scored.length ? Math.round((scored.reduce((s, p) => s + (p.score || 0), 0) / scored.length) * 10) / 10 : null;
   const passCount = scored.filter((p) => (p.score || 0) >= passing).length;
-  const gradeGroups = {}; GRADE_SCALE.forEach((g) => { gradeGroups[g.grade] = 0; });
-  scored.forEach((p) => { gradeGroups[getGrade(p.score).grade]++; });
   const liveAtMs = session.liveAt ? new Date(session.liveAt).getTime() : null;
   const fmtDur = (secs) => secs == null ? "—" : `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, "0")}`;
   const timeTaken = (p) => (p.submittedAt && liveAtMs) ? (new Date(p.submittedAt).getTime() - liveAtMs) / 1000 : null;
@@ -2239,23 +2256,11 @@ function LiveSessionDetailView({ session, post, onBack }) {
           {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
         </div>
 
-        {/* Biểu đồ phân loại điểm */}
+        {/* Phổ điểm 0–10 */}
         {isExam && scored.length > 0 && (
           <div style={{ ...cardSurface, marginBottom: 14 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân loại điểm</div>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 96 }}>
-              {GRADE_SCALE.map((g) => {
-                const cnt = gradeGroups[g.grade] || 0;
-                const pct = scored.length ? Math.round((cnt / scored.length) * 100) : 0;
-                return (
-                  <div key={g.grade} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, height: "100%", justifyContent: "flex-end" }}>
-                    <div style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: cnt ? g.color : C.textFaint }}>{cnt}</div>
-                    <div style={{ width: "100%", maxWidth: 34, height: `${Math.max(pct, cnt ? 8 : 2)}%`, minHeight: 3, background: cnt ? g.color : C.border, borderRadius: 5 }} />
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color }}>{g.grade}</div>
-                  </div>
-                );
-              })}
-            </div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+            <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passing} />
           </div>
         )}
 
@@ -2267,7 +2272,6 @@ function LiveSessionDetailView({ session, post, onBack }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>
               {sorted.map((p, i) => {
-                const g = (p.submitted && p.score != null) ? getGrade(p.score) : null;
                 return (
                   <div key={p.id || i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
@@ -2278,10 +2282,7 @@ function LiveSessionDetailView({ session, post, onBack }) {
                     {!p.submitted ? (
                       <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>không nộp</span>
                     ) : isExam ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                        {g && <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
-                        <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
-                      </div>
+                      <span style={{ fontFamily: monoFont, fontSize: 15, fontWeight: 800, color: C.gold, flexShrink: 0 }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                     ) : (
                       <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
                     )}
@@ -8000,19 +8001,17 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ ...box, textAlign: "center" }}>
               {result?.revealed && result?.totalGradable > 0 ? (() => {
-                const g = getGrade(result.score || 0);
                 const passing = session.post?.passingScore || 5;
                 const passed = (result.score || 0) >= passing;
                 return (
                   <>
                     <div style={{ fontSize: 40, marginBottom: 4 }}>{passed ? "🎉" : "📝"}</div>
-                    <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 46, color: C.gold, lineHeight: 1 }}>{result.score}<span style={{ fontSize: 20, color: C.textFaint }}>/10</span></div>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "3px 12px", borderRadius: 999, background: `${g.color}1E`, border: `1px solid ${g.color}55` }}>
-                      <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: g.color }}>{g.grade}</span>
-                      <span style={{ fontFamily: bodyFont, fontSize: 12, color: g.color }}>{g.label}</span>
+                    <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 52, color: C.gold, lineHeight: 1 }}>{result.score}<span style={{ fontSize: 22, color: C.textFaint }}>/10</span></div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "4px 14px", borderRadius: 999, background: passed ? `${C.teal}1E` : `${C.coral}1E`, border: `1px solid ${passed ? C.teal : C.coral}55` }}>
+                      <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: passed ? C.teal : C.coral }}>{passed ? "Đạt" : "Chưa đạt"}</span>
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 10 }}>
-                      {result.correctCount}/{result.totalGradable} câu đúng · <b style={{ color: passed ? C.teal : C.coral }}>{passed ? "Đạt" : "Chưa đạt"}</b> <span style={{ color: C.textFaint }}>(cần ≥{passing})</span>
+                      {result.correctCount}/{result.totalGradable} câu đúng <span style={{ color: C.textFaint }}>(cần ≥{passing} để đạt)</span>
                     </div>
                   </>
                 );
@@ -8089,8 +8088,6 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
   const fmtDur = (secs) => secs == null ? "—" : `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, "0")}`;
   const timeTaken = (p) => (p.submittedAt && liveAtMs) ? (new Date(p.submittedAt).getTime() - liveAtMs) / 1000 : null;
   const scored = parts.filter((p) => p.submitted && p.score != null);
-  const gradeGroups = {}; GRADE_SCALE.forEach((g) => { gradeGroups[g.grade] = 0; });
-  scored.forEach((p) => { gradeGroups[getGrade(p.score).grade]++; });
   const passCount = scored.filter((p) => (p.score || 0) >= passingScore).length;
 
   // Đồng hồ đếm ngược (khi có giới hạn thời gian).
@@ -8186,23 +8183,11 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
               {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passingScore}</div></div></>}
             </div>
 
-            {/* Biểu đồ phân loại điểm (realtime) */}
+            {/* Phổ điểm 0–10 (realtime) */}
             {isExam && scored.length > 0 && (
               <div style={{ ...cardSurface, marginBottom: 14 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân loại điểm</div>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 96 }}>
-                  {GRADE_SCALE.map((g) => {
-                    const cnt = gradeGroups[g.grade] || 0;
-                    const pct = scored.length ? Math.round((cnt / scored.length) * 100) : 0;
-                    return (
-                      <div key={g.grade} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, height: "100%", justifyContent: "flex-end" }}>
-                        <div style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: cnt ? g.color : C.textFaint }}>{cnt}</div>
-                        <div style={{ width: "100%", maxWidth: 34, height: `${Math.max(pct, cnt ? 8 : 2)}%`, minHeight: 3, background: cnt ? g.color : C.border, borderRadius: 5, transition: "height .4s ease" }} />
-                        <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color }}>{g.grade}</div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+                <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passingScore} />
               </div>
             )}
 
@@ -8216,7 +8201,6 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {sorted.map((p, i) => {
-                    const g = (p.submitted && p.score != null) ? getGrade(p.score) : null;
                     const secs = timeTaken(p);
                     return (
                       <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
