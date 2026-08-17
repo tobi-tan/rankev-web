@@ -2340,6 +2340,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
   const [fOcc, setFOcc] = useState([]);
   const [fAnswers, setFAnswers] = useState({}); // key: q.id (deck) hoặc "result" (rankie/path) → [optionId,...]
   const [showFilter, setShowFilter] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false); // nhân khẩu học gấp gọn (dropdown)
   const [examTab, setExamTab] = useState("results"); // exam: results (per-student) | stats (thống kê)
   const toggle = (setter) => (id) => setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleAnswer = (key) => (optId) => setFAnswers((prev) => {
@@ -2441,11 +2442,15 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
             <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.teal }}>{post?.questions?.length || resultOpts.length}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>{isExam ? "câu hỏi" : isSurvey ? "câu hỏi" : "kết quả"}</div>
           </div>
-          <div style={{ width: 1, background: C.border }} />
-          <div>
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.text }}>{fmt(participants.length)}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>tổng cộng</div>
-          </div>
+          {anyFilter && (
+            <>
+              <div style={{ width: 1, background: C.border }} />
+              <div>
+                <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.text }}>{fmt(participants.length)}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>tổng cộng</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Exam: tách 2 mục — Kết quả (từng học sinh) và Thống kê (phân bố câu hỏi). */}
@@ -2520,10 +2525,13 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
           <div style={{ ...cardSurface, marginBottom: 12 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {resultOpts.map((o, i) => {
+              {(() => {
+                const maxCnt = Math.max(0, ...resultOpts.map((x) => resultCountById[x.id] || 0));
+                const topId = maxCnt > 0 ? resultOpts.find((x) => (resultCountById[x.id] || 0) === maxCnt)?.id : null;
+                return resultOpts.map((o, i) => {
                 const cnt = resultCountById[o.id] || 0;
                 const pct = Math.round((cnt / total) * 1000) / 10;
-                const isTop = i === 0 || cnt === Math.max(...resultOpts.map((x) => resultCountById[x.id] || 0));
+                const isTop = o.id === topId; // chỉ 1 medal cho kết quả nhiều nhất
                 return (
                   <div key={o.id}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
@@ -2535,7 +2543,8 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
                     </div>
                   </div>
                 );
-              })}
+                });
+              })()}
             </div>
           </div>
         )}
@@ -2546,12 +2555,21 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
             Kết quả trên tính cho <span style={{ color: C.gold, fontWeight: 700 }}>{fmt(filtered.length)}</span> người khớp bộ lọc
           </div>
         )}
-        <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>
-          Nhân khẩu học{anyFilter ? " (nhóm được lọc)" : ""}
-        </div>
-        <SessionBreakdown title="Giới tính" keys={SD_GENDERS} counts={countBy(filtered, "gender")} total={filtered.length} />
-        <SessionBreakdown title="Độ tuổi" keys={SD_AGES} counts={countBy(filtered, "age")} total={filtered.length} />
-        <SessionBreakdown title="Nghề nghiệp" keys={SD_OCCUPATIONS} counts={countBy(filtered, "occupation")} total={filtered.length} />
+        <button
+          onClick={() => setDemoOpen((v) => !v)}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: demoOpen ? 10 : 0, textTransform: "uppercase", letterSpacing: 0.4 }}
+        >
+          <Users size={15} />
+          <span style={{ flex: 1, textAlign: "left" }}>Nhân khẩu học{anyFilter ? " (nhóm được lọc)" : ""}</span>
+          <ChevronDown size={15} style={{ transform: demoOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+        </button>
+        {demoOpen && (
+          <>
+            <SessionBreakdown title="Giới tính" keys={SD_GENDERS} counts={countBy(filtered, "gender")} total={filtered.length} />
+            <SessionBreakdown title="Độ tuổi" keys={SD_AGES} counts={countBy(filtered, "age")} total={filtered.length} />
+            <SessionBreakdown title="Nghề nghiệp" keys={SD_OCCUPATIONS} counts={countBy(filtered, "occupation")} total={filtered.length} />
+          </>
+        )}
 
         {onOpenPost && (
           <button onClick={onOpenPost} style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.teal, borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
