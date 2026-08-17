@@ -238,6 +238,7 @@ let ws = null;
 let wsReady = false;
 const pending = [];
 const roomHandlers = new Map(); // rankieId → Set(handler)
+const liveHandlers = new Map(); // sessionId → Set(handler)
 
 function ensureSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -253,12 +254,15 @@ function ensureSocket() {
     wsReady = true;
     // re-subscribe existing rooms + flush queued messages
     for (const rankieId of roomHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_rankie', rankieId }));
+    for (const sessionId of liveHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_live', sessionId }));
     while (pending.length) ws.send(pending.shift());
   };
   ws.onmessage = (e) => {
     let m; try { m = JSON.parse(e.data); } catch { return; }
     if (m.type === 'vote_update' && roomHandlers.has(m.rankieId)) {
       for (const h of roomHandlers.get(m.rankieId)) { try { h(m.options); } catch { /* */ } }
+    } else if (m.type === 'live_update' && liveHandlers.has(m.sessionId)) {
+      for (const h of liveHandlers.get(m.sessionId)) { try { h(m.results); } catch { /* */ } }
     }
   };
   ws.onclose = () => { wsReady = false; ws = null; };
@@ -295,8 +299,26 @@ export function voteRealtime(rankieId, optionIds) {
   wsSend({ type: 'vote', rankieId, optionIds });
 }
 
+/** Presenter theo dõi phiên trực tiếp realtime. onUpdate(results). Trả về hàm hủy. */
+export function subscribeLive(sessionId, onUpdate) {
+  if (!liveHandlers.has(sessionId)) {
+    liveHandlers.set(sessionId, new Set());
+    wsSend({ type: 'subscribe_live', sessionId });
+  }
+  liveHandlers.get(sessionId).add(onUpdate);
+  return () => {
+    const set = liveHandlers.get(sessionId);
+    if (!set) return;
+    set.delete(onUpdate);
+    if (set.size === 0) {
+      liveHandlers.delete(sessionId);
+      wsSend({ type: 'unsubscribe_live', sessionId });
+    }
+  };
+}
+
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
   auth, posts, rankies, paths, decks, comments, bookmarks, social, series, sessions, live,
-  uploadImage, subscribeRankie, voteRealtime, ApiError,
+  uploadImage, subscribeRankie, subscribeLive, voteRealtime, ApiError,
 };

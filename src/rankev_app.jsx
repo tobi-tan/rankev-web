@@ -6969,7 +6969,7 @@ function DeckView({ deck, onPresent, onComplete, initialAnswers = null, initialS
     setStarted(false);
   };
 
-  const isOwner = deck.author?.id === "me";
+  const isOwner = deck.mine || deck.author?.id === "me";
   const [ownerPreview, setOwnerPreview] = useState(false);
   const [ownerShowQuestions, setOwnerShowQuestions] = useState(false);
 
@@ -7787,10 +7787,14 @@ function LivePresenterView({ deck, onBack }) {
   useEffect(() => {
     if (!sess) return;
     let alive = true;
-    const poll = () => api.live.results(sess.id).then((r) => { if (alive) setResults(r); }).catch(() => {});
+    const apply = (r) => { if (alive && r) setResults(r); };
+    // Realtime: server đẩy snapshot mỗi khi có người vào / nộp bài.
+    const unsub = api.subscribeLive(sess.id, apply);
+    // Fallback nhẹ (10s) phòng khi WebSocket rớt/không dùng được.
+    const poll = () => api.live.results(sess.id).then(apply).catch(() => {});
     poll();
-    const t = setInterval(poll, 3000);
-    return () => { alive = false; clearInterval(t); };
+    const t = setInterval(poll, 10000);
+    return () => { alive = false; if (unsub) unsub(); clearInterval(t); };
   }, [sess]);
 
   const joinUrl = sess ? `${window.location.origin}/?join=${sess.code}` : "";
@@ -7873,27 +7877,9 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
   const [presenterSessionSaved, setPresenterSessionSaved] = useState(false);
   const { remainingSec, expired } = useCountdown(durationMinutes, phase === "live");
 
-  const JOINING_NAMES = ["Minh Khoa","Lan Anh","Tuấn Anh","Hà My","Quang Huy","Thu Trang","Bảo Long","Yến Nhi","Đức Khải","Kim Ngân","Hoài Nam","Phương Linh","Trọng Nghĩa","Gia Hân","Nhật Minh","Mỹ Linh","Văn Toàn","Thùy Dung","Hữu Đức","Ngọc Mai"];
-
-  // Simulate people joining waiting room
+  // Khi hết giờ hoặc chủ phiên kết thúc → sang màn kết quả (không tạo dữ liệu ảo).
   useEffect(() => {
-    if (phase !== "waiting") return;
-    let idx = 0;
-    const iv = setInterval(() => {
-      if (idx >= JOINING_NAMES.length) { clearInterval(iv); return; }
-      const name = JOINING_NAMES[idx++];
-      setParticipants((prev) => [...prev, { id: "p" + idx, name, status: "waiting", score10: null, answers: {} }]);
-    }, 700);
-    return () => clearInterval(iv);
-  }, [phase]);
-
-  // When time runs out or host ends → generate results
-  useEffect(() => {
-    if ((expired || sessionEnded) && phase === "live") {
-      setPhase("results");
-      const results = genParticipants(deck);
-      setParticipants(results);
-    }
+    if ((expired || sessionEnded) && phase === "live") setPhase("results");
   }, [expired, sessionEnded]);
 
   const maxPts = deck.questions.reduce((s, q) => s + (q.points || 1), 0) || 1;
@@ -8421,29 +8407,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
   const sortedOpts = [...q.options].sort((a, b) => qCounts[b.id] - qCounts[a.id]);
   const COLORS = [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"];
 
-  // Simulate participants joining
-  useEffect(() => {
-    if (phase === "setup") return;
-    const iv = setInterval(() => {
-      setParticipantCount((n) => n + (phase === "waiting" ? Math.ceil(Math.random() * 4) : Math.random() < 0.12 ? 1 : 0));
-    }, 850);
-    return () => clearInterval(iv);
-  }, [phase]);
-
-  // Simulate live responses
-  useEffect(() => {
-    if (phase !== "live" || expired || sessionEnded) return;
-    const iv = setInterval(() => {
-      setCounts((prev) => {
-        const next = prev.map((c) => ({ ...c }));
-        const opts = deck.questions[qIdx].options;
-        const pick = opts[Math.floor(Math.random() * opts.length)];
-        next[qIdx][pick.id] += Math.ceil(Math.random() * 5);
-        return next;
-      });
-    }, 1100);
-    return () => clearInterval(iv);
-  }, [qIdx, deck.questions, phase, expired, sessionEnded]);
+  // (Đã bỏ mô phỏng người tham gia ảo & phản hồi ảo — chỉ hiển thị số liệu thật.)
 
   // Auto-reveal when time runs out
   useEffect(() => { if (expired) setRevealed(true); }, [expired]);
@@ -11754,7 +11718,7 @@ function apiPathToProto(p) {
 function apiDeckToProto(d) {
   return {
     id: d.id, type: "deck", deckMode: d.deckMode, title: d.title, subtitle: d.subtitle || "",
-    category: d.category || "Khác", mine: false, author: apiAuthorToProto(d.author),
+    category: d.category || "Khác", mine: !!d.mine, author: apiAuthorToProto(d.author),
     createdAt: Date.parse(d.createdAt) || Date.now(), caption: d.caption || "", media: d.media || null,
     participants: 0, comments: 0, answerMode: "step", graded: d.deckMode === "exam",
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
@@ -13151,7 +13115,7 @@ export default function RankevApp() {
               <DeckView
                 key={(selectedDeck?.id || "") + ":" + (apiDeckResults[selectedDeck?.id]?.submitted ? "done" : "new")}
                 deck={selectedDeck}
-                onPresent={() => setView("deckPresent")}
+                onPresent={() => setView(isApiId(selectedDeck.id) ? "livePresent" : "deckPresent")}
                 onComplete={(e) => {
                   addToHistory(e);
                   // Deck thật: nộp bài lên backend (server tự chấm lại — chống gian lận).
