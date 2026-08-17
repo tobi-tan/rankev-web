@@ -1529,8 +1529,16 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
         </button>
       )}
 
-      {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 6px)", [align === "left" ? "left" : "right"]: 0, width: 250, maxWidth: "82vw", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", zIndex: 200 }}>
+      {open && (() => {
+        // Định vị FIXED theo toạ độ nút để không bị viền bo (overflow:hidden) của card cắt.
+        const r = rootRef.current?.getBoundingClientRect();
+        const width = Math.min(250, Math.round(window.innerWidth * 0.82));
+        const top = (r ? r.bottom : 0) + 6;
+        const left = align === "left"
+          ? Math.max(8, Math.min(r ? r.left : 8, window.innerWidth - width - 8))
+          : Math.max(8, Math.min((r ? r.right : width) - width, window.innerWidth - width - 8));
+        return (
+        <div style={{ position: "fixed", top, left, width, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", zIndex: 3000 }}>
           {[1, 2, 3].map((lv) => {
             const tinfo = RANK_TIERS[lv];
             const locked = lv === 3 && !fanUnlocked;
@@ -1571,7 +1579,8 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
             </>
           )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -11545,12 +11554,12 @@ function ProfileView({
 
   const [filterOpen, setFilterOpen] = useState(false);
   const filterOptions = [
-    { id: "posts",   label: "Tất cả" },
-    { id: "rankies", label: "Rankie" },
-    { id: "paths",   label: "Path" },
-    { id: "decks",   label: "Survey" },
-    { id: "exams",   label: "Exam" },
-    ...(canManage ? [{ id: "trash", label: `Thùng rác${trashedPosts.length ? ` (${trashedPosts.length})` : ""}` }] : []),
+    { id: "posts",   label: "Tất cả", icon: Grid3x3,   count: theirPosts.length },
+    { id: "rankies", label: "Rankie", icon: BarChart3, count: theirRankies.length },
+    { id: "paths",   label: "Path",   icon: GitBranch, count: theirPaths.length },
+    { id: "decks",   label: "Survey", icon: Layers,    count: theirDecks.length },
+    { id: "exams",   label: "Exam",   icon: Edit3,     count: theirExams.length },
+    ...(canManage ? [{ id: "trash", label: "Thùng rác", icon: Trash2, count: trashedPosts.length }] : []),
   ];
   const currentFilterLabel = filterOptions.find((o) => o.id === tab)?.label || "Tất cả";
 
@@ -11581,7 +11590,6 @@ function ProfileView({
           <button onClick={onBack} style={{ ...iconButton, color: C.text, flexShrink: 0 }}>
             <ChevronLeft size={20} />
           </button>
-          {!isMe && <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 15, color: C.text }}>{author.name}</div>}
         </div>
       )}
 
@@ -11692,7 +11700,7 @@ function ProfileView({
             }}
           >
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Layers size={16} color={C.gold} />
+              <Grid3x3 size={16} color={C.gold} />
               <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{fmt(theirPostsAll.length)}</span>
               <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>bài đăng</span>
             </span>
@@ -11787,16 +11795,21 @@ function ProfileView({
             <>
               <div onClick={() => setFilterOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
               <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 150, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: 6, zIndex: 21, boxShadow: "0 8px 24px rgba(0,0,0,0.35)", animation: "popIn 0.15s ease" }}>
-                {filterOptions.map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => { setTab(o.id); setFilterOpen(false); }}
-                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 10px", borderRadius: 8, border: "none", background: tab === o.id ? C.goldSoft : "transparent", color: tab === o.id ? C.gold : C.text, fontFamily: bodyFont, fontSize: 13.5, fontWeight: tab === o.id ? 700 : 500, cursor: "pointer", textAlign: "left" }}
-                  >
-                    {o.label}
-                    {tab === o.id && <Check size={13} />}
-                  </button>
-                ))}
+                {filterOptions.map((o) => {
+                  const IconEl = o.icon;
+                  return (
+                    <button
+                      key={o.id}
+                      onClick={() => { setTab(o.id); setFilterOpen(false); }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", borderRadius: 8, border: "none", background: tab === o.id ? C.goldSoft : "transparent", color: tab === o.id ? C.gold : C.text, fontFamily: bodyFont, fontSize: 13.5, fontWeight: tab === o.id ? 700 : 500, cursor: "pointer", textAlign: "left" }}
+                    >
+                      {IconEl && <IconEl size={15} color={tab === o.id ? C.gold : C.textMuted} />}
+                      <span style={{ flex: 1 }}>{o.label}</span>
+                      <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint }}>{o.count}</span>
+                      {tab === o.id && <Check size={13} />}
+                    </button>
+                  );
+                })}
               </div>
             </>
           )}
@@ -13414,6 +13427,13 @@ export default function RankevApp() {
     view === "seriesDetail" ||
     view === "bookmarks" ||
     view === "chat";
+
+  // Mở một trang "chồng" (hồ sơ người khác, chi tiết bài…) → cuộn lên đầu. Không reset
+  // khi quay lại feed để giữ nguyên vị trí đang xem.
+  useEffect(() => {
+    if (isOverlay) window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, viewedAuthorId, selectedId, selectedDeck?.id, selectedPath?.id]);
 
   // Cổng đăng nhập (Phần 1): chờ kiểm tra phiên → nếu chưa đăng nhập thì hiện AuthGate.
   // Tham gia phiên trực tiếp qua link ?join=CODE — KHÔNG cần đăng nhập.
