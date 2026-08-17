@@ -220,8 +220,10 @@ export const sessions = {
 export const live = {
   create(postId, name) { return apiFetch('/live-sessions', { method: 'POST', body: { postId, name } }); },
   byCode(code) { return apiFetch(`/live-sessions/code/${encodeURIComponent(code)}`, { auth: false }); },
+  start(sessionId, durationMinutes = null) { return apiFetch(`/live-sessions/${sessionId}/start`, { method: 'POST', body: { durationMinutes } }); },
   join(sessionId, name) { return apiFetch(`/live-sessions/${sessionId}/join`, { auth: false, method: 'POST', body: { name } }); },
   submit(sessionId, participantId, answers) { return apiFetch(`/live-sessions/${sessionId}/participants/${participantId}/answers`, { auth: false, method: 'POST', body: { answers } }); },
+  participantResult(sessionId, participantId) { return apiFetch(`/live-sessions/${sessionId}/participants/${participantId}/result`, { auth: false }); },
   results(sessionId) { return apiFetch(`/live-sessions/${sessionId}/results`); },
   end(sessionId) { return apiFetch(`/live-sessions/${sessionId}/end`, { method: 'POST' }); },
 };
@@ -238,7 +240,8 @@ let ws = null;
 let wsReady = false;
 const pending = [];
 const roomHandlers = new Map(); // rankieId → Set(handler)
-const liveHandlers = new Map(); // sessionId → Set(handler)
+const liveHandlers = new Map(); // sessionId → Set(handler)  — presenter (kết quả đầy đủ)
+const liveStateHandlers = new Map(); // sessionId → Set(handler)  — participant (phase/endsAt)
 
 function ensureSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -255,6 +258,7 @@ function ensureSocket() {
     // re-subscribe existing rooms + flush queued messages
     for (const rankieId of roomHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_rankie', rankieId }));
     for (const sessionId of liveHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_live', sessionId }));
+    for (const sessionId of liveStateHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_live_state', sessionId }));
     while (pending.length) ws.send(pending.shift());
   };
   ws.onmessage = (e) => {
@@ -263,6 +267,8 @@ function ensureSocket() {
       for (const h of roomHandlers.get(m.rankieId)) { try { h(m.options); } catch { /* */ } }
     } else if (m.type === 'live_update' && liveHandlers.has(m.sessionId)) {
       for (const h of liveHandlers.get(m.sessionId)) { try { h(m.results); } catch { /* */ } }
+    } else if (m.type === 'live_state' && liveStateHandlers.has(m.sessionId)) {
+      for (const h of liveStateHandlers.get(m.sessionId)) { try { h(m.state); } catch { /* */ } }
     }
   };
   ws.onclose = () => { wsReady = false; ws = null; };
@@ -317,8 +323,26 @@ export function subscribeLive(sessionId, onUpdate) {
   };
 }
 
+/** Người tham gia theo dõi TRẠNG THÁI phiên realtime (phase/endsAt). Trả về hàm hủy. */
+export function subscribeLiveState(sessionId, onState) {
+  if (!liveStateHandlers.has(sessionId)) {
+    liveStateHandlers.set(sessionId, new Set());
+    wsSend({ type: 'subscribe_live_state', sessionId });
+  }
+  liveStateHandlers.get(sessionId).add(onState);
+  return () => {
+    const set = liveStateHandlers.get(sessionId);
+    if (!set) return;
+    set.delete(onState);
+    if (set.size === 0) {
+      liveStateHandlers.delete(sessionId);
+      wsSend({ type: 'unsubscribe_live_state', sessionId });
+    }
+  };
+}
+
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
   auth, posts, rankies, paths, decks, comments, bookmarks, social, series, sessions, live,
-  uploadImage, subscribeRankie, subscribeLive, voteRealtime, ApiError,
+  uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, voteRealtime, ApiError,
 };
