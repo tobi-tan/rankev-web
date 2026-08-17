@@ -2190,7 +2190,138 @@ function RankieTimeline({ rankie, options }) {
   );
 }
 
+// Chi tiết phiên LIVE — dùng DỮ LIỆU THẬT đã lưu (không bịa như makeSessionParticipants).
+function LiveSessionDetailView({ session, post, onBack }) {
+  const isExam = (session.deckMode || post?.deckMode) === "exam";
+  const passing = session.passingScore || post?.passingScore || 5;
+  const parts = session.liveParticipants || [];
+  const sorted = [...parts].sort((a, b) => (b.score || 0) - (a.score || 0));
+  const scored = parts.filter((p) => p.submitted && p.score != null);
+  const submitted = parts.filter((p) => p.submitted);
+  const avgScore = scored.length ? Math.round((scored.reduce((s, p) => s + (p.score || 0), 0) / scored.length) * 10) / 10 : null;
+  const passCount = scored.filter((p) => (p.score || 0) >= passing).length;
+  const gradeGroups = {}; GRADE_SCALE.forEach((g) => { gradeGroups[g.grade] = 0; });
+  scored.forEach((p) => { gradeGroups[getGrade(p.score).grade]++; });
+  const liveAtMs = session.liveAt ? new Date(session.liveAt).getTime() : null;
+  const fmtDur = (secs) => secs == null ? "—" : `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, "0")}`;
+  const timeTaken = (p) => (p.submittedAt && liveAtMs) ? (new Date(p.submittedAt).getTime() - liveAtMs) / 1000 : null;
+
+  // Thống kê % đúng từng câu (exam) từ đáp án THẬT vs đáp án đúng của đề.
+  const questions = post?.questions || [];
+  const setEq = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+  const qStats = questions.map((q) => {
+    const correctIds = (q.options || []).filter((o) => o.correct).map((o) => o.id);
+    let correct = 0;
+    submitted.forEach((p) => {
+      const a = p.answers?.[q.id];
+      const arr = Array.isArray(a) ? a : a != null ? [a] : [];
+      if (correctIds.length && setEq(arr, correctIds)) correct++;
+    });
+    return { q, correct, total: submitted.length, hasKey: correctIds.length > 0 };
+  });
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
+        <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ChevronLeft size={20} /></button>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name || "Chi tiết phiên"}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>Phiên trực tiếp · {session.itemTitle}</div>
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        {/* Số liệu tổng */}
+        <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 14 }}>
+          <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{session.participantCount ?? parts.length}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
+          <div style={{ width: 1, background: C.border }} />
+          <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.teal }}>{submitted.length}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
+          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+        </div>
+
+        {/* Biểu đồ phân loại điểm */}
+        {isExam && scored.length > 0 && (
+          <div style={{ ...cardSurface, marginBottom: 14 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân loại điểm</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 96 }}>
+              {GRADE_SCALE.map((g) => {
+                const cnt = gradeGroups[g.grade] || 0;
+                const pct = scored.length ? Math.round((cnt / scored.length) * 100) : 0;
+                return (
+                  <div key={g.grade} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, height: "100%", justifyContent: "flex-end" }}>
+                    <div style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: cnt ? g.color : C.textFaint }}>{cnt}</div>
+                    <div style={{ width: "100%", maxWidth: 34, height: `${Math.max(pct, cnt ? 8 : 2)}%`, minHeight: 3, background: cnt ? g.color : C.border, borderRadius: 5 }} />
+                    <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color }}>{g.grade}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Bảng người tham gia thật */}
+        <div style={{ ...cardSurface, marginBottom: isExam && qStats.some((s) => s.hasKey) ? 14 : 0 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Bảng kết quả ({parts.length})</div>
+          {parts.length === 0 ? (
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Không có người tham gia.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {sorted.map((p, i) => {
+                const g = (p.submitted && p.score != null) ? getGrade(p.score) : null;
+                return (
+                  <div key={p.id || i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                      {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 10.5, color: C.textFaint }}>⏱ {fmtDur(timeTaken(p))}</div>}
+                    </div>
+                    {!p.submitted ? (
+                      <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>không nộp</span>
+                    ) : isExam ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        {g && <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
+                        <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                      </div>
+                    ) : (
+                      <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* % đúng từng câu (exam) */}
+        {isExam && qStats.some((s) => s.hasKey) && (
+          <div style={{ ...cardSurface }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tỉ lệ đúng theo câu</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {qStats.map(({ q, correct, total, hasKey }, qi) => {
+                const pct = total ? Math.round((correct / total) * 100) : 0;
+                return (
+                  <div key={q.id}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
+                      <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Câu {qi + 1}: {q.text}</span>
+                      <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: hasKey ? C.gold : C.textFaint, flexShrink: 0 }}>{hasKey ? `${correct}/${total} · ${pct}%` : "khảo sát"}</span>
+                    </div>
+                    <div style={{ height: 7, borderRadius: 99, background: C.border, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: pct >= 50 ? C.teal : C.coral, borderRadius: 99 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SessionDetailView({ session, post, onBack, onOpenPost }) {
+  // Phiên LIVE có dữ liệu thật → hiện dữ liệu thật (không mô phỏng).
+  if (session?.live) return <LiveSessionDetailView session={session} post={post} onBack={onBack} />;
   const participants = useMemo(() => makeSessionParticipants(session, post), [session, post]);
   const resultOpts = useMemo(() => sessionResultOptions(post), [post]);
   const palette = [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"];
@@ -7942,6 +8073,9 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
       deckId: deck.id, deckTitle: deck.title, deckMode: deck.deckMode,
       name: sessionName.trim() || `${deck.title} · ${new Date().toLocaleString("vi-VN")}`,
       endedAt: Date.now(), participants: results.joined ?? 0, avgScore: results.avgScore ?? null,
+      // Dữ liệu THẬT của phiên live → để chi tiết phiên hiện đúng (không bịa).
+      live: true, submitted: results.submitted ?? 0, liveAt: results.liveAt || null,
+      passingScore: deck.passingScore || null, liveParticipants: results.participants || [],
     });
     setSaved(true);
   };
@@ -12358,6 +12492,13 @@ export default function RankevApp() {
       deckMode: s.deckMode,
       name: s.name,
       endedAt: s.endedAt,
+      // Dữ liệu thật của phiên live (nếu có) — để SessionDetailView khỏi bịa số liệu.
+      live: !!s.live,
+      submitted: s.submitted,
+      liveAt: s.liveAt,
+      passingScore: s.passingScore,
+      liveParticipants: s.liveParticipants,
+      participantCount: s.participants,
       meta: s.deckMode === "exam"
         ? `${fmt(s.participants || 0)} người thi${s.avgScore != null ? ` · ĐTB ${s.avgScore}` : ""}`
         : `${fmt(s.participants || 0)} người tham gia`,
