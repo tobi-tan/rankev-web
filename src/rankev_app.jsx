@@ -7868,13 +7868,24 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
         {phase === "result" && session && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ ...box, textAlign: "center" }}>
-              {result?.revealed && result?.totalGradable > 0 ? (
-                <>
-                  <div style={{ fontSize: 40, marginBottom: 4 }}>🎉</div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 44, color: C.gold }}>{result.score}<span style={{ fontSize: 20, color: C.textFaint }}>/10</span></div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 4 }}>{result.correctCount}/{result.totalGradable} câu đúng</div>
-                </>
-              ) : result?.submitted ? (
+              {result?.revealed && result?.totalGradable > 0 ? (() => {
+                const g = getGrade(result.score || 0);
+                const passing = session.post?.passingScore || 5;
+                const passed = (result.score || 0) >= passing;
+                return (
+                  <>
+                    <div style={{ fontSize: 40, marginBottom: 4 }}>{passed ? "🎉" : "📝"}</div>
+                    <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 46, color: C.gold, lineHeight: 1 }}>{result.score}<span style={{ fontSize: 20, color: C.textFaint }}>/10</span></div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "3px 12px", borderRadius: 999, background: `${g.color}1E`, border: `1px solid ${g.color}55` }}>
+                      <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: g.color }}>{g.grade}</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 12, color: g.color }}>{g.label}</span>
+                    </div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 10 }}>
+                      {result.correctCount}/{result.totalGradable} câu đúng · <b style={{ color: passed ? C.teal : C.coral }}>{passed ? "Đạt" : "Chưa đạt"}</b> <span style={{ color: C.textFaint }}>(cần ≥{passing})</span>
+                    </div>
+                  </>
+                );
+              })() : result?.submitted ? (
                 <><div style={{ fontSize: 40, marginBottom: 6 }}>✅</div><div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Cảm ơn bạn đã tham gia!</div></>
               ) : (
                 <><div style={{ fontSize: 40, marginBottom: 6 }}>⌛</div><div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Phiên đã kết thúc</div><div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4 }}>Bạn chưa nộp bài kịp.</div></>
@@ -7899,10 +7910,11 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
   const [results, setResults] = useState(null);
   const [err, setErr] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [durationMin, setDurationMin] = useState(deck.examDurationMinutes || 0); // 0 = không giới hạn
+  const [duration, setDuration] = useState(deck.examDurationMinutes ?? null); // null = không giới hạn; mặc định = chủ bài đã set
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const recorded = useRef(false);
+  const [sessionName, setSessionName] = useState("");
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api.live.create(deck.id, deck.title).then(setSess).catch((e) => setErr(e?.message || "Không mở được phiên"));
@@ -7922,22 +7934,30 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
 
   const phase = results?.phase || "waiting";
   const isExam = deck.deckMode === "exam";
+  const passingScore = deck.passingScore || 5;
 
-  // Khi phiên kết thúc → ghi vào Lịch sử trình chiếu (một lần).
-  useEffect(() => {
-    if (phase === "ended" && results && !recorded.current) {
-      recorded.current = true;
-      onSessionEnd?.({
-        deckId: deck.id, deckTitle: deck.title, deckMode: deck.deckMode,
-        name: deck.title, endedAt: Date.now(),
-        participants: results.joined ?? 0, avgScore: results.avgScore ?? null,
-      });
-    }
-  }, [phase, results, deck, onSessionEnd]);
+  const saveSession = () => {
+    if (!results || saved) return;
+    onSessionEnd?.({
+      deckId: deck.id, deckTitle: deck.title, deckMode: deck.deckMode,
+      name: sessionName.trim() || `${deck.title} · ${new Date().toLocaleString("vi-VN")}`,
+      endedAt: Date.now(), participants: results.joined ?? 0, avgScore: results.avgScore ?? null,
+    });
+    setSaved(true);
+  };
 
   const joinUrl = sess ? `${window.location.origin}/?join=${sess.code}` : "";
   const parts = results?.participants || [];
   const sorted = [...parts].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  // Số liệu cho biểu đồ + thời gian làm bài mỗi người.
+  const liveAtMs = results?.liveAt ? new Date(results.liveAt).getTime() : null;
+  const fmtDur = (secs) => secs == null ? "—" : `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, "0")}`;
+  const timeTaken = (p) => (p.submittedAt && liveAtMs) ? (new Date(p.submittedAt).getTime() - liveAtMs) / 1000 : null;
+  const scored = parts.filter((p) => p.submitted && p.score != null);
+  const gradeGroups = {}; GRADE_SCALE.forEach((g) => { gradeGroups[g.grade] = 0; });
+  scored.forEach((p) => { gradeGroups[getGrade(p.score).grade]++; });
+  const passCount = scored.filter((p) => (p.score || 0) >= passingScore).length;
 
   // Đồng hồ đếm ngược (khi có giới hạn thời gian).
   useEffect(() => {
@@ -7956,12 +7976,11 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
   const startExam = () => {
     if (!sess) return;
     setBusy(true);
-    api.live.start(sess.id, durationMin > 0 ? durationMin : null)
+    api.live.start(sess.id, duration)
       .then(setResults).catch((e) => setErr(e?.message || "Không bắt đầu được")).finally(() => setBusy(false));
   };
   const endExam = () => { if (sess) api.live.end(sess.id).then(setResults).catch(() => {}); };
 
-  const DURATIONS = [{ label: "Không giới hạn", v: 0 }, { label: "5 phút", v: 5 }, { label: "10 phút", v: 10 }, { label: "15 phút", v: 15 }, { label: "30 phút", v: 30 }];
   const codeCard = (
     <div style={{ ...cardSurface, textAlign: "center", marginBottom: 14 }}>
       <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>MÃ THAM GIA</div>
@@ -7996,14 +8015,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
             {isExam && (
               <div style={{ ...cardSurface, marginBottom: 14 }}>
                 <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {DURATIONS.map((d) => (
-                    <button key={d.v} onClick={() => setDurationMin(d.v)}
-                      style={{ padding: "7px 14px", borderRadius: 99, border: `1px solid ${durationMin === d.v ? C.gold : C.border}`, background: durationMin === d.v ? C.goldSoft : C.surface, color: durationMin === d.v ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
+                <DurationPicker value={duration} onChange={setDuration} />
               </div>
             )}
             <div style={{ ...cardSurface, marginBottom: 14 }}>
@@ -8028,37 +8040,70 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
           </>
         )}
 
-        {/* ---- ĐANG THI / ĐÃ KẾT THÚC: số liệu + danh sách ---- */}
+        {/* ---- ĐANG THI / ĐÃ KẾT THÚC: số liệu + biểu đồ + bảng ---- */}
         {phase !== "waiting" && (
           <>
+            {/* Số liệu tổng */}
             <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 14 }}>
-              <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.gold }}>{results?.joined ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
+              <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{results?.joined ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
               <div style={{ width: 1, background: C.border }} />
-              <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.teal }}>{results?.submitted ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
-              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.text }}>{results?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+              <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.teal }}>{results?.submitted ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
+              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{results?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passingScore}</div></div></>}
             </div>
 
+            {/* Biểu đồ phân loại điểm (realtime) */}
+            {isExam && scored.length > 0 && (
+              <div style={{ ...cardSurface, marginBottom: 14 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân loại điểm</div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 96 }}>
+                  {GRADE_SCALE.map((g) => {
+                    const cnt = gradeGroups[g.grade] || 0;
+                    const pct = scored.length ? Math.round((cnt / scored.length) * 100) : 0;
+                    return (
+                      <div key={g.grade} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, height: "100%", justifyContent: "flex-end" }}>
+                        <div style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: cnt ? g.color : C.textFaint }}>{cnt}</div>
+                        <div style={{ width: "100%", maxWidth: 34, height: `${Math.max(pct, cnt ? 8 : 2)}%`, minHeight: 3, background: cnt ? g.color : C.border, borderRadius: 5, transition: "height .4s ease" }} />
+                        <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color }}>{g.grade}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bảng người tham gia: hạng · tên · thời gian · điểm/xếp loại */}
             <div style={{ ...cardSurface }}>
               <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
-                {phase === "ended" ? "Kết quả" : "Người tham gia"} ({parts.length})
+                {phase === "ended" ? "Bảng kết quả" : "Người tham gia"} ({parts.length})
               </div>
               {parts.length === 0 ? (
-                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Chưa có ai.</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>{phase === "live" ? "Đang chờ người tham gia nộp…" : "Chưa có ai."}</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  {sorted.map((p, i) => (
-                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                      {phase === "ended" && isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18 }}>{i + 1}</span>}
-                      <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
-                      {!p.submitted ? (
-                        <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{phase === "ended" ? "không nộp" : "đang làm…"}</span>
-                      ) : isExam ? (
-                        <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
-                      ) : (
-                        <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal }}>✓ đã nộp</span>
-                      )}
-                    </div>
-                  ))}
+                  {sorted.map((p, i) => {
+                    const g = (p.submitted && p.score != null) ? getGrade(p.score) : null;
+                    const secs = timeTaken(p);
+                    return (
+                      <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                          {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 10.5, color: C.textFaint }}>⏱ {fmtDur(secs)}</div>}
+                        </div>
+                        {!p.submitted ? (
+                          <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>{phase === "ended" ? "không nộp" : "đang làm…"}</span>
+                        ) : isExam ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            {g && <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
+                            <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                          </div>
+                        ) : (
+                          <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -8069,10 +8114,27 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
                 Kết thúc phiên &amp; công bố kết quả
               </button>
             ) : (
-              <button onClick={onBack}
-                style={{ ...primaryButton, width: "100%", marginTop: 14, padding: 13, borderRadius: 12, fontSize: 14 }}>
-                Đóng
-              </button>
+              <div style={{ ...cardSurface, marginTop: 14 }}>
+                {!saved ? (
+                  <>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Lưu phiên vào lịch sử</div>
+                    <input value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Đặt tên phiên (VD: Lớp 10A1 · buổi sáng)"
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+                    <button onClick={saveSession}
+                      style={{ ...primaryButton, width: "100%", marginTop: 10, padding: 12, borderRadius: 12, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                      <Monitor size={16} /> Lưu phiên trình chiếu
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: C.teal, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, padding: "4px 0" }}>
+                    <Check size={16} /> Đã lưu phiên “{sessionName.trim() || "không tên"}”
+                  </div>
+                )}
+                <button onClick={onBack}
+                  style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  Đóng
+                </button>
+              </div>
             )}
           </>
         )}
@@ -11937,7 +11999,7 @@ function apiPathToProto(p) {
 function apiDeckToProto(d) {
   return {
     id: d.id, type: "deck", deckMode: d.deckMode, title: d.title, subtitle: d.subtitle || "",
-    category: d.category || "Khác", mine: !!d.mine, author: apiAuthorToProto(d.author),
+    category: d.category || "Khác", mine: !!d.mine, allowGuestPresent: !!d.allowGuestPresent, author: apiAuthorToProto(d.author),
     createdAt: Date.parse(d.createdAt) || Date.now(), caption: d.caption || "", media: d.media || null,
     participants: 0, comments: 0, answerMode: "step", graded: d.deckMode === "exam",
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
