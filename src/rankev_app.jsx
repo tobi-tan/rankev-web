@@ -7026,7 +7026,8 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
   );
 }
 
-// Bảng kết quả tổng hợp cho CHỦ bài — dữ liệu thật, tự làm mới ~5s.
+// Bảng kết quả tổng hợp cho CHỦ bài. Deck THẬT: dữ liệu backend, tự làm mới ~5s.
+// Deck MẪU (demo): dựng từ số phiếu mock có sẵn để vẫn xem được.
 function DeckResultsDashboard({ deck }) {
   const [data, setData] = useState(null);
   const real = typeof deck.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deck.id);
@@ -7038,26 +7039,40 @@ function DeckResultsDashboard({ deck }) {
     const t = setInterval(load, 5000);
     return () => { alive = false; clearInterval(t); };
   }, [deck.id, real]);
-  if (!real) return null; // deck mẫu: không có dữ liệu thật
 
   const isExam = deck.deckMode === "exam";
-  const passing = data?.passingScore || deck.passingScore || 5;
-  const scores = data?.scores || [];
+  // Deck mẫu → dựng "data" từ phiếu mock (option.votes) để hiển thị phân bố.
+  const mockData = real ? null : {
+    participants: deck.participants || 0,
+    avgScore: null,
+    scores: [],
+    questions: (deck.questions || []).map((q) => ({
+      id: q.id, text: q.text, votingType: q.votingType, points: q.points || 0,
+      answered: (q.options || []).reduce((s, o) => s + (o.votes || 0), 0),
+      options: (q.options || []).map((o) => ({ id: o.id, label: o.label, emoji: o.emoji, correct: isExam ? o.correct : undefined, count: o.votes || 0 })),
+    })),
+  };
+  const eff = real ? data : mockData;
+
+  const passing = eff?.passingScore || deck.passingScore || 5;
+  const scores = eff?.scores || [];
   const passCount = scores.filter((s) => s >= passing).length;
-  const n = data?.participants ?? 0;
+  const n = eff?.participants ?? 0;
 
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5 }}>KẾT QUẢ THỰC TẾ</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 11, color: C.teal }}>
-          <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> tự cập nhật
-        </div>
+        {real && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 11, color: C.teal }}>
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> tự cập nhật
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 12 }}>
         <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{n}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{data?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
         {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
       </div>
 
@@ -7077,7 +7092,7 @@ function DeckResultsDashboard({ deck }) {
         <div style={{ ...cardSurface }}>
           <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {(data?.questions || []).map((q, qi) => (
+            {(eff?.questions || []).map((q, qi) => (
               <div key={q.id}>
                 <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>
                   {qi + 1}. {q.text || "(câu hỏi)"}
