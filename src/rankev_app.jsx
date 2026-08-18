@@ -6311,13 +6311,14 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         {(path.caption || path.media) && (
           <PostContent caption={path.caption} media={path.media} clampLines={99} showMore={false} mediaHeight={200} />
         )}
-        <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap", justifyContent: "center" }}>
           {(() => {
             // Không spoil kết quả: chỉ hiện ending THẬT khi tác giả bật revealMode="all",
             // là chủ bài, hoặc người xem đã khám phá ending đó. Còn lại hiện dấu "?".
+            // Hiện ĐỦ mọi ending (không cắt còn 4) để số ô khớp "N kết quả".
             const revealAll = isOwner || (path.revealMode || "hidden") === "all";
             const unlockedSet = new Set(unlockedEndings || []);
-            return Object.entries(path.results).slice(0, 4).map(([name, r], i) => {
+            return Object.entries(path.results).map(([name, r], i) => {
               const reveal = revealAll || unlockedSet.has(name);
               return reveal
                 ? <Illustration key={i} emoji={r.emoji} image={r.image} size={52} radius={12} />
