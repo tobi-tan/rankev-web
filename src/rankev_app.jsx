@@ -6637,8 +6637,11 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
 
 // Path shown as a post in the feed
 function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare, joined = false, bookmarked = false, onToggleBookmark, myResult, unlockedEndings = [], sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, rankTier = 0, onSetRank, fanCount = 0 }) {
+  const isOwner = path.mine || path.author?.id === "me";
+  const nq = path.questionCount ?? path.questions?.length ?? 0;
   const myResultData = myResult?.detail ? path.results?.[myResult.detail] : null;
   const allEndings = Object.keys(path.results || {});
+  const resultCount = path.resultCount ?? allEndings.length;
   const discovered = allEndings.filter((e) => (unlockedEndings || []).includes(e) || e === myResult?.detail).length;
   const hideCount = !!path.hideEndingCount;
   return (
@@ -6683,16 +6686,33 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
             )}
           </div>
         </div>
+      ) : isOwner ? (
+        // Bài của MÌNH → không cần giấu. Hiện mô tả (nếu có, clamp + "xem thêm") kèm preview
+        // số liệu: lượt tham gia + cấu trúc bài (số câu · số kết quả). Càng nhiều thông tin càng tốt.
+        <>
+          {(path.caption || path.media) && <PostContent caption={path.caption} media={path.media} mediaHeight={170} />}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
+            <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
+              <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(path.participants || 0)}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 2 }}>tham gia</div>
+            </div>
+            <div style={{ width: 1, alignSelf: "stretch", background: `${C.gold}33` }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>Trắc nghiệm phân nhánh</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{nq} câu{resultCount ? ` · ${resultCount} kết quả` : ""} · nhấn để xem chi tiết</div>
+            </div>
+          </div>
+        </>
       ) : path.caption || path.media ? (
         <PostContent caption={path.caption} media={path.media} mediaHeight={170} />
       ) : (
-        // Fallback when the path has no post content: a neutral prompt (no spoilers)
+        // Người khác → prompt trung tính (không spoil)
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
             <GitBranch size={18} color={C.gold} />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
-            Trắc nghiệm {path.questionCount ?? path.questions?.length ?? 0} câu · nhấn để xem giới thiệu và thử
+            Trắc nghiệm {nq} câu · nhấn để xem giới thiệu và thử
           </div>
         </div>
       )}
@@ -7831,6 +7851,8 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
 // Deck shown as a post in the feed
 function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare, joined = false, sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, bookmarked = false, onToggleBookmark, myResult, rankTier = 0, onSetRank, fanCount = 0 }) {
+  const isOwner = deck.mine || deck.author?.id === "me";
+  const nq = deck.questionCount ?? deck.questions?.length ?? 0;
   const badgeLabel = deck.deckMode === "exam" ? "EXAM" : "SURVEY";
   const examTime = deck.deckMode === "exam" && deck.examDurationMinutes != null ? fmtExamDuration(deck.examDurationMinutes) : null;
   const badge = (
@@ -7871,16 +7893,33 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{myResult.detail}</div>
           </div>
         </div>
+      ) : isOwner ? (
+        // Bài của MÌNH → không cần giấu nội dung. Hiện mô tả (nếu có, clamp + "xem thêm")
+        // kèm preview kết quả: số lượt tham gia + cấu trúc bài. Càng nhiều thông tin càng tốt.
+        <>
+          {(deck.caption || deck.media) && <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
+            <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
+              <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(deck.participants || 0)}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 2 }}>{deck.deckMode === "exam" ? "lượt thi" : "tham gia"}</div>
+            </div>
+            <div style={{ width: 1, alignSelf: "stretch", background: `${C.gold}33` }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>{deck.deckMode === "exam" ? "Bài thi có chấm điểm" : "Khảo sát"}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{nq} câu{examTime ? ` · ${examTime}` : ""} · nhấn để xem kết quả chi tiết</div>
+            </div>
+          </div>
+        </>
       ) : deck.caption || deck.media ? (
         <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />
       ) : (
-        // Neutral summary strip — intentionally hides question content to avoid spoilers
+        // Người khác + chưa tham gia → giấu nội dung câu hỏi để tránh spoil
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
             {deck.deckMode === "exam" ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
-            {(() => { const nq = deck.questionCount ?? deck.questions?.length ?? 0; return deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`; })()}
+            {deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`}
           </div>
         </div>
       )}
@@ -12226,7 +12265,7 @@ function apiSummaryToProto(s) {
     return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: opts.length === 2 ? "head_to_head" : "bar", live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
   }
   if (s.type === "path") {
-    return { ...base, type: "path", subtitle: `${s.size} kết quả`, questions: [], results: {}, comments: s.commentsCount || 0 };
+    return { ...base, type: "path", subtitle: `${s.size} kết quả`, resultCount: s.size || 0, questions: [], results: {}, comments: s.commentsCount || 0 };
   }
   return { ...base, type: "deck", deckMode: s.deckMode, subtitle: `${s.size} câu hỏi`, questions: [], comments: s.commentsCount || 0, answerMode: "step", graded: s.deckMode === "exam" };
 }
