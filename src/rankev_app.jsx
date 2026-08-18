@@ -6687,22 +6687,23 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
           </div>
         </div>
       ) : isOwner ? (
-        // Bài của MÌNH → không cần giấu. Hiện mô tả (nếu có, clamp + "xem thêm") kèm preview
-        // số liệu: lượt tham gia + cấu trúc bài (số câu · số kết quả). Càng nhiều thông tin càng tốt.
-        <>
-          {(path.caption || path.media) && <PostContent caption={path.caption} media={path.media} mediaHeight={170} />}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
-            <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
-              <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(path.participants || 0)}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 2 }}>tham gia</div>
+        // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả; không có mô tả thì hiện số liệu kết quả
+        // (lượt tham gia + số câu + số kết quả). Path không có phổ điểm.
+        (path.caption || path.media)
+          ? <PostContent caption={path.caption} media={path.media} mediaHeight={170} />
+          : (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
+              <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
+                <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(path.participants || 0)}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 2 }}>tham gia</div>
+              </div>
+              <div style={{ width: 1, alignSelf: "stretch", background: `${C.gold}33` }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>Trắc nghiệm phân nhánh</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{nq} câu{resultCount ? ` · ${resultCount} kết quả` : ""} · nhấn để xem chi tiết</div>
+              </div>
             </div>
-            <div style={{ width: 1, alignSelf: "stretch", background: `${C.gold}33` }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>Trắc nghiệm phân nhánh</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{nq} câu{resultCount ? ` · ${resultCount} kết quả` : ""} · nhấn để xem chi tiết</div>
-            </div>
-          </div>
-        </>
+          )
       ) : path.caption || path.media ? (
         <PostContent caption={path.caption} media={path.media} mediaHeight={170} />
       ) : (
@@ -7145,6 +7146,111 @@ function DeckResultsDashboard({ deck }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Preview kết quả GỌN cho FEED CARD của chủ bài (dùng khi bài KHÔNG có mô tả).
+// Tự nạp 1 lần (không polling như dashboard). Survey: phân bố đáp án; Exam: + phổ điểm.
+// Dài quá → chỉ hiện 2 câu đầu, kèm gợi ý "xem thêm" (bấm card mở chi tiết đầy đủ).
+function DeckCardResultPreview({ deck }) {
+  const [data, setData] = useState(null);
+  const real = typeof deck.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deck.id);
+  useEffect(() => {
+    if (!real) return;
+    let alive = true;
+    api.decks.ownerResults(deck.id).then((r) => { if (alive) setData(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [deck.id, real]);
+
+  const isExam = deck.deckMode === "exam";
+  const nq = deck.questionCount ?? deck.questions?.length ?? 0;
+  const mockData = real ? null : {
+    participants: deck.participants || 0, avgScore: null, scores: [],
+    questions: (deck.questions || []).map((q) => ({
+      id: q.id, text: q.text, votingType: q.votingType, points: q.points || 0,
+      answered: (q.options || []).reduce((s, o) => s + (o.votes || 0), 0),
+      options: (q.options || []).map((o) => ({ id: o.id, label: o.label, emoji: o.emoji, correct: isExam ? o.correct : undefined, count: o.votes || 0 })),
+    })),
+  };
+  const eff = real ? data : mockData;
+  const passing = eff?.passingScore || deck.passingScore || 5;
+  const scores = eff?.scores || [];
+  const passCount = scores.filter((s) => s >= passing).length;
+  const n = eff?.participants ?? deck.participants ?? 0;
+
+  // Deck thật chưa nạp xong, hoặc chưa có ai làm → strip thông tin gọn (không có kết quả để vẽ).
+  if ((real && !data) || n === 0) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surface, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          {isExam ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
+        </div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
+          {isExam ? `Bài thi ${nq} câu` : `Khảo sát ${nq} câu`} · {real && !data ? "đang tải kết quả…" : "chưa có ai làm bài"}
+        </div>
+      </div>
+    );
+  }
+
+  const questions = eff?.questions || [];
+  const shownQ = questions.slice(0, 2);
+  const moreQ = questions.length - shownQ.length;
+
+  return (
+    <div style={{ ...cardSurface, marginBottom: 12 }}>
+      {/* Số liệu tổng hợp */}
+      <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", marginBottom: 12 }}>
+        <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>đã làm</div></div>
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>điểm TB</div></div></>}
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: "#4ADE80" }}>{fmt(passCount)}</div><div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+      </div>
+
+      {isExam && scores.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Phổ điểm (0–10)</div>
+          <ScoreSpectrum scores={scores} passing={passing} />
+        </div>
+      )}
+
+      {/* Phân bố đáp án — chỉ vài câu đầu, còn lại gợi ý xem thêm */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {shownQ.map((q, qi) => (
+          <div key={q.id}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.text, marginBottom: 7 }}>
+              {qi + 1}. {q.text || "(câu hỏi)"}{isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points}đ)</span>}
+            </div>
+            {q.votingType === "text" ? (
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>{fmt(q.answered)} câu trả lời tự luận</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {q.options.map((o) => {
+                  const pct = q.answered ? Math.round((o.count / q.answered) * 100) : 0;
+                  return (
+                    <div key={o.id}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontFamily: bodyFont, fontSize: 12, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
+                        </span>
+                        <span style={{ fontFamily: monoFont, fontSize: 11.5, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.count)} · {pct}%</span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 99, background: C.border, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: o.correct ? C.teal : C.gold, borderRadius: 99 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {moreQ > 0 && (
+        <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.gold }}>
+          + {moreQ} câu nữa · xem thêm →
         </div>
       )}
     </div>
@@ -7894,22 +8000,11 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
           </div>
         </div>
       ) : isOwner ? (
-        // Bài của MÌNH → không cần giấu nội dung. Hiện mô tả (nếu có, clamp + "xem thêm")
-        // kèm preview kết quả: số lượt tham gia + cấu trúc bài. Càng nhiều thông tin càng tốt.
-        <>
-          {(deck.caption || deck.media) && <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
-            <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
-              <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(deck.participants || 0)}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 2 }}>{deck.deckMode === "exam" ? "lượt thi" : "tham gia"}</div>
-            </div>
-            <div style={{ width: 1, alignSelf: "stretch", background: `${C.gold}33` }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>{deck.deckMode === "exam" ? "Bài thi có chấm điểm" : "Khảo sát"}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{nq} câu{examTime ? ` · ${examTime}` : ""} · nhấn để xem kết quả chi tiết</div>
-            </div>
-          </div>
-        </>
+        // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả (clamp + "xem thêm"); không có mô tả
+        // thì hiện KẾT QUẢ luôn (survey: phân bố đáp án; exam: + phổ điểm) — không cần giấu.
+        (deck.caption || deck.media)
+          ? <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />
+          : <DeckCardResultPreview deck={deck} />
       ) : deck.caption || deck.media ? (
         <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />
       ) : (
