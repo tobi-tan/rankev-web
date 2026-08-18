@@ -6243,23 +6243,20 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     if (isOwner && !ownerPreview) {
       const resultEntries = Object.entries(path.results);
       return (
-        <div style={{ padding: 20 }}>
-          <div style={{ textAlign: "center", marginBottom: 18 }}>
-            <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14 }}>
-              {resultEntries.slice(0, 4).map(([name, r], i) => (
-                <Illustration key={i} emoji={r.emoji} image={r.image} size={44} radius={11} />
-              ))}
-            </div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>
-              BÀI CỦA BẠN · TỔNG QUAN
-            </div>
-            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 8, lineHeight: 1.25 }}>
-              {path.title}
-            </div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
-              {fmt(path.participants)} người đã thử · {path.questions.length} câu hỏi · {resultEntries.length} kết quả
-            </div>
+        <div style={{ padding: 16 }}>
+          {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
+          {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
+            {path.category && <Pill tone="muted">{path.category}</Pill>}
+            <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
+            <Pill tone="muted">{path.questions.length} câu</Pill>
+            <Pill tone="muted">{resultEntries.length} kết quả</Pill>
           </div>
+          {(path.caption || path.media) && (
+            <PostContent caption={path.caption} media={path.media} clampLines={99} showMore={false} mediaHeight={200} />
+          )}
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
@@ -6296,8 +6293,20 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     }
 
     return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 18 }}>
+      <div style={{ padding: 16 }}>
+        {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
+        {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
+          {path.category && <Pill tone="muted">{path.category}</Pill>}
+          <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
+          <Pill tone="muted">{path.questions.length} câu</Pill>
+        </div>
+        {(path.caption || path.media) && (
+          <PostContent caption={path.caption} media={path.media} clampLines={99} showMore={false} mediaHeight={200} />
+        )}
+        <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
           {(() => {
             // Không spoil kết quả: chỉ hiện ending THẬT khi tác giả bật revealMode="all",
             // là chủ bài, hoặc người xem đã khám phá ending đó. Còn lại hiện dấu "?".
@@ -6311,20 +6320,6 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             });
           })()}
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>
-          RANKEV PATH
-        </div>
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 10, lineHeight: 1.25 }}>
-          {path.title}
-        </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 20 }}>
-          {fmt(path.participants)} người đã thử · {path.questions.length} câu hỏi
-        </div>
-        {(path.caption || path.media) && (
-          <div style={{ textAlign: "left", marginBottom: 20 }}>
-            <PostContent caption={path.caption} media={path.media} clampLines={99} showMore={false} mediaHeight={190} />
-          </div>
-        )}
         <button
           onClick={() => setStep(first.id)}
           style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15 }}
@@ -7250,20 +7245,20 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
     // tham gia thật.
     if (isOwner && !ownerPreview) {
       return (
-        <div style={{ padding: 20 }}>
-          <div style={{ textAlign: "center", marginBottom: 18 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 14, background: C.surfaceRaised, display: "grid", placeItems: "center", margin: "0 auto 12px", border: `1px solid ${C.border}` }}>
-              {deck.deckMode === "exam" ? <Edit3 size={24} color={C.gold} /> : <Layers size={24} color={C.gold} />}
-            </div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>
-              BÀI CỦA BẠN · TỔNG QUAN
-            </div>
-            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 8, lineHeight: 1.25 }}>{deck.title}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
-              {deck.questions.length} câu hỏi · {fmt(deck.participants)} người đã tham gia
-              {deck.deckMode === "exam" && deck.passingScore != null && <> · Điểm đạt {deck.passingScore}/10</>}
-            </div>
+        <div style={{ padding: 16 }}>
+          {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
+          {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
+            {deck.category && <Pill tone="muted">{deck.category}</Pill>}
+            <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
+            <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
+            {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
           </div>
+          {(deck.caption || deck.media) && (
+            <PostContent caption={deck.caption} media={deck.media} clampLines={99} showMore={false} mediaHeight={200} />
+          )}
 
           {/* Bảng kết quả thật (tự cập nhật ~5s) — thay cho giao diện làm bài của khách. */}
           <DeckResultsDashboard deck={deck} />
@@ -7348,27 +7343,23 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
     }
 
     return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ width: 60, height: 60, borderRadius: 16, background: C.surfaceRaised, display: "grid", placeItems: "center", margin: "0 auto 16px", border: `1px solid ${C.border}` }}>
-          <Layers size={28} color={C.gold} />
-        </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>
-            {deck.deckMode === "exam" ? "RANKEV BÀI THI" : "RANKEV SURVEY"}
-        </div>
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 23, color: C.text, marginBottom: 10, lineHeight: 1.25 }}>{deck.title}</div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 20 }}>
-          {deck.questions.length} câu hỏi · {fmt(deck.participants)} người đã tham gia ·{" "}
-          {deck.answerMode === "step" ? "trả lời từng câu" : "trả lời trên một trang"}
-          {deck.deckMode === "exam" && deck.passingScore != null && <> · Điểm đạt: {deck.passingScore}</>}
+      <div style={{ padding: 16 }}>
+        {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
+        {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
+          {deck.category && <Pill tone="muted">{deck.category}</Pill>}
+          <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
+          <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
+          {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
         </div>
         {(deck.caption || deck.media) && (
-          <div style={{ textAlign: "left", marginBottom: 20 }}>
-            <PostContent caption={deck.caption} media={deck.media} clampLines={99} showMore={false} mediaHeight={190} />
-          </div>
+          <PostContent caption={deck.caption} media={deck.media} clampLines={99} showMore={false} mediaHeight={200} />
         )}
         <button
           onClick={() => setStarted(true)}
-          style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15 }}
+          style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15, marginTop: 4 }}
         >
           Bắt đầu
         </button>
@@ -7646,21 +7637,20 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                       Câu {qi + 1} · {q.votingType === "multiple" ? "Chọn nhiều" : q.votingType === "rating" ? "Đánh giá" : "Chọn một"}
                     </div>
                     <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>{q.text}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {sortedQ.map((o, i) => {
+                    <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+                      {sortedQ.map((o) => {
                         const pct = Math.round((o.votes / qTotal) * 1000) / 10;
-                        const isTop = i === 0;
                         const mine = isMine(o.id);
                         return (
                           <div key={o.id}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontFamily: bodyFont, fontSize: 13.5 }}>
-                              <span style={{ color: isTop || mine ? C.text : C.textMuted, fontWeight: isTop || mine ? 700 : 500 }}>
-                                {isTop && "🥇 "}{o.label}{mine ? " · bạn chọn" : ""}
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5, fontFamily: bodyFont, fontSize: 13 }}>
+                              <span style={{ color: mine ? C.gold : C.text, fontWeight: mine ? 700 : 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {o.emoji ? o.emoji + " " : ""}{o.label}{mine ? " · bạn chọn" : ""}
                               </span>
-                              <span style={{ color: mine ? C.gold : palette[i % 5], fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 11 }}>({fmt(o.votes)})</span></span>
+                              <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.votes)} · {pct}%</span>
                             </div>
-                            <div style={{ height: 22, borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                              <div style={{ height: "100%", width: `${pct}%`, background: mine ? C.gold : palette[i % 5], borderRadius: 8, transition: "width 0.6s cubic-bezier(.22,1,.36,1)" }} />
+                            <div style={{ height: 8, borderRadius: 99, background: C.border, overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${pct}%`, background: mine ? C.gold : C.teal, borderRadius: 99, transition: "width 0.6s cubic-bezier(.22,1,.36,1)" }} />
                             </div>
                           </div>
                         );
