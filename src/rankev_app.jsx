@@ -4390,7 +4390,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
       <EngagementBar
         type="rankie"
         joined={votedIds.length > 0}
-        participants={total}
+        participants={rankie.participants}
         comments={rankie.comments.length}
         shares={rankie.shares || 0}
         sessionCount={sessionCount}
@@ -6691,7 +6691,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
             <GitBranch size={18} color={C.gold} />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
-            Trắc nghiệm {path.questions?.length || 0} câu · nhấn để xem giới thiệu và thử
+            Trắc nghiệm {path.questionCount ?? path.questions?.length ?? 0} câu · nhấn để xem giới thiệu và thử
           </div>
         </div>
       )}
@@ -7884,7 +7884,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
             <Layers size={18} color={C.gold} />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
-            {deck.deckMode === "exam" ? `📝 ${deck.questions.length} câu · Bài thi có chấm điểm` : `Bộ ${deck.questions.length} câu hỏi · nhấn để xem giới thiệu và tham gia`}
+            {(() => { const nq = deck.questionCount ?? deck.questions?.length ?? 0; return deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`; })()}
           </div>
         </div>
       )}
@@ -12217,6 +12217,7 @@ function apiSummaryToProto(s) {
     mine: false,
     caption: "",
     participants: s.engagement || 0,
+    questionCount: s.questionCount ?? 0,
     seriesId: s.seriesId || null,
     seriesName: s.seriesName || null,
     _api: true,
@@ -12825,11 +12826,16 @@ export default function RankevApp() {
   const voteOnFeed = (rankie, optId) => {
     if (isRankieClosed(rankie)) return;
     const cur = singleVotedId(votedMap[rankie.id] ?? null) ?? null;
+    // Cập nhật số người tham gia trên EngagementBar: bỏ vote -1, vote mới +1, đổi lựa chọn 0.
+    const bumpParticipants = (delta) =>
+      delta && patchPostEverywhere(rankie.id, (x) => ({ ...x, participants: Math.max(0, (x.participants || 0) + delta) }));
     if (cur === optId) {
       setVotedMap((prev) => ({ ...prev, [rankie.id]: null }));
       setOptionsFor(rankie)((prev) => prev.map((o) => (o.id === optId ? { ...o, votes: Math.max(0, o.votes - 1) } : o)));
+      bumpParticipants(-1);
       return;
     }
+    if (cur === null) bumpParticipants(1); // lần đầu vote bài này
     setVotedMap((prev) => ({ ...prev, [rankie.id]: optId }));
     setOptionsFor(rankie)((prev) =>
       prev.map((o) => {
