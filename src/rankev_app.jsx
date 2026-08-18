@@ -5751,7 +5751,10 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             style={{ position: "absolute", left: 10, bottom: 10, display: "flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}`, cursor: isUnlimited ? "pointer" : "default", zIndex: 3 }}
           >
             {isUnlimited && resultMetric === "votes" ? <SlidersHorizontal size={12} color={C.teal} /> : <Users size={12} color={C.textMuted} />}
-            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: C.text }}>{fmt(isUnlimited && resultMetric === "votes" ? displayTotal : total)}</span>
+            {/* displayTotal đã phản ánh đúng metric đang chọn: "voters" → tổng người tham gia,
+                "votes" → tổng lượt tương tác. Dùng chung để số đổi khi toggle (đừng dùng `total`
+                cứng = tổng lượt bấm, sẽ khiến "Người tham gia" giữ nguyên số tương tác). */}
+            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: C.text }}>{fmt(displayTotal)}</span>
           </button>
 
           <RankieCountdownBox closesAt={rankie.closesAt} />
