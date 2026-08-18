@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import {
   XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   LineChart, Line, CartesianGrid,
@@ -12508,21 +12508,27 @@ export default function RankevApp() {
   // container nội bộ để phòng khi CSS thay đổi khiến nó trở thành vùng cuộn riêng.
   const scrollContainerRef = useRef(null);
   const feedScrollTopRef = useRef(0);
+  // viewRef phản chiếu `view` một cách ĐỒNG BỘ (cập nhật ngay mỗi lần render, trước paint).
+  // Listener scroll đọc viewRef thay vì closure `view`: khi mở overlay, scrollTo(0,0) bắn ra
+  // một sự kiện scroll — lúc đó view đã là "detail" nên listener bỏ qua, KHÔNG ghi đè 0 lên
+  // vị trí feed đã lưu. (Nếu đọc `view` qua closure/effect-cũ sẽ bị lưu nhầm 0.)
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const handleScrollContainer = () => {
-    if (view === "feed" && scrollContainerRef.current) {
+    if (viewRef.current === "feed" && scrollContainerRef.current) {
       feedScrollTopRef.current = scrollContainerRef.current.scrollTop;
     }
   };
   useEffect(() => {
     const onWindowScroll = () => {
-      if (view === "feed") feedScrollTopRef.current = window.scrollY || window.pageYOffset || 0;
+      if (viewRef.current === "feed") feedScrollTopRef.current = window.scrollY || window.pageYOffset || 0;
     };
     window.addEventListener("scroll", onWindowScroll, { passive: true });
     return () => window.removeEventListener("scroll", onWindowScroll);
-  }, [view]);
-  useEffect(() => {
+  }, []);
+  useLayoutEffect(() => {
     if (view === "feed") {
-      // Khôi phục cả hai khả năng: cuộn window (trường hợp thực tế) và cuộn div nội bộ.
+      // Khôi phục vị trí feed đã lưu (quay lại từ chi tiết → về đúng bài đang xem).
       window.scrollTo(0, feedScrollTopRef.current);
       if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = feedScrollTopRef.current;
     }
@@ -12960,9 +12966,7 @@ export default function RankevApp() {
   // Mixed feed: rankies + all paths + all decks.
   // "Đang thịnh hành" sorts by a composite trending score (participants × recency × live bonus);
   // any other category just uses newest-first so fresh content surfaces immediately.
-  // Nhận diện bài của mình (bản author="me" từ state cục bộ, hoặc bản UUID từ /feed).
-  const isMinePost = (p) => p.author?.id === "me" || (currentUser.apiId && p.author?.id === currentUser.apiId);
-  // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để nổi đầu + khớp Hồ sơ).
+  // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
   const feedDedup = new Map();
   for (const item of [...apiRankies, ...rankies, ...allPaths, ...allDecks].map(withMeta)) {
     const existing = feedDedup.get(item.id);
@@ -12971,10 +12975,8 @@ export default function RankevApp() {
   const feedItemsAll = [...feedDedup.values()]
     .filter((item) => !item.hidden && !item.deletedAt && item.visibility !== "private")
     .sort((a, b) => {
-      // Kiểu Facebook: bài của mình nổi lên ĐẦU feed (mới nhất trước), rồi tới nội dung người khác.
-      const am = isMinePost(a), bm = isMinePost(b);
-      if (am !== bm) return am ? -1 : 1;
-      if (am && bm) return (b.createdAt || 0) - (a.createdAt || 0);
+      // Như các MXH khác: KHÔNG dồn bài của mình lên đầu. Bài mới (mình hay người khác)
+      // nổi lên theo thời gian; tab "Đang thịnh hành" xếp theo điểm trending.
       return activeCategory === "Đang thịnh hành"
         ? trendingScore(b) - trendingScore(a)
         : (b.createdAt || 0) - (a.createdAt || 0);
@@ -13175,6 +13177,7 @@ export default function RankevApp() {
     } else {
       setRankies((prev) => [item, ...prev]);
     }
+    feedScrollTopRef.current = 0; // bài mới ở đầu feed → về đầu để thấy ngay (không nhảy giữa trang)
     setView("feed");
 
     // Đăng thật lên backend; thành công thì thay item tạm bằng bản có UUID (_api)
@@ -13514,10 +13517,15 @@ export default function RankevApp() {
     view === "bookmarks" ||
     view === "chat";
 
-  // Mở một trang "chồng" (hồ sơ người khác, chi tiết bài…) → cuộn lên đầu. Không reset
-  // khi quay lại feed để giữ nguyên vị trí đang xem.
-  useEffect(() => {
-    if (isOverlay) window.scrollTo(0, 0);
+  // Mở một trang "chồng" (hồ sơ người khác, chi tiết bài…) → cuộn lên đầu.
+  // App cuộn bằng WINDOW (container flex:1 không bị giới hạn chiều cao nên window mới cuộn).
+  // Dùng useLayoutEffect (chạy trước paint) để không "nháy" giữa trang. Không reset khi về
+  // feed để giữ vị trí đang xem (khôi phục ở effect view === "feed" bên trên).
+  useLayoutEffect(() => {
+    if (isOverlay) {
+      window.scrollTo(0, 0);
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, viewedAuthorId, selectedId, selectedDeck?.id, selectedPath?.id]);
 
