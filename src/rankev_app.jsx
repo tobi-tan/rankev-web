@@ -3256,30 +3256,53 @@ function PostMedia({ media, height = 180, radius = 12 }) {
 }
 
 // Post-style intro content shown above a card's data section: caption (clamped) + optional media.
-// On feed cards, caption clamps to `clampLines` with a "…xem thêm" affordance (opens detail).
-function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMore = true }) {
+// On feed cards, caption clamps to `clampLines` with a static "…xem thêm" hint (opens detail).
+// Ở màn CHI TIẾT, truyền `expandable` để mô tả thu gọn `clampLines` dòng + nút "Xem thêm/
+// Thu gọn" mở/đóng TẠI CHỖ (kiểu Facebook) — chỉ hiện nút khi mô tả thực sự bị tràn.
+function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const textRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!expandable || !textRef.current) return;
+    const el = textRef.current;
+    // Đo khi đang thu gọn: chế độ expandable clamp bằng maxHeight (không phải -webkit-line-clamp,
+    // vốn cắt luôn box khiến scrollHeight == clientHeight). Nhờ vậy so được nội dung tràn.
+    setOverflowing(el.scrollHeight - el.clientHeight > 2);
+  }, [caption, expandable, clampLines]);
   if (!caption && !media) return null;
+  // Thu gọn: expandable dùng maxHeight (đo tràn được); feed card dùng -webkit-line-clamp (có "…").
+  const collapsedStyle = expandable
+    ? { maxHeight: expanded ? "none" : `${clampLines * 1.45}em`, overflow: "hidden" }
+    : { display: "-webkit-box", WebkitLineClamp: clampLines, WebkitBoxOrient: "vertical", overflow: "hidden" };
   return (
     <div style={{ marginBottom: 12 }}>
       {caption && (
         <div style={{ marginBottom: media ? 10 : 0 }}>
           <div
+            ref={textRef}
             style={{
               fontFamily: bodyFont,
               fontSize: 13.5,
               color: C.text,
               lineHeight: 1.45,
-              display: "-webkit-box",
-              WebkitLineClamp: clampLines,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
+              ...collapsedStyle,
             }}
           >
             {caption}
           </div>
-          {showMore && (
-            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
-          )}
+          {expandable
+            ? overflowing && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+                  style={{ background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}
+                >
+                  {expanded ? "Thu gọn" : "…xem thêm"}
+                </button>
+              )
+            : showMore && (
+                <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
+              )}
         </div>
       )}
       {media && <PostMedia media={media} height={mediaHeight} />}
@@ -5693,7 +5716,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         </div>
 
         {(rankie.caption || rankie.media) && (
-          <PostContent caption={rankie.caption} media={rankie.media} clampLines={99} showMore={false} mediaHeight={200} />
+          <PostContent caption={rankie.caption} media={rankie.media} clampLines={4} expandable mediaHeight={180} />
         )}
 
         <div ref={resultsAreaRef} style={{ position: "relative" }}>
@@ -6260,7 +6283,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <Pill tone="muted">{resultEntries.length} kết quả</Pill>
           </div>
           {(path.caption || path.media) && (
-            <PostContent caption={path.caption} media={path.media} clampLines={99} showMore={false} mediaHeight={200} />
+            <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={180} />
           )}
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
@@ -6309,7 +6332,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <Pill tone="muted">{path.questions.length} câu</Pill>
         </div>
         {(path.caption || path.media) && (
-          <PostContent caption={path.caption} media={path.media} clampLines={99} showMore={false} mediaHeight={200} />
+          <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={180} />
         )}
         <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap", justifyContent: "center" }}>
           {(() => {
@@ -7389,7 +7412,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
           </div>
           {(deck.caption || deck.media) && (
-            <PostContent caption={deck.caption} media={deck.media} clampLines={99} showMore={false} mediaHeight={200} />
+            <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={180} />
           )}
 
           {/* Bảng kết quả thật (tự cập nhật ~5s) — thay cho giao diện làm bài của khách. */}
@@ -7487,7 +7510,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
         </div>
         {(deck.caption || deck.media) && (
-          <PostContent caption={deck.caption} media={deck.media} clampLines={99} showMore={false} mediaHeight={200} />
+          <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={180} />
         )}
         <button
           onClick={() => setStarted(true)}
