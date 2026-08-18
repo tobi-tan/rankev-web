@@ -7877,7 +7877,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
         // Neutral summary strip — intentionally hides question content to avoid spoilers
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <Layers size={18} color={C.gold} />
+            {deck.deckMode === "exam" ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
             {(() => { const nq = deck.questionCount ?? deck.questions?.length ?? 0; return deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`; })()}
@@ -12211,7 +12211,7 @@ function apiSummaryToProto(s) {
     createdAt: Date.parse(s.createdAt) || Date.now(),
     media: s.media || null,
     mine: false,
-    caption: "",
+    caption: s.caption || "",
     participants: s.engagement || 0,
     questionCount: s.questionCount ?? 0,
     seriesId: s.seriesId || null,
