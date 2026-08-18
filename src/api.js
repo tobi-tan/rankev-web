@@ -94,8 +94,15 @@ export async function apiFetch(path, options = {}) {
   });
 
   if (res.status === 401 && auth && retry) {
+    const usedAuth = h['Authorization']; // token đã gửi ở request này
     const refreshed = await doRefresh();
     if (refreshed) return apiFetch(path, { ...options, retry: false });
+    // Nếu trong lúc refresh có LOGIN mới (access token đã đổi) thì đừng xoá phiên mới —
+    // đây là refresh của token CŨ đang bay dở, thất bại của nó không được đăng xuất.
+    const current = getAccessToken();
+    if (current && `Bearer ${current}` !== usedAuth) {
+      return apiFetch(path, { ...options, retry: false });
+    }
     clearTokens();
     if (onAuthLost) onAuthLost();
     throw await toError(res);

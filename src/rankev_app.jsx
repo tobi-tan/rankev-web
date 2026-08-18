@@ -4390,7 +4390,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
       <EngagementBar
         type="rankie"
         joined={votedIds.length > 0}
-        participants={rankie.participants}
+        participants={total}
         comments={rankie.comments.length}
         shares={rankie.shares || 0}
         sessionCount={sessionCount}
