@@ -5681,7 +5681,9 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             )
           )}
           <Pill tone="muted">
-            <Users size={11} /> {fmt(isUnlimited ? displayTotal : total)}
+            {/* Vote không giới hạn + đang xem "lượt tương tác" → icon tương tác (không phải
+                người, vì số là tổng lượt bấm). Khi toggle sang "người tham gia" → icon người. */}
+            {isUnlimited && resultMetric === "votes" ? <SlidersHorizontal size={11} /> : <Users size={11} />} {fmt(isUnlimited ? displayTotal : total)}
           </Pill>
           {isUnlimited && (
             <Pill tone="live">
