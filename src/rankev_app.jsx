@@ -11681,6 +11681,53 @@ function BottomNav({ active, setView, chatUnread = 0 }) {
   );
 }
 
+// Biểu đồ thống kê hồ sơ kiểu "chỉ số game": 4 góc = rankie/path/exam/survey (diện
+// tích radar theo số bài mỗi loại), huy hiệu trung tâm = tổng bài đăng + lượt.
+function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
+  const cx = 150, cy = 116, R = 62;
+  const max = Math.max(1, rankie, path, exam, survey);
+  const rr = (v) => (v <= 0 ? 7 : Math.max(9, R * (v / max)));
+  const axes = [
+    { v: rankie, color: C.teal,    label: "RANKIE", ang: -90 },
+    { v: path,   color: C.gold,    label: "PATH",   ang: 0 },
+    { v: exam,   color: C.coral,   label: "EXAM",   ang: 90 },
+    { v: survey, color: "#A594E0", label: "SURVEY", ang: 180 },
+  ];
+  const pt = (ang, rad) => [cx + Math.cos((ang * Math.PI) / 180) * rad, cy + Math.sin((ang * Math.PI) / 180) * rad];
+  const ringPts = (f) => axes.map((a) => pt(a.ang, R * f).join(",")).join(" ");
+  const vpts = axes.map((a) => pt(a.ang, rr(a.v)));
+  const poly = vpts.map((p) => p.join(",")).join(" ");
+  const labelPos = {
+    "-90": { x: cx, y: cy - R - 22, a: "middle" },
+    "0": { x: cx + R + 14, y: cy - 3, a: "start" },
+    "90": { x: cx, y: cy + R + 22, a: "middle" },
+    "180": { x: cx - R - 14, y: cy - 3, a: "end" },
+  };
+  return (
+    <svg viewBox="0 0 300 244" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
+      {[0.34, 0.67, 1].map((f) => (
+        <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
+      ))}
+      {axes.map((a, i) => { const [x, y] = pt(a.ang, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={C.border} strokeWidth="1" />; })}
+      <polygon points={poly} fill={C.gold + "2b"} stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
+      {vpts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={axes[i].color} />)}
+      {axes.map((a, i) => {
+        const lp = labelPos[String(a.ang)];
+        return (
+          <g key={"l" + i}>
+            <text x={lp.x} y={lp.y} textAnchor={lp.a} fontFamily={monoFont} fontWeight="700" fontSize="18" fill={a.color}>{fmt(a.v)}</text>
+            <text x={lp.x} y={lp.y + 12} textAnchor={lp.a} fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="1" fill={C.textFaint}>{a.label}</text>
+          </g>
+        );
+      })}
+      <circle cx={cx} cy={cy} r="31" fill={C.surface} stroke={C.gold} strokeWidth="1.5" />
+      <text x={cx} y={cy - 3} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
+      <text x={cx} y={cy + 8} textAnchor="middle" fontFamily={bodyFont} fontSize="8" letterSpacing="1" fill={C.textFaint}>BÀI ĐĂNG</text>
+      <text x={cx} y={cy + 21} textAnchor="middle" fontFamily={monoFont} fontWeight="700" fontSize="10.5" fill={C.gold}>{fmtCompact(views)} lượt</text>
+    </svg>
+  );
+}
+
 // Shows the profile / wall for one author. When authorId is omitted (or "me"),
 // this renders the current user's own profile with edit controls; otherwise it
 // renders a read-only wall for whichever author was tapped from a card,
@@ -11911,40 +11958,16 @@ function ProfileView({
         )}
 
 
-        {/* Thống kê rút gọn: icon + số, chạm để xem chi tiết */}
-        <div style={{ marginTop: 14, position: "relative" }}>
-          <button
-            onClick={() => setShowStatsDetail((v) => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 18,
-              padding: "10px 14px", width: "100%",
-              background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Grid3x3 size={16} color={C.gold} />
-              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{fmt(theirPostsAll.length)}</span>
-              <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>bài đăng</span>
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Eye size={16} color={C.gold} />
-              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{fmtCompact(totalReach)}</span>
-              <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>lượt</span>
-            </span>
-            <ChevronDown size={14} color={C.textFaint} style={{ marginLeft: "auto", transform: showStatsDetail ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-          </button>
-          {showStatsDetail && (
-            <div style={{ display: "flex", marginTop: 6, padding: "12px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14 }}>
-              {stat(theirRankies.length, "Rankie")}
-              <div style={{ width: 1, background: C.border }} />
-              {stat(theirPaths.length, "Path")}
-              <div style={{ width: 1, background: C.border }} />
-              {stat(theirDecks.length + theirExams.length, "Survey/Exam")}
-              <div style={{ width: 1, background: C.border }} />
-              {stat(fmt(totalReach), "Lượt")}
-            </div>
-          )}
+        {/* Thống kê kiểu "chỉ số game": radar 4 loại bài + huy hiệu trung tâm (tổng bài + lượt) */}
+        <div style={{ marginTop: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 8px 8px" }}>
+          <ProfileStatRadar
+            rankie={theirRankies.length}
+            path={theirPaths.length}
+            exam={theirExams.length}
+            survey={theirDecks.length}
+            posts={theirPostsAll.length}
+            views={totalReach}
+          />
         </div>
 
       </div>
