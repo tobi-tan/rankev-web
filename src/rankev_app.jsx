@@ -1701,6 +1701,7 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
 function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, onVisibility, onStats, onExport }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const rk = useRankieSave();
 
   useEffect(() => {
     if (!open) return;
@@ -1781,6 +1782,7 @@ function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, o
             animation: "popIn 0.15s ease",
           }}
         >
+          {post.type !== "share" && item(Trophy, "Lưu vào Rankie", () => rk?.save && rk.save(postSaveItem(post)))}
           {item(post.pinned ? PinOff : Pin, post.pinned ? "Bỏ ghim" : "Ghim lên đầu", onPin)}
           {post.type !== "share" && item(Edit3, "Chỉnh sửa", onEdit)}
           {post.type !== "share" && item(Copy, "Nhân bản", onDuplicate)}
@@ -5094,7 +5096,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
           const supportIds = norm(c.supports);
           const supportLabels = getSupportLabel ? supportIds.map((id) => getSupportLabel(id)).filter(Boolean) : [];
           return (
-            <div key={c.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, display: "flex", gap: 10 }}>
+            <SaveWrap key={c.id} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, rankUp: c.rankUp, rankDown: c.rankDown, user: c.user, postId } }} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, display: "flex", gap: 10 }}>
               {/* Rank up/down rail */}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
                 <button onClick={() => react(c.id, "up")} title="Rank up" style={{ background: "none", border: "none", cursor: "pointer", color: c.myReaction === "up" ? C.teal : C.textFaint, padding: 2, display: "grid", placeItems: "center" }}>
@@ -5150,7 +5152,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                   </div>
                 )}
               </div>
-            </div>
+            </SaveWrap>
           );
         })}
       </div>
@@ -12168,7 +12170,7 @@ function ProfileView({
               </button>
             </div>
           ) : (
-            <div key={item.id} style={{ opacity: item.hidden ? 0.6 : 1 }}>
+            <SaveWrap key={item.id} item={item.type === "share" ? null : postSaveItem(item)} style={{ opacity: item.hidden ? 0.6 : 1 }}>
               {item.hidden && (
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4, fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
                   <EyeOff size={11} /> Đã ẩn — chỉ bạn thấy
@@ -12209,7 +12211,7 @@ function ProfileView({
                   onToggleBookmark={onToggleBookmark}
                 />
               )}
-            </div>
+            </SaveWrap>
           )
         )}
       </div>
@@ -12734,13 +12736,16 @@ function AuthGate({ onAuthed }) {
 const RankieSaveCtx = React.createContext(null);
 function useRankieSave() { return React.useContext(RankieSaveCtx); }
 
-// Nhấn-giữ ~450ms (hoặc chuột phải) → onLong. Chặn cú click phát sinh ngay sau đó.
+// Nhấn-giữ ~450ms (hoặc chuột phải) → onLong. Huỷ nếu người dùng cuộn/kéo (di chuyển >10px).
+// Chặn cú click phát sinh ngay sau khi long-press.
 function useLongPress(onLong, ms = 450) {
   const timer = useRef(null);
   const fired = useRef(false);
+  const start = useRef(null);
   const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   return {
-    onPointerDown: () => { fired.current = false; clear(); timer.current = setTimeout(() => { fired.current = true; onLong(); }, ms); },
+    onPointerDown: (e) => { fired.current = false; start.current = { x: e.clientX, y: e.clientY }; clear(); timer.current = setTimeout(() => { fired.current = true; onLong(); }, ms); },
+    onPointerMove: (e) => { if (start.current) { const dx = Math.abs(e.clientX - start.current.x), dy = Math.abs(e.clientY - start.current.y); if (dx > 10 || dy > 10) clear(); } },
     onPointerUp: clear,
     onPointerLeave: clear,
     onPointerCancel: clear,
@@ -12750,6 +12755,21 @@ function useLongPress(onLong, ms = 450) {
 }
 
 const rankieRefKey = (i) => `${i.refType}:${i.refId}`;
+
+// Ảnh chụp preview để "Lưu vào Rankie" một bài viết.
+function postSaveItem(p) {
+  return {
+    refType: "post", refId: p.id, label: p.title || "Bài viết",
+    preview: { postType: p.type, deckMode: p.deckMode, participants: p.participants || 0, comments: Array.isArray(p.comments) ? p.comments.length : (p.comments || 0) },
+  };
+}
+
+// Bọc một phần tử để nhấn-giữ → lưu (gọi hook đúng chuẩn, dùng được trong .map()).
+function SaveWrap({ item, style, children }) {
+  const rk = useRankieSave();
+  const lp = useLongPress(() => { if (item && rk?.save) rk.save(typeof item === "function" ? item() : item); });
+  return <div {...lp} style={style}>{children}</div>;
+}
 
 // Preview cho một đối tượng "Lưu vào Rankie" — hiển thị theo loại (bài/user/comment).
 function RankieRefPreview({ item }) {
