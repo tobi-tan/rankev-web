@@ -9875,6 +9875,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
   const pb = editing && editItem.type === "path" ? protoPathToBuilder(editItem) : null;
   const dk = editing && editItem.type === "deck" ? protoDeckToBuilder(editItem) : null;
   const emit = editing ? (item) => onUpdate?.({ ...item, id: editItem.id }) : onCreate;
+  const rk = useRankieSave(); // giỏ "Lưu vào Rankie" để thêm bài/user/comment làm lựa chọn
   // rankie | path | deck(survey) | exam. Deck exam → "exam"; survey → "deck".
   const initContentType = editing
     ? (editItem.type === "deck" ? (dk?.deckMode === "exam" ? "exam" : "deck") : editItem.type)
@@ -10177,6 +10178,20 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
 
   const updateOpt = (i, patch) => setOpts((prev) => prev.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
   const addOpt = () => setOpts((prev) => [...prev, { label: "", emoji: EMOJI_CHOICES[prev.length % EMOJI_CHOICES.length], image: null }]);
+  // Thêm các mục trong giỏ "Lưu vào Rankie" thành lựa chọn (bỏ mục đã có).
+  const addFromBasket = () => {
+    const basket = rk?.basket || [];
+    setOpts((prev) => {
+      const have = new Set(prev.filter((o) => o.refId).map((o) => `${o.refType}:${o.refId}`));
+      const add = basket
+        .filter((it) => !have.has(`${it.refType}:${it.refId}`))
+        .map((it) => ({ label: it.label, emoji: undefined, image: it.preview?.avatarUrl || null, refType: it.refType, refId: it.refId, preview: it.preview }));
+      if (!add.length) return prev;
+      // Bỏ các ô text còn trống mặc định để tránh lẫn, giữ ô đã điền + ref cũ.
+      const kept = prev.filter((o) => o.refId || (o.label && o.label.trim()));
+      return [...kept, ...add];
+    });
+  };
 
   // Upload ảnh cho một lựa chọn (Phần 6) — file picker thật, fallback SVG demo.
   const mockUpload = (i) => {
@@ -10191,7 +10206,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
     pickAndUpload((url) => setVoteMarker({ emoji: voteMarker?.emoji || "⭐", image: url }), "image", svg);
   };
 
-  const canSubmit = title.trim() && opts.filter((o) => o.label.trim()).length >= 2;
+  const canSubmit = title.trim() && opts.filter((o) => o.label.trim() || o.refId).length >= 2;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -10203,7 +10218,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
       const t = new Date(closingTime.custom).getTime();
       closesAt = Number.isNaN(t) ? null : t;
     }
-    const finalOptions = opts.filter((o) => o.label.trim()).map((o, i) => ({
+    const finalOptions = opts.filter((o) => o.label.trim() || o.refId).map((o, i) => ({
       id: "o" + i,
       label: o.label,
       emoji: o.emoji,
@@ -10211,6 +10226,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
       votes: 0,
       voters: 0,
       color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][i % 5],
+      // Option "Lưu vào Rankie" — giữ tham chiếu + ảnh chụp preview (hiện ngay trong phiên).
+      ...(o.refType ? { refType: o.refType, refId: o.refId, preview: o.preview } : {}),
     }));
     emit({
       id: "r" + Date.now(),
@@ -10440,6 +10457,12 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
           <span style={label}>Phương án bình chọn (kèm hình minh họa)</span>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {opts.map((o, i) => (
+              o.refType ? (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.gold}55`, borderRadius: 12, padding: "10px 12px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={o} /></div>
+                  <button onClick={() => setOpts((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
+                </div>
+              ) : (
               <div key={i}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   {/* Illustration tile — tap to pick emoji */}
@@ -10479,14 +10502,25 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
                   </div>
                 )}
               </div>
+              )
             ))}
           </div>
-          <button
-            onClick={addOpt}
-            style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-          >
-            <PlusCircle size={14} /> Thêm phương án
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+            <button
+              onClick={addOpt}
+              style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <PlusCircle size={14} /> Thêm phương án
+            </button>
+            {(rk?.basket?.length || 0) > 0 && (
+              <button
+                onClick={addFromBasket}
+                style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                🏆 Thêm từ giỏ Rankie ({rk.basket.length})
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={field}>
@@ -12427,6 +12461,10 @@ function apiRankieToProto(r) {
     id: o.id, label: o.label || "", emoji: o.emoji || undefined, flag: o.flag || undefined,
     image: o.imageUrl || undefined, votes: o.votes || 0, voters: o.voters || 0,
     color: o.color || OPT_FALLBACK[i % OPT_FALLBACK.length],
+    // "Lưu vào Rankie": trỏ tới thực thể. preview đầy đủ chỉ có trong phiên tạo; khi nạp lại
+    // từ API chỉ còn refType/refId + label (client tự dựng preview tối giản từ label).
+    refType: o.refType || undefined, refId: o.refId || undefined,
+    ...(o.refType ? { preview: { postType: undefined } } : {}),
   }));
   return {
     id: r.id, type: "rankie", chartType: r.chartType || (opts.length === 2 ? "head_to_head" : "bar"),
@@ -12605,6 +12643,9 @@ function protoToCreatePayload(item) {
       emoji: o.emoji || undefined,
       imageUrl: urlOK(o.image),
       color: o.color || undefined,
+      // "Lưu vào Rankie": option trỏ tới bài viết/user/comment.
+      refType: o.refType || undefined,
+      refId: o.refId || undefined,
     })),
   };
 }
