@@ -5476,6 +5476,7 @@ function DeckDetailWithSwipe({ selectedDeck, allSeries, navigateChapter, partici
 
 // ---------- RANKIE DETAIL VIEW ----------
 function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded }) {
+  const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
   const isClosed = isRankieClosed(rankie);
   const [shareOpen, setShareOpen] = useState(false);
@@ -6080,6 +6081,16 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                             }}
                           >
                             <Check size={11} color="#1A1305" strokeWidth={3} />
+                          </span>
+                        )}
+                        {o.refType && rk?.openRef && (
+                          <span
+                            role="button"
+                            title="Mở"
+                            onClick={(e) => { e.stopPropagation(); rk.openRef(o); }}
+                            style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 8, background: "rgba(0,0,0,0.5)", display: "grid", placeItems: "center", cursor: "pointer" }}
+                          >
+                            <ChevronRight size={13} color="#fff" />
                           </span>
                         )}
                         {o.flag ? (
@@ -12811,7 +12822,7 @@ function RankieRefPreview({ item }) {
 }
 
 // Lớp phủ: xác nhận lưu (action sheet) + nút giỏ nổi + sheet xem giỏ Rankie.
-function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, setBasketOpen, onRemove }) {
+function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, setBasketOpen, onRemove, onOpenRef }) {
   const sheetWrap = { position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" };
   const sheet = { width: "100%", maxWidth: 420, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "16px 16px 24px" };
   return (
@@ -12848,8 +12859,8 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {basket.map((it) => (
                   <div key={rankieRefKey(it)} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={it} /></div>
-                    <button onClick={() => onRemove(rankieRefKey(it))} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><Trash2 size={16} /></button>
+                    <button onClick={() => { onOpenRef?.(it); setBasketOpen(false); }} title="Mở" style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}><RankieRefPreview item={it} /></button>
+                    <button onClick={() => onRemove(rankieRefKey(it))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><Trash2 size={16} /></button>
                   </div>
                 ))}
               </div>
@@ -13178,7 +13189,6 @@ export default function RankevApp() {
     });
   }, [showToast]);
   const removeFromBasket = useCallback((key) => setRankieBasket((prev) => prev.filter((x) => rankieRefKey(x) !== key)), []);
-  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket }), [saveToRankie, rankieBasket]);
 
   // Bài thật từ API có id dạng UUID; bài mock có id ngắn ("r1"…). Chỉ gọi API cho bài thật.
   const isApiId = (id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -13556,6 +13566,20 @@ export default function RankevApp() {
     setPrevAfterAuthor(view);
     setView("authorProfile");
   };
+
+  // "Lưu vào Rankie": mở đúng thực thể mà một option tham chiếu (bài/user/comment).
+  const openRef = useCallback((opt) => {
+    if (!opt || !opt.refType) return;
+    if (opt.refType === "user") return openAuthorWall(opt.refId);
+    const id = opt.refType === "comment" ? opt.preview?.postId : opt.refId;
+    if (!id) return;
+    const t = opt.preview?.postType;
+    if (t === "path") openPathFromProfile(id);
+    else if (t === "deck") openDeckFromProfile(id);
+    else openRankie(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef }), [saveToRankie, rankieBasket, openRef]);
 
   const handleCreate = (item) => {
     // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
@@ -13939,7 +13963,7 @@ export default function RankevApp() {
     <RankieSaveCtx.Provider value={rankieSaveValue}>
     <div style={{ display: "flex", justifyContent: "center", background: "#050A07", minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
-      <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} onRemove={removeFromBasket} />
+      <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} onRemove={removeFromBasket} onOpenRef={openRef} />
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(18,14,7,0.95)", color: C.text, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}>
           {toast}
