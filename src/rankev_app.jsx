@@ -1589,6 +1589,15 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
 // Used on top of Rankie/Path/Deck cards. Tapping it opens that author's wall
 // instead of the card itself, so it stops the click from bubbling up.
 function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, onSetRank, fanCount = 0 }) {
+  const rk = useRankieSave();
+  // Nhấn-giữ vào user → "Lưu vào Rankie" (kèm ảnh chụp avatar/tên/@/RP để preview).
+  const longPress = useLongPress(() => {
+    if (!author || !rk?.save) return;
+    rk.save({
+      refType: "user", refId: author.id, label: author.name || "Người dùng",
+      preview: { avatarUrl: author.avatarUrl, avatarEmoji: author.avatarEmoji, avatarColor: author.avatarColor, handle: author.handle, rp: (author.followers || 0) + (rankTier || 0) },
+    });
+  });
   if (!author) return null;
   const isMe = author.id === "me";
   return (
@@ -1602,6 +1611,7 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
       }}
     >
       <div
+        {...longPress}
         onClick={isMe ? undefined : (e) => {
           e.stopPropagation();
           onOpenAuthor?.(author.id);
@@ -12676,6 +12686,121 @@ function AuthGate({ onAuthed }) {
 }
 
 // ---------- ROOT APP ----------
+// ---- "Lưu vào Rankie" ----------------------------------------------------
+// Cho phép nhấn-giữ (mobile) / giữ chuột trên bài viết · user · comment để lưu
+// đối tượng vào "giỏ Rankie", rồi dùng làm lựa chọn khi tạo Rankie mới.
+// Dùng React context để mọi component gọi được mà không phải prop-drill.
+const RankieSaveCtx = React.createContext(null);
+function useRankieSave() { return React.useContext(RankieSaveCtx); }
+
+// Nhấn-giữ ~450ms (hoặc chuột phải) → onLong. Chặn cú click phát sinh ngay sau đó.
+function useLongPress(onLong, ms = 450) {
+  const timer = useRef(null);
+  const fired = useRef(false);
+  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+  return {
+    onPointerDown: () => { fired.current = false; clear(); timer.current = setTimeout(() => { fired.current = true; onLong(); }, ms); },
+    onPointerUp: clear,
+    onPointerLeave: clear,
+    onPointerCancel: clear,
+    onClickCapture: (e) => { if (fired.current) { e.preventDefault(); e.stopPropagation(); fired.current = false; } },
+    onContextMenu: (e) => { e.preventDefault(); if (!fired.current) { onLong(); } },
+  };
+}
+
+const rankieRefKey = (i) => `${i.refType}:${i.refId}`;
+
+// Preview cho một đối tượng "Lưu vào Rankie" — hiển thị theo loại (bài/user/comment).
+function RankieRefPreview({ item }) {
+  const p = item.preview || {};
+  if (item.refType === "user") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 99, background: p.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 18, flexShrink: 0 }}>
+          {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (p.avatarEmoji || "🙂")}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>{p.handle ? "@" + p.handle + " · " : ""}<Star size={10} color={C.gold} fill={C.gold} style={{ verticalAlign: -1 }} /> {fmtCompact(p.rp || 0)} RP</div>
+        </div>
+      </div>
+    );
+  }
+  if (item.refType === "comment") {
+    return (
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
+        <MessageCircle size={16} color={C.teal} style={{ marginTop: 2, flexShrink: 0 }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text || item.label}</div>
+          <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>▲ {fmt(p.rankUp || 0)} · ▼ {fmt(p.rankDown || 0)}{p.user ? " · " + p.user : ""}</div>
+        </div>
+      </div>
+    );
+  }
+  const TypeIcon = p.postType === "path" ? GitBranch : p.postType === "deck" ? (p.deckMode === "exam" ? Edit3 : Layers) : BarChart3;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+      <div style={{ width: 34, height: 34, borderRadius: 9, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><TypeIcon size={16} color={C.gold} /></div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>{fmtCompact(p.participants || 0)} tham gia · {fmt(p.comments || 0)} bình luận</div>
+      </div>
+    </div>
+  );
+}
+
+// Lớp phủ: xác nhận lưu (action sheet) + nút giỏ nổi + sheet xem giỏ Rankie.
+function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, setBasketOpen, onRemove }) {
+  const sheetWrap = { position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" };
+  const sheet = { width: "100%", maxWidth: 420, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "16px 16px 24px" };
+  return (
+    <>
+      {basket.length > 0 && !basketOpen && !pending && (
+        <button onClick={() => setBasketOpen(true)} style={{ position: "fixed", right: 16, bottom: 150, zIndex: 9998, display: "flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 999, background: C.gold, color: "#231a05", border: "none", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 6px 18px rgba(0,0,0,.4)" }}>
+          🏆 Rankie · {basket.length}
+        </button>
+      )}
+      {pending && (
+        <div onClick={onCancel} style={sheetWrap}>
+          <div onClick={(e) => e.stopPropagation()} style={sheet}>
+            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 12 }}>Lưu vào Rankie?</div>
+            <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+              <RankieRefPreview item={pending} />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={onCancel} style={{ flex: 1, padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Hủy</button>
+              <button onClick={onConfirm} style={{ flex: 2, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Lưu vào Rankie</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {basketOpen && (
+        <div onClick={() => setBasketOpen(false)} style={sheetWrap}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...sheet, maxHeight: "80vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text }}>Giỏ Rankie · {basket.length}</div>
+              <button onClick={() => setBasketOpen(false)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={18} /></button>
+            </div>
+            {basket.length === 0 ? (
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, textAlign: "center", padding: "18px 0" }}>Chưa có gì. Nhấn-giữ vào bài viết, người dùng hoặc bình luận để lưu.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {basket.map((it) => (
+                  <div key={rankieRefKey(it)} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={it} /></div>
+                    <button onClick={() => onRemove(rankieRefKey(it))} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><Trash2 size={16} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 14 }}>Khi tạo Rankie mới, bạn sẽ thêm được các mục này làm lựa chọn.</div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function RankevApp() {
   const [rankies, setRankies] = useState(initialRankies);
   // --- Feed thật từ API (Phần 2) — merge cùng mock, mock giữ làm nội dung nền/fallback ---
@@ -12976,6 +13101,23 @@ export default function RankevApp() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   }, []);
+
+  // --- Giỏ "Lưu vào Rankie" (Phần 2: rankie từ dữ liệu Rankev) ---
+  const [rankieBasket, setRankieBasket] = useState([]); // [{ refType, refId, label, preview }]
+  const [pendingSave, setPendingSave] = useState(null); // đối tượng đang chờ xác nhận lưu
+  const [basketOpen, setBasketOpen] = useState(false);
+  const saveToRankie = useCallback((item) => setPendingSave(item), []);
+  const confirmSaveToRankie = useCallback(() => {
+    setPendingSave((cur) => {
+      if (cur) {
+        setRankieBasket((prev) => (prev.some((x) => rankieRefKey(x) === rankieRefKey(cur)) ? prev : [cur, ...prev]));
+        showToast("Đã lưu vào Rankie");
+      }
+      return null;
+    });
+  }, [showToast]);
+  const removeFromBasket = useCallback((key) => setRankieBasket((prev) => prev.filter((x) => rankieRefKey(x) !== key)), []);
+  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket }), [saveToRankie, rankieBasket]);
 
   // Bài thật từ API có id dạng UUID; bài mock có id ngắn ("r1"…). Chỉ gọi API cho bài thật.
   const isApiId = (id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -13733,8 +13875,10 @@ export default function RankevApp() {
   }
 
   return (
+    <RankieSaveCtx.Provider value={rankieSaveValue}>
     <div style={{ display: "flex", justifyContent: "center", background: "#050A07", minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
+      <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} onRemove={removeFromBasket} />
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(18,14,7,0.95)", color: C.text, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}>
           {toast}
@@ -14090,5 +14234,6 @@ export default function RankevApp() {
         )}
       </div>
     </div>
+    </RankieSaveCtx.Provider>
   );
 }
