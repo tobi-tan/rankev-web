@@ -167,6 +167,15 @@ export const tournaments = {
   mine() { return apiFetch('/tournaments/mine'); },
 };
 
+// ---------------- Messaging (chat) ----------------
+export const messaging = {
+  conversations() { return apiFetch('/conversations'); },
+  openDM(userId) { return apiFetch('/conversations', { method: 'POST', body: { userId } }); },
+  messages(convId) { return apiFetch(`/conversations/${convId}/messages`); },
+  send(convId, body) { return apiFetch(`/conversations/${convId}/messages`, { method: 'POST', body }); },
+  votePoll(msgId, optionIdx) { return apiFetch(`/messages/${msgId}/vote`, { method: 'POST', body: { optionIdx } }); },
+};
+
 // ---------------- Rankie vote ----------------
 export const rankies = {
   vote(id, optionIds) { return apiFetch(`/rankies/${id}/vote`, { method: 'POST', body: { optionIds } }); },
@@ -258,6 +267,7 @@ const pending = [];
 const roomHandlers = new Map(); // rankieId → Set(handler)
 const liveHandlers = new Map(); // sessionId → Set(handler)  — presenter (kết quả đầy đủ)
 const liveStateHandlers = new Map(); // sessionId → Set(handler)  — participant (phase/endsAt)
+const chatHandlers = new Map(); // conversationId → Set(handler)  — tin nhắn/poll realtime
 
 function ensureSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -275,6 +285,7 @@ function ensureSocket() {
     for (const rankieId of roomHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_rankie', rankieId }));
     for (const sessionId of liveHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_live', sessionId }));
     for (const sessionId of liveStateHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_live_state', sessionId }));
+    for (const conversationId of chatHandlers.keys()) ws.send(JSON.stringify({ type: 'subscribe_chat', conversationId }));
     while (pending.length) ws.send(pending.shift());
   };
   ws.onmessage = (e) => {
@@ -285,6 +296,8 @@ function ensureSocket() {
       for (const h of liveHandlers.get(m.sessionId)) { try { h(m.results); } catch { /* */ } }
     } else if (m.type === 'live_state' && liveStateHandlers.has(m.sessionId)) {
       for (const h of liveStateHandlers.get(m.sessionId)) { try { h(m.state); } catch { /* */ } }
+    } else if ((m.type === 'chat_message' || m.type === 'chat_poll_update') && chatHandlers.has(m.conversationId)) {
+      for (const h of chatHandlers.get(m.conversationId)) { try { h(m); } catch { /* */ } }
     }
   };
   ws.onclose = () => { wsReady = false; ws = null; };
@@ -319,6 +332,24 @@ export function subscribeRankie(rankieId, onUpdate) {
 /** Cast a vote over WebSocket (server broadcasts vote_update). */
 export function voteRealtime(rankieId, optionIds) {
   wsSend({ type: 'vote', rankieId, optionIds });
+}
+
+/** Nghe tin nhắn/poll realtime của một hội thoại. onEvent({type, message|poll}). Trả về hàm hủy. */
+export function subscribeChat(conversationId, onEvent) {
+  if (!chatHandlers.has(conversationId)) {
+    chatHandlers.set(conversationId, new Set());
+    wsSend({ type: 'subscribe_chat', conversationId });
+  }
+  chatHandlers.get(conversationId).add(onEvent);
+  return () => {
+    const set = chatHandlers.get(conversationId);
+    if (!set) return;
+    set.delete(onEvent);
+    if (set.size === 0) {
+      chatHandlers.delete(conversationId);
+      wsSend({ type: 'unsubscribe_chat', conversationId });
+    }
+  };
 }
 
 /** Presenter theo dõi phiên trực tiếp realtime. onUpdate(results). Trả về hàm hủy. */
@@ -359,6 +390,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, paths, decks, comments, bookmarks, social, series, sessions, live,
-  uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, voteRealtime, ApiError,
+  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, social, series, sessions, live,
+  uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };

@@ -9,7 +9,7 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -3589,7 +3589,7 @@ function DetailHeaderActions({ item, onPresent, isOwner = false, participated = 
 // Facebook-style share sheet: write a caption, pick who can see the share, pick where
 // it goes (only "Hồ sơ cá nhân" is functional today — Nhóm/Tin nhắn are placeholders
 // for once groups/messaging exist), plus the existing copy-link and QR options.
-function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }) {
+function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, onShareToChat }) {
   const [caption, setCaption] = useState("");
   const [visibility, setVisibility] = useState("public");
   const [destination, setDestination] = useState("profile");
@@ -3626,9 +3626,11 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }
       setPosted(true);
       setTimeout(onClose, 900);
     } else if (destination === "message" && selectedContact) {
-      onShared?.();
-      setMsgSent(true);
-      setTimeout(onClose, 900);
+      // Gửi thẻ chia sẻ thật vào hội thoại (selectedContact.id = conversationId).
+      const refType = item.type === "deck" ? "deck" : item.type; // rankie|path|deck
+      const done = () => { onShared?.(); setMsgSent(true); setTimeout(onClose, 900); };
+      api.messaging.send(selectedContact.id, { kind: "share", refType, refId: item.id, body: caption || undefined })
+        .then(done).catch(done);
     }
   };
 
@@ -11289,143 +11291,55 @@ function OnlineDot({ online, size = 42 }) {
 // Quick-reaction emojis (TikTok DM style)
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "👏", "🔥"];
 
-function ChatListView({ contacts, messages, onOpen, onBack }) {
+function ChatListView({ conversations = [], onOpen, onRefresh, onBack }) {
   const [search, setSearch] = useState("");
-  const filtered = contacts.filter((c) =>
-    c.author.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.author.handle.toLowerCase().includes(search.toLowerCase())
-  );
-  const totalUnread = contacts.reduce((s, c) => s + (c.unread || 0), 0);
+  const filtered = conversations.filter((c) => (c.title || "").toLowerCase().includes(search.toLowerCase()));
+  const totalUnread = conversations.reduce((s, c) => s + (c.unread || 0), 0);
+  const other = (c) => c.members?.[0] || { name: c.title || "Nhóm", handle: "", avatarEmoji: "💬", avatarColor: C.goldSoft };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Header */}
-      <div style={{
-        padding: "18px 16px 10px",
-        borderBottom: `1px solid ${C.border}`,
-        position: "sticky", top: 0, background: C.bg, zIndex: 10,
-      }}>
+      <div style={{ padding: "18px 16px 10px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontFamily: displayFont, fontStyle: "italic", fontSize: 22, color: C.text }}>
             Tin nhắn
             {totalUnread > 0 && (
-              <span style={{
-                marginLeft: 8, fontSize: 12, fontStyle: "normal", fontFamily: bodyFont,
-                background: C.coral, color: "#fff", borderRadius: 999,
-                padding: "2px 7px", verticalAlign: "middle", fontWeight: 700,
-              }}>{totalUnread}</span>
+              <span style={{ marginLeft: 8, fontSize: 12, fontStyle: "normal", fontFamily: bodyFont, background: C.coral, color: "#fff", borderRadius: 999, padding: "2px 7px", verticalAlign: "middle", fontWeight: 700 }}>{totalUnread}</span>
             )}
           </div>
-          <button style={{ ...iconButton, color: C.gold }}>
-            <Edit3 size={19} />
-          </button>
+          <button onClick={onRefresh} title="Làm mới" style={{ ...iconButton, color: C.gold }}><RefreshCw size={18} /></button>
         </div>
-        {/* Search bar */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8,
-          background: C.surfaceRaised, borderRadius: 12,
-          border: `1px solid ${C.border}`, padding: "9px 12px",
-        }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 12, border: `1px solid ${C.border}`, padding: "9px 12px" }}>
           <Search size={15} color={C.textFaint} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm kiếm..."
-            style={{
-              background: "none", border: "none", outline: "none",
-              color: C.text, fontFamily: bodyFont, fontSize: 14, flex: 1,
-            }}
-          />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm kiếm..." style={{ background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14, flex: 1 }} />
         </div>
       </div>
 
-      {/* Online avatars strip */}
-      <div style={{
-        display: "flex", gap: 14, padding: "12px 16px",
-        overflowX: "auto", scrollbarWidth: "none",
-        borderBottom: `1px solid ${C.border}`,
-      }}>
-        {contacts.filter((c) => c.author.online !== false).map((c) => (
-          <div
-            key={c.id}
-            onClick={() => onOpen(c)}
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer", flexShrink: 0 }}
-          >
-            <div style={{ position: "relative" }}>
-              <Avatar author={c.author} size={48} />
-              <div style={{
-                position: "absolute", bottom: 1, right: 1,
-                width: 12, height: 12, borderRadius: 999,
-                background: "#4ADE80", border: `2px solid ${C.bg}`,
-              }} />
-            </div>
-            <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textMuted, maxWidth: 52, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {c.author.name.split(" ").slice(-1)[0]}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Conversation list */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>
-            Không tìm thấy cuộc trò chuyện
+          <div style={{ textAlign: "center", padding: "48px 28px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.7 }}>
+            Chưa có cuộc trò chuyện nào.<br />Mở hồ sơ một người và nhấn <b style={{ color: C.gold }}>Nhắn tin</b>, hoặc <b style={{ color: C.gold }}>Chia sẻ</b> một bài tới bạn bè để bắt đầu.
           </div>
         )}
         {filtered.map((c) => {
-          const lastMsgs = messages[c.id] || [];
-          const last = lastMsgs[lastMsgs.length - 1];
+          const a = other(c);
           return (
-            <div
-              key={c.id}
-              onClick={() => onOpen(c)}
-              style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "12px 16px", cursor: "pointer",
-                borderBottom: `1px solid ${C.border}`,
-                background: c.unread > 0 ? "rgba(212,169,74,0.04)" : "transparent",
-                transition: "background 0.15s",
-              }}
-            >
-              <div style={{ position: "relative" }}>
-                <Avatar author={c.author} size={50} />
-                {c.author.online && (
-                  <div style={{
-                    position: "absolute", bottom: 1, right: 1,
-                    width: 12, height: 12, borderRadius: 999,
-                    background: "#4ADE80", border: `2px solid ${C.bg}`,
-                  }} />
-                )}
-              </div>
+            <div key={c.id} onClick={() => onOpen(c)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", cursor: "pointer", borderBottom: `1px solid ${C.border}`, background: c.unread > 0 ? "rgba(212,169,74,0.04)" : "transparent" }}>
+              <Avatar author={a} size={50} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontFamily: bodyFont, fontWeight: c.unread > 0 ? 700 : 600, fontSize: 14.5, color: C.text }}>
-                    {c.author.name}
-                    {SHOW_VERIFIED && c.author.verified && <span style={{ marginLeft: 4, fontSize: 11, color: C.teal }}>✓</span>}
+                  <span style={{ fontFamily: bodyFont, fontWeight: c.unread > 0 ? 700 : 600, fontSize: 14.5, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.title}
+                    {SHOW_VERIFIED && a.verified && <span style={{ marginLeft: 4, fontSize: 11, color: C.teal }}>✓</span>}
                   </span>
-                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0, marginLeft: 8 }}>
-                    {chatTimeAgo(last?.time || c.lastTime)}
-                  </span>
+                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0, marginLeft: 8 }}>{chatTimeAgo(Date.parse(c.lastTime))}</span>
                 </div>
-                <div style={{
-                  fontFamily: bodyFont, fontSize: 13, marginTop: 2,
-                  color: c.unread > 0 ? C.text : C.textFaint,
-                  fontWeight: c.unread > 0 ? 600 : 400,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>
-                  {last?.from === "me" ? "Bạn: " : ""}{last?.text || c.lastMsg}
+                <div style={{ fontFamily: bodyFont, fontSize: 13, marginTop: 2, color: c.unread > 0 ? C.text : C.textFaint, fontWeight: c.unread > 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.lastMessage || "Bắt đầu trò chuyện…"}
                 </div>
               </div>
               {c.unread > 0 && (
-                <div style={{
-                  width: 20, height: 20, borderRadius: 999,
-                  background: C.coral, color: "#fff",
-                  display: "grid", placeItems: "center",
-                  fontFamily: bodyFont, fontWeight: 700, fontSize: 11, flexShrink: 0,
-                }}>
-                  {c.unread}
-                </div>
+                <div style={{ width: 20, height: 20, borderRadius: 999, background: C.coral, color: "#fff", display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{c.unread}</div>
               )}
             </div>
           );
@@ -11435,249 +11349,177 @@ function ChatListView({ contacts, messages, onOpen, onBack }) {
   );
 }
 
-function ChatDetailView({ contact, messages, onSend, onBack }) {
-  const [text, setText] = useState("");
-  const [reacting, setReacting] = useState(null); // message id being reacted to
-  const [reactions, setReactions] = useState({}); // { msgId: emoji }
-  const [typing, setTyping] = useState(false);
-  const bottomRef = useRef(null);
-  const inputRef = useRef(null);
+// Thẻ chia sẻ bài trong tin nhắn — mở bài khi chạm.
+function ChatShareCard({ msg, onOpenShare }) {
+  return (
+    <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ display: "block", textAlign: "left", width: "100%", marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 10, cursor: "pointer" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 17, flexShrink: 0 }}>
+          {msg.refType === "path" ? "🌿" : msg.refType === "deck" ? "📋" : "📊"}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.text }}>{msg.refType === "path" ? "Path" : msg.refType === "deck" ? "Bộ câu hỏi" : "Rankie"} được chia sẻ</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.teal, marginTop: 1 }}>Chạm để mở →</div>
+        </div>
+      </div>
+    </button>
+  );
+}
 
-  // Simulate "họ đang nhập..." after user sends
+// Thẻ bình chọn nhanh (poll) trong tin nhắn — vote realtime.
+function ChatPollCard({ msg, onVote }) {
+  const poll = msg.poll || {};
+  const opts = poll.options || [];
+  const votes = msg.pollVotes || {};
+  const total = msg.pollTotal || 0;
+  const my = msg.myVote;
+  return (
+    <div style={{ marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, minWidth: 220 }}>
+      <div style={{ fontFamily: bodyFont, fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 10 }}>📊 {poll.question}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {opts.map((o, i) => {
+          const n = votes[i] || 0;
+          const pct = total ? Math.round((n / total) * 100) : 0;
+          const mine = my === i;
+          return (
+            <button key={i} onClick={() => onVote?.(msg.id, i)} style={{ position: "relative", textAlign: "left", border: `1px solid ${mine ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: "pointer", background: C.surfaceRaised, padding: 0 }}>
+              <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: mine ? "rgba(231,188,85,.20)" : "rgba(95,201,168,.12)", transition: "width .3s" }} />
+              <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 11px", fontFamily: bodyFont, fontSize: 13 }}>
+                <span style={{ color: C.text, fontWeight: mine ? 700 : 500 }}>{o.emoji ? o.emoji + " " : ""}{o.label}</span>
+                <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>{pct}%</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8 }}>{total} lượt bình chọn{my != null ? " · đã chọn" : ""}</div>
+    </div>
+  );
+}
+
+// Bảng tạo poll nhanh trong chat.
+function ChatPollComposer({ onCreate, onCancel }) {
+  const [q, setQ] = useState("");
+  const [opts, setOpts] = useState(["", ""]);
+  const canMake = q.trim() && opts.filter((o) => o.trim()).length >= 2;
+  const f = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 11px", color: C.text, fontFamily: bodyFont, fontSize: 13.5, outline: "none", width: "100%" };
+  return (
+    <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}`, background: C.bg, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold }}>📊 Tạo bình chọn nhanh</div>
+        <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={16} /></button>
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Câu hỏi…" style={f} />
+      {opts.map((o, i) => (
+        <div key={i} style={{ display: "flex", gap: 6 }}>
+          <input value={o} onChange={(e) => setOpts((p) => p.map((x, idx) => idx === i ? e.target.value : x))} placeholder={`Lựa chọn ${i + 1}`} style={{ ...f, flex: 1 }} />
+          {opts.length > 2 && <button onClick={() => setOpts((p) => p.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={14} /></button>}
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8 }}>
+        {opts.length < 6 && <button onClick={() => setOpts((p) => [...p, ""])} style={{ flex: 1, padding: 9, borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>+ Lựa chọn</button>}
+        <button disabled={!canMake} onClick={() => onCreate({ question: q.trim(), options: opts.filter((o) => o.trim()).map((o) => ({ label: o.trim() })) })} style={{ flex: 2, padding: 9, borderRadius: 9, background: canMake ? C.gold : C.surfaceRaised, border: "none", color: canMake ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: canMake ? "pointer" : "default" }}>Gửi bình chọn</button>
+      </div>
+    </div>
+  );
+}
+
+function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend, onBack }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [pollOpen, setPollOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const bottomRef = useRef(null);
+  const author = conversation.members?.[0] || { name: conversation.title || "Nhóm", avatarEmoji: "💬", avatarColor: C.goldSoft };
+
+  const load = useCallback(() => {
+    api.messaging.messages(conversation.id).then((r) => { setMessages(r.items || []); setLoading(false); }).catch(() => setLoading(false));
+  }, [conversation.id]);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    load();
+    const unsub = api.subscribeChat(conversation.id, (evt) => {
+      if (evt.type === "chat_message") {
+        setMessages((prev) => prev.some((m) => m.id === evt.message.id) ? prev : [...prev, evt.message]);
+      } else if (evt.type === "chat_poll_update") {
+        setMessages((prev) => prev.map((m) => m.id === evt.messageId ? { ...m, pollVotes: evt.pollVotes, pollTotal: evt.pollTotal } : m));
+      }
+    });
+    return unsub;
+  }, [conversation.id, load]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const pushMine = (m) => setMessages((prev) => prev.some((x) => x.id === m.id) ? prev.map((x) => x.id === m.id ? m : x) : [...prev, m]);
 
   const handleSend = () => {
     const t = text.trim();
     if (!t) return;
-    onSend(t);
     setText("");
-    // Simulate reply after ~1.5s
-    setTyping(true);
-    setTimeout(() => {
-      setTyping(false);
-      const replies = [
-        "Haha đúng vậy! 😄",
-        "Bạn vote đội nào rồi?",
-        "Mình cũng nghĩ thế 🔥",
-        "Thú vị quá nhỉ!",
-        "Oke mình sẽ thử ngay!",
-        "👍",
-        "Rankev hay thật sự luôn",
-      ];
-      onSend(replies[Math.floor(Math.random() * replies.length)], "them");
-    }, 1400 + Math.random() * 800);
+    api.messaging.send(conversation.id, { body: t }).then((m) => { pushMine(m); onAfterSend?.(); }).catch(() => {});
   };
-
-  const addReaction = (msgId, emoji) => {
-    setReactions((prev) => ({ ...prev, [msgId]: emoji }));
-    setReacting(null);
+  const createPoll = (poll) => {
+    setPollOpen(false);
+    api.messaging.send(conversation.id, { kind: "poll", poll }).then((m) => { pushMine(m); onAfterSend?.(); }).catch(() => {});
   };
-
-  const author = contact.author;
+  const votePoll = (msgId, optionIdx) => {
+    // optimistic
+    setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, myVote: optionIdx } : m));
+    api.messaging.votePoll(msgId, optionIdx).then((res) => {
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, pollVotes: res.pollVotes, pollTotal: res.pollTotal, myVote: res.myVote } : m));
+    }).catch(() => {});
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: C.bg }}>
-      {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "12px 14px", borderBottom: `1px solid ${C.border}`,
-        background: C.bg, position: "sticky", top: 0, zIndex: 10,
-      }}>
-        <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
-          <ArrowLeft size={22} />
-        </button>
-        <div style={{ position: "relative" }}>
-          <Avatar author={author} size={38} />
-          {author.online && (
-            <div style={{
-              position: "absolute", bottom: 0, right: 0,
-              width: 10, height: 10, borderRadius: 999,
-              background: "#4ADE80", border: `2px solid ${C.bg}`,
-            }} />
-          )}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 10 }}>
+        <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ArrowLeft size={22} /></button>
+        <Avatar author={author} size={38} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, lineHeight: 1.1 }}>
-            {author.name}
-          </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: author.online ? "#4ADE80" : C.textFaint }}>
-            {author.online ? "Đang hoạt động" : "Không hoạt động"}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button style={{ ...iconButton, color: C.textMuted }}>
-            <Phone size={18} />
-          </button>
-          <button style={{ ...iconButton, color: C.textMuted }}>
-            <Video size={18} />
-          </button>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, lineHeight: 1.1 }}>{conversation.title}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: "#4ADE80" }}>Đang hoạt động</div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div
-        onClick={() => setReacting(null)}
-        style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4 }}
-      >
-        {/* Date separator */}
-        <div style={{ textAlign: "center", margin: "8px 0" }}>
-          <span style={{ ...captionText, background: C.surfaceRaised, padding: "3px 10px", borderRadius: 999 }}>
-            Hôm nay
-          </span>
-        </div>
-
-        {messages.map((msg, idx) => {
-          const isMe = msg.from === "me";
-          const prevMsg = messages[idx - 1];
-          const showAvatar = !isMe && (prevMsg?.from !== "them");
-          const reaction = reactions[msg.id];
-
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {loading && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: 20 }}>Đang tải…</div>}
+        {!loading && messages.length === 0 && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: 20 }}>Gửi lời chào đầu tiên 👋</div>}
+        {messages.map((msg) => {
+          const isMe = msg.senderId === currentUserId;
           return (
             <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 6, maxWidth: "80%", flexDirection: isMe ? "row-reverse" : "row" }}>
-                {/* Avatar placeholder for alignment */}
-                <div style={{ width: 28, flexShrink: 0 }}>
-                  {showAvatar && <Avatar author={author} size={28} />}
-                </div>
-
-                <div style={{ position: "relative" }}>
-                  {/* Message bubble */}
-                  <div
-                    onDoubleClick={() => setReacting(msg.id)}
-                    style={{
-                      padding: "9px 13px",
-                      borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                      background: isMe ? C.gold : C.surfaceRaised,
-                      color: isMe ? "#1A1305" : C.text,
-                      fontFamily: bodyFont, fontSize: 14, lineHeight: 1.45,
-                      cursor: "default",
-                      border: isMe ? "none" : `1px solid ${C.border}`,
-                      wordBreak: "break-word",
-                      transition: "transform 0.1s",
-                    }}
-                  >
-                    {msg.text}
+              <div style={{ maxWidth: "82%" }}>
+                {msg.kind === "poll" ? (
+                  <ChatPollCard msg={msg} onVote={votePoll} />
+                ) : msg.kind === "share" ? (
+                  <div>
+                    {msg.body && <div style={{ padding: "9px 13px", borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.45, border: isMe ? "none" : `1px solid ${C.border}`, wordBreak: "break-word" }}>{msg.body}</div>}
+                    <ChatShareCard msg={msg} onOpenShare={onOpenShare} />
                   </div>
-
-                  {/* Reaction bubble */}
-                  {reaction && (
-                    <div style={{
-                      position: "absolute", bottom: -10,
-                      [isMe ? "left" : "right"]: 4,
-                      background: C.surface, border: `1px solid ${C.border}`,
-                      borderRadius: 999, padding: "1px 5px", fontSize: 13,
-                    }}>
-                      {reaction}
-                    </div>
-                  )}
-
-                  {/* Quick reaction picker */}
-                  {reacting === msg.id && (
-                    <div style={{
-                      position: "absolute", bottom: "110%",
-                      [isMe ? "right" : "left"]: 0,
-                      display: "flex", gap: 4,
-                      background: C.surfaceRaised, border: `1px solid ${C.border}`,
-                      borderRadius: 999, padding: "6px 10px",
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-                      zIndex: 20, animation: "popIn 0.15s ease",
-                    }}>
-                      {QUICK_REACTIONS.map((e) => (
-                        <button
-                          key={e}
-                          onClick={(ev) => { ev.stopPropagation(); addReaction(msg.id, e); }}
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, padding: "2px 3px", lineHeight: 1 }}
-                        >
-                          {e}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                ) : (
+                  <div style={{ padding: "9px 13px", borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.45, border: isMe ? "none" : `1px solid ${C.border}`, wordBreak: "break-word" }}>{msg.body}</div>
+                )}
               </div>
-
-              {/* Timestamp (show on last message or when sender changes) */}
-              {(idx === messages.length - 1 || messages[idx + 1]?.from !== msg.from) && (
-                <div style={{
-                  ...captionText, marginTop: 3, marginBottom: 4,
-                  marginLeft: isMe ? 0 : 34, marginRight: isMe ? 0 : 0,
-                }}>
-                  {chatTimeAgo(msg.time)}
-                </div>
-              )}
+              <div style={{ ...captionText, marginTop: 3, marginBottom: 2 }}>{chatTimeAgo(Date.parse(msg.time))}</div>
             </div>
           );
         })}
-
-        {/* Typing indicator */}
-        {typing && (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-            <Avatar author={author} size={28} />
-            <div style={{
-              padding: "10px 14px", borderRadius: "18px 18px 18px 4px",
-              background: C.surfaceRaised, border: `1px solid ${C.border}`,
-              display: "flex", gap: 4, alignItems: "center",
-            }}>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{
-                  width: 7, height: 7, borderRadius: 999, background: C.textFaint,
-                  animation: `typingDot 1.2s ${i * 0.2}s ease-in-out infinite`,
-                }} />
-              ))}
-            </div>
-          </div>
-        )}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "10px 12px",
-        borderTop: `1px solid ${C.border}`,
-        background: C.bg,
-        paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))",
-      }}>
-        <button style={{ ...iconButton, color: C.textMuted }}>
-          <ImageIcon size={21} />
-        </button>
-        <div style={{
-          flex: 1, display: "flex", alignItems: "center",
-          background: C.surfaceRaised, borderRadius: 999,
-          border: `1px solid ${C.border}`, padding: "8px 14px", gap: 8,
-        }}>
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Nhắn tin..."
-            style={{
-              flex: 1, background: "none", border: "none", outline: "none",
-              color: C.text, fontFamily: bodyFont, fontSize: 14,
-            }}
-          />
-          <button style={{ ...iconButton, color: C.textMuted, padding: 0 }}>
-            <Smile size={18} />
+      {pollOpen ? (
+        <ChatPollComposer onCreate={createPoll} onCancel={() => setPollOpen(false)} />
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderTop: `1px solid ${C.border}`, background: C.bg, paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))" }}>
+          <button onClick={() => setPollOpen(true)} title="Bình chọn nhanh" style={{ ...iconButton, color: C.gold }}><BarChart3 size={21} /></button>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", background: C.surfaceRaised, borderRadius: 999, border: `1px solid ${C.border}`, padding: "8px 14px", gap: 8 }}>
+            <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Nhắn tin..." style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+          </div>
+          <button onClick={handleSend} disabled={!text.trim()} style={{ width: 38, height: 38, borderRadius: 999, background: text.trim() ? C.gold : C.surfaceRaised, border: `1px solid ${text.trim() ? C.gold : C.border}`, display: "grid", placeItems: "center", cursor: text.trim() ? "pointer" : "default", flexShrink: 0 }}>
+            <Send size={16} color={text.trim() ? "#1A1305" : C.textFaint} />
           </button>
         </div>
-        <button
-          onClick={handleSend}
-          disabled={!text.trim()}
-          style={{
-            width: 38, height: 38, borderRadius: 999,
-            background: text.trim() ? C.gold : C.surfaceRaised,
-            border: `1px solid ${text.trim() ? C.gold : C.border}`,
-            display: "grid", placeItems: "center", cursor: text.trim() ? "pointer" : "default",
-            transition: "all 0.15s", flexShrink: 0,
-          }}
-        >
-          <Send size={16} color={text.trim() ? "#1A1305" : C.textFaint} />
-        </button>
-      </div>
+      )}
     </div>
   );
 }
@@ -11762,7 +11604,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const rounds = [];
   for (let r = 0; r < data.rounds; r++) rounds.push(data.matches.filter((m) => m.round === r).sort((a, b) => a.position - b.position));
   const roundName = (r) => ({ 2: "Chung kết", 4: "Bán kết", 8: "Tứ kết", 16: "Vòng 1/8" }[(rounds[r]?.length || 1) * 2]) || `Vòng ${r + 1}`;
-  const paOf = (m) => { const t = (m.votes?.a || 0) + (m.votes?.b || 0) || 1; return Math.round((m.votes?.a || 0) / t * 100); };
+  const paOf = (m) => { const t = (m.votes?.a || 0) + (m.votes?.b || 0); return t ? Math.round((m.votes?.a || 0) / t * 100) : 50; };
   const nm = (ref) => ref ? `${ref.emoji ? ref.emoji + " " : ""}${ref.name}` : "— chờ —";
   const ar = data.currentRound, champ = data.championRef;
 
@@ -11986,6 +11828,7 @@ function ProfileView({
   onPermanentDelete,
   onCycleVisibility,
   contacts,
+  onMessage,
 }) {
   const [tab, setTab] = useState("posts"); // posts | rankies | paths | decks | trash (bộ lọc con trong tab Bài viết)
   const [mainTab, setMainTab] = useState("posts"); // posts | participation | presentation | bookmarks — tab lớn kiểu Instagram
@@ -12160,6 +12003,14 @@ function ProfileView({
                 <LogOut size={16} />
               </button>
             ) : null}
+            {!isMe && onMessage && (
+              <button
+                onClick={() => onMessage(author.id)}
+                style={{ display: "flex", alignItems: "center", gap: 6, height: 34, padding: "0 14px", borderRadius: 99, flexShrink: 0, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              >
+                <MessageCircle size={15} /> Nhắn tin
+              </button>
+            )}
           </div>
         </div>
 
@@ -13587,8 +13438,15 @@ export default function RankevApp() {
             // Áp dữ liệu thật vào post dù nó nằm ở apiPosts (feed) hay rankies (bài của mình).
             // Giữ mine/author của bản cũ để bài của mình không bị đẩy khỏi Hồ sơ.
             const patch = (p) => (p.id === id ? { ...proto, mine: p.mine, author: p.mine ? currentUser : proto.author } : p);
-            setApiPosts((prev) => prev.map(patch));
-            setRankies((prev) => prev.map(patch));
+            // Nếu bài chưa có trong feed/bài-của-tôi (vd: ván đấu trong giải, mở qua
+            // link/openRef) thì chèn vào apiPosts để màn chi tiết tìm thấy & render.
+            const known = apiPosts.some((p) => p.id === id) || rankies.some((p) => p.id === id);
+            if (known) {
+              setApiPosts((prev) => prev.map(patch));
+              setRankies((prev) => prev.map(patch));
+            } else {
+              setApiPosts((prev) => [{ ...proto, mine: proto.author?.id === currentUser.apiId }, ...prev]);
+            }
             setLiveOptions((prev) => ({ ...prev, [id]: proto.options }));
           }
         })
@@ -13838,27 +13696,42 @@ export default function RankevApp() {
     setView("feed");
   };
 
-  // ---- CHAT STATE ----
-  const [contacts, setContacts] = useState(CHAT_CONTACTS);
-  const [chatMessages, setChatMessages] = useState(INITIAL_MESSAGES);
-  const [openContact, setOpenContact] = useState(null); // contact being viewed in ChatDetailView
-
-  const openChat = (contact) => {
-    // Mark as read
-    setContacts((prev) => prev.map((c) => c.id === contact.id ? { ...c, unread: 0 } : c));
-    setOpenContact(contact);
+  // ---- CHAT STATE (thật, qua API) ----
+  const [conversations, setConversations] = useState([]); // danh sách hội thoại thật
+  const [openConversation, setOpenConversation] = useState(null); // hội thoại đang mở
+  const loadConversations = useCallback(() => {
+    if (!api.isLoggedIn()) return;
+    api.messaging.conversations().then((r) => setConversations(r.items || [])).catch(() => {});
+  }, []);
+  const openChat = (conv) => {
+    setOpenConversation(conv);
+    // Xoá badge chưa đọc ngay (server đã đánh dấu khi lấy tin).
+    setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unread: 0 } : c));
   };
-
-  const sendChatMessage = (text, from = "me") => {
-    if (!openContact) return;
-    const newMsg = { id: "m" + Date.now(), from, text, time: Date.now() };
-    setChatMessages((prev) => ({
-      ...prev,
-      [openContact.id]: [...(prev[openContact.id] || []), newMsg],
-    }));
-  };
-
-  const chatUnread = contacts.reduce((s, c) => s + (c.unread || 0), 0);
+  // Mở (hoặc tạo) DM 1-1 với một user thật (UUID) → vào khung chat.
+  const openDM = useCallback((userId) => {
+    if (!isUuid(userId)) { showToast("Chưa thể nhắn tin người dùng mẫu này"); return; }
+    api.messaging.openDM(userId).then((conv) => {
+      setConversations((prev) => prev.some((c) => c.id === conv.id) ? prev : [conv, ...prev]);
+      setOpenConversation(conv);
+      setView("chat");
+    }).catch((e) => showToast(e?.message || "Không mở được cuộc trò chuyện"));
+  }, [showToast]);
+  const chatUnread = conversations.reduce((s, c) => s + (c.unread || 0), 0);
+  // Shape mà ShareModal/các picker cũ mong đợi: { id, author, unread, lastTime, lastMsg }.
+  const contacts = useMemo(() => conversations.map((c) => ({
+    id: c.id,
+    author: { ...(c.members?.[0] || { name: c.title || "Nhóm", handle: "", avatarEmoji: "💬", avatarColor: C.goldSoft, verified: false }), online: true },
+    unread: c.unread, lastTime: c.lastTime, lastMsg: c.lastMessage,
+  })), [conversations]);
+  // Chia sẻ bài vào một hội thoại (share message thật).
+  const shareToChat = useCallback(({ conversationId, item, caption }) => {
+    const refType = item.type === "deck" ? "deck" : item.type; // rankie|path|deck
+    return api.messaging.send(conversationId, { kind: "share", refType, refId: item.id, body: caption || undefined })
+      .then(() => loadConversations());
+  }, [loadConversations]);
+  // Nạp danh sách hội thoại khi mở tab Tin nhắn (badge chưa đọc cập nhật).
+  useEffect(() => { if (view === "chat" && !openConversation) loadConversations(); }, [view, openConversation, loadConversations]);
 
   // ---------- AUTH (Phần 1) ----------
   // Hydrate hồ sơ thật vào `currentUser` (giữ id="me" để không vỡ mọi logic isMe),
@@ -13893,17 +13766,19 @@ export default function RankevApp() {
         const me = await auth.me();
         hydrateFromApi(me);
         setAuthed(true);
+        loadConversations();
       } catch {
         setAuthed(false); // token hỏng → hiện login (mock vẫn là fallback hiển thị)
       } finally {
         setAuthReady(true);
       }
     })();
-  }, [hydrateFromApi]);
+  }, [hydrateFromApi, loadConversations]);
   const handleAuthed = useCallback(async () => {
     try { hydrateFromApi(await auth.me()); } catch { /* vẫn cho vào, dùng mock */ }
     setAuthed(true);
-  }, [hydrateFromApi]);
+    loadConversations();
+  }, [hydrateFromApi, loadConversations]);
 
   const handleLogout = useCallback(() => {
     auth.logout().finally(() => {
@@ -14425,6 +14300,7 @@ export default function RankevApp() {
               onOpenDeck={openDeckFromProfile}
               onOpenAuthor={openAuthorWall}
               onShareToProfile={shareToProfile}
+              onMessage={openDM}
               onBack={() => setView(prevAfterAuthor)}
             />
           )}
@@ -14478,7 +14354,7 @@ export default function RankevApp() {
             <TournamentView
               tournamentId={selectedTournamentId}
               currentUserId={currentUser.apiId}
-              onOpenRankie={(id) => { setPrevAfterDetail("tournament"); setSelectedId(id); setView("detail"); }}
+              onOpenRankie={openRankie}
               onBack={() => setView("feed")}
               showToast={showToast}
             />
@@ -14490,25 +14366,26 @@ export default function RankevApp() {
               onBack={() => setView("feed")}
             />
           )}
-          {view === "chat" && !openContact && (
+          {view === "chat" && !openConversation && (
             <ChatListView
-              contacts={contacts}
-              messages={chatMessages}
+              conversations={conversations}
               onOpen={openChat}
+              onRefresh={loadConversations}
               onBack={() => setView("feed")}
             />
           )}
-          {view === "chat" && openContact && (
+          {view === "chat" && openConversation && (
             <ChatDetailView
-              contact={openContact}
-              messages={chatMessages[openContact.id] || []}
-              onSend={sendChatMessage}
-              onBack={() => setOpenContact(null)}
+              conversation={openConversation}
+              currentUserId={currentUser.apiId}
+              onOpenShare={(refType, refId) => openRef({ refType: "post", refId, preview: { postType: refType } })}
+              onAfterSend={loadConversations}
+              onBack={() => { setOpenConversation(null); loadConversations(); }}
             />
           )}
         </div>
-        {(!isOverlay || (view === "chat" && !openContact)) && (
-          <BottomNav active={view} setView={(v) => { setOpenContact(null); if (v === "create") setEditStructPost(null); setView(v); }} chatUnread={chatUnread} />
+        {(!isOverlay || (view === "chat" && !openConversation)) && (
+          <BottomNav active={view} setView={(v) => { setOpenConversation(null); if (v === "create") setEditStructPost(null); setView(v); }} chatUnread={chatUnread} />
         )}
       </div>
     </div>
