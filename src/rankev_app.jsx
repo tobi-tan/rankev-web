@@ -9881,7 +9881,7 @@ function distributeExamPoints(questions) {
 
 const EMOJI_CHOICES = ["🎯", "🎨", "⚙️", "💚", "🤝", "🎧", "🔥", "⭐", "🏆", "🚀", "🎬", "⚽"];
 
-function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
+function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament }) {
   // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
   // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
   const editing = !!editItem;
@@ -10354,6 +10354,12 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [] }) {
             </button>
           ))}
         </div>
+
+        {!editing && onStartTournament && (
+          <button onClick={() => onStartTournament([])} style={{ width: "100%", marginBottom: 20, padding: "11px 12px", borderRadius: 12, background: C.surface, border: `1px dashed ${C.gold}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            🏆 Tạo giải đấu (đấu loại nhiều vòng) →
+          </button>
+        )}
 
         <div style={field}>
           <span style={label}>
@@ -11738,6 +11744,155 @@ function BottomNav({ active, setView, chatUnread = 0 }) {
   );
 }
 
+// ---------- Giải đấu (đấu loại) ----------
+// Xem một giải: vòng đang bình chọn (mỗi ván là Rankie thật, mở ra để vote) + sơ đồ
+// phân nhánh (phiếu/%), tự làm mới ~4s. Chủ giải có nút "Chốt vòng".
+function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, showToast }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { api.tournaments.get(tournamentId).then(setData).catch(() => {}); }, [tournamentId]);
+  useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
+  const advance = () => {
+    setBusy(true);
+    api.tournaments.advance(tournamentId).then((t) => setData(t)).catch((e) => showToast?.(e?.message || "Chốt vòng thất bại")).finally(() => setBusy(false));
+  };
+  if (!data) return (<div><TopBar title="Giải đấu" onBack={onBack} /><div style={{ padding: 24, textAlign: "center", color: C.textMuted, fontFamily: bodyFont }}>Đang tải…</div></div>);
+
+  const isOwner = data.authorId && currentUserId && data.authorId === currentUserId;
+  const rounds = [];
+  for (let r = 0; r < data.rounds; r++) rounds.push(data.matches.filter((m) => m.round === r).sort((a, b) => a.position - b.position));
+  const roundName = (r) => ({ 2: "Chung kết", 4: "Bán kết", 8: "Tứ kết", 16: "Vòng 1/8" }[(rounds[r]?.length || 1) * 2]) || `Vòng ${r + 1}`;
+  const paOf = (m) => { const t = (m.votes?.a || 0) + (m.votes?.b || 0) || 1; return Math.round((m.votes?.a || 0) / t * 100); };
+  const nm = (ref) => ref ? `${ref.emoji ? ref.emoji + " " : ""}${ref.name}` : "— chờ —";
+  const ar = data.currentRound, champ = data.championRef;
+
+  return (
+    <div>
+      <TopBar title={data.title} onBack={onBack} />
+      <div style={{ padding: 16 }}>
+        {champ ? (
+          <div style={{ ...cardSurface, textAlign: "center", padding: "22px 16px", marginBottom: 16 }}>
+            <div style={{ fontSize: 46 }}>{champ.emoji || "🏆"}</div>
+            <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 24, color: C.text, marginTop: 6 }}>{champ.name}</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 1, color: C.gold, textTransform: "uppercase", marginTop: 2 }}>🏆 Vô địch</div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang bình chọn</div>
+              {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 12.5, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Chốt vòng</button>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(rounds[ar] || []).filter((m) => m.rankiePostId).map((m, i) => {
+                const p = paOf(m), pb = 100 - p;
+                return (
+                  <button key={i} onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ ...cardSurface, textAlign: "left", cursor: "pointer", padding: 12, width: "100%" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, marginBottom: 6, gap: 8 }}>
+                      <span style={{ color: m.aRef?.color || C.teal, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm(m.aRef)}</span>
+                      <span style={{ color: m.bRef?.color || C.coral, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm(m.bRef)}</span>
+                    </div>
+                    <div style={{ height: 12, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${C.border}`, background: "#0a120d" }}>
+                      <div style={{ width: `${p}%`, background: m.aRef?.color || C.teal }} />
+                      <div style={{ width: `${pb}%`, background: m.bRef?.color || C.coral }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 4 }}>
+                      <span>{p}% · {fmt(m.votes?.a || 0)}</span>
+                      <span>{fmt(m.votes?.b || 0)} · {pb}%</span>
+                    </div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, marginTop: 6, fontWeight: 600 }}>Mở để bình chọn →</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div style={{ ...cardSurface }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textMuted, marginBottom: 12 }}>Sơ đồ phân nhánh</div>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ display: "flex", gap: 16, minWidth: "min-content" }}>
+              {rounds.map((round, r) => (
+                <div key={r} style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 12, minWidth: 148 }}>
+                  <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.textFaint, textAlign: "center", fontWeight: 700 }}>{roundName(r)}</div>
+                  {round.map((m, i) => {
+                    const p = paOf(m);
+                    const slot = (ref, side) => {
+                      const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
+                      const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
+                      const pv = side === "a" ? p : (100 - p);
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", fontSize: 11.5, background: win ? "rgba(231,188,85,.10)" : "transparent" }}>
+                          <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: win ? C.gold : lose ? C.textFaint : ref ? C.text : C.textFaint, fontWeight: win ? 700 : 400, fontStyle: ref ? "normal" : "italic" }}>{nm(ref)}</span>
+                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 10.5, color: C.textFaint }}>{pv}%</span>}
+                        </div>
+                      );
+                    };
+                    return (
+                      <div key={i} style={{ background: C.bg, border: `1px solid ${r === ar && !m.winnerRef && m.aRef && m.bRef ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden" }}>
+                        {slot(m.aRef, "a")}<div style={{ height: 1, background: C.border }} />{slot(m.bRef, "b")}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 108 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.textFaint, textAlign: "center", fontWeight: 700, marginBottom: 8 }}>Vô địch</div>
+                {champ ? (
+                  <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: 26 }}>{champ.emoji || "🏆"}</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 12.5, color: C.gold, marginTop: 3 }}>{champ.name}</div>
+                  </div>
+                ) : <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 9, padding: 8, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Tạo giải đấu: tên + danh sách đấu thủ (từ giỏ "Lưu vào Rankie" hoặc gõ tay).
+function CreateTournamentView({ initialContestants = [], onCreate, onBack }) {
+  const [title, setTitle] = useState("");
+  const [contestants, setContestants] = useState(initialContestants);
+  const [nameInput, setNameInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fieldStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
+  const addName = () => { const n = nameInput.trim(); if (n) { setContestants((p) => [...p, { name: n }]); setNameInput(""); } };
+  const canCreate = title.trim() && contestants.length >= 2;
+  const create = () => {
+    if (!canCreate || busy) return;
+    setBusy(true);
+    api.tournaments.create({ title: title.trim(), contestants: contestants.map((c) => ({ name: c.name, emoji: c.emoji || undefined, color: c.color || undefined, refType: c.refType || undefined, refId: c.refId || undefined })) })
+      .then((t) => onCreate?.(t)).catch(() => setBusy(false));
+  };
+  return (
+    <div>
+      <TopBar title="Tạo giải đấu" onBack={onBack} />
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Tên giải (vd: GOAT bóng đá mọi thời đại)" style={fieldStyle} />
+        <div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Đấu thủ ({contestants.length}) — cần ít nhất 2</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {contestants.map((c, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px" }}>
+                <span style={{ fontSize: 18 }}>{c.emoji || (c.refType === "user" ? "👤" : c.refType === "post" ? "📊" : c.refType === "comment" ? "💬" : "🏳️")}</span>
+                <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                <button onClick={() => setContestants((p) => p.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={15} /></button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addName(); }} placeholder="Thêm đấu thủ (gõ tên)" style={{ ...fieldStyle, flex: 1 }} />
+            <button onClick={addName} style={{ padding: "0 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontWeight: 700, cursor: "pointer", fontFamily: bodyFont }}>+ Thêm</button>
+          </div>
+        </div>
+        <button onClick={create} disabled={!canCreate || busy} style={{ ...primaryButton, width: "100%", opacity: (!canCreate || busy) ? 0.5 : 1 }}>Tạo giải đấu</button>
+      </div>
+    </div>
+  );
+}
+
 // Biểu đồ thống kê hồ sơ kiểu "chỉ số game": 4 góc = rankie/path/exam/survey (diện
 // tích radar theo số bài mỗi loại), huy hiệu trung tâm = tổng bài đăng + lượt.
 function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
@@ -12824,7 +12979,7 @@ function RankieRefPreview({ item }) {
 }
 
 // Lớp phủ: xác nhận lưu (action sheet) + nút giỏ nổi + sheet xem giỏ Rankie.
-function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, setBasketOpen, onRemove, onOpenRef }) {
+function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, setBasketOpen, onRemove, onOpenRef, onCreateTournament }) {
   const sheetWrap = { position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" };
   const sheet = { width: "100%", maxWidth: 420, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "16px 16px 24px" };
   return (
@@ -12866,6 +13021,9 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
                   </div>
                 ))}
               </div>
+            )}
+            {basket.length >= 2 && onCreateTournament && (
+              <button onClick={() => onCreateTournament(basket)} style={{ width: "100%", marginTop: 14, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🏆 Tạo giải đấu ({basket.length} đấu thủ)</button>
             )}
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 14 }}>Khi tạo Rankie mới, bạn sẽ thêm được các mục này làm lựa chọn.</div>
           </div>
@@ -13581,7 +13739,22 @@ export default function RankevApp() {
     else openRankie(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
-  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef }), [saveToRankie, rankieBasket, openRef]);
+
+  // Giải đấu (đấu loại)
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
+  const [createTournamentSeed, setCreateTournamentSeed] = useState([]);
+  const openTournament = useCallback((id) => {
+    setSelectedTournamentId(id);
+    setBasketOpen(false);
+    setView("tournament");
+  }, []);
+  const startCreateTournament = useCallback((seed = []) => {
+    setCreateTournamentSeed(seed);
+    setBasketOpen(false);
+    setView("createTournament");
+  }, []);
+
+  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef, openTournament }), [saveToRankie, rankieBasket, openRef, openTournament]);
 
   const handleCreate = (item) => {
     // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
@@ -13930,6 +14103,8 @@ export default function RankevApp() {
     view === "sessionDetail" ||
     view === "seriesDetail" ||
     view === "bookmarks" ||
+    view === "tournament" ||
+    view === "createTournament" ||
     view === "chat";
 
   // Mở một trang "chồng" (hồ sơ người khác, chi tiết bài…) → cuộn lên đầu.
@@ -13965,7 +14140,7 @@ export default function RankevApp() {
     <RankieSaveCtx.Provider value={rankieSaveValue}>
     <div style={{ display: "flex", justifyContent: "center", background: "#050A07", minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
-      <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} onRemove={removeFromBasket} onOpenRef={openRef} />
+      <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(18,14,7,0.95)", color: C.text, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}>
           {toast}
@@ -14185,7 +14360,7 @@ export default function RankevApp() {
           {view === "livePresent" && selectedDeck && (
             <LivePresenterView deck={selectedDeck} onBack={() => setView("deckDetail")} onSessionEnd={(session) => saveDeckSession(session)} />
           )}
-          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} />}
+          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} onStartTournament={startCreateTournament} />}
           {view === "profile" && (
             <ProfileView
               pathUnlocks={pathUnlocks}
@@ -14297,6 +14472,22 @@ export default function RankevApp() {
               onOpenDeck={openDeckFromBookmarks}
               onToggleBookmark={toggleBookmark}
               onBack={() => setView("profile")}
+            />
+          )}
+          {view === "tournament" && selectedTournamentId && (
+            <TournamentView
+              tournamentId={selectedTournamentId}
+              currentUserId={currentUser.apiId}
+              onOpenRankie={(id) => { setPrevAfterDetail("tournament"); setSelectedId(id); setView("detail"); }}
+              onBack={() => setView("feed")}
+              showToast={showToast}
+            />
+          )}
+          {view === "createTournament" && (
+            <CreateTournamentView
+              initialContestants={createTournamentSeed}
+              onCreate={(t) => openTournament(t.id)}
+              onBack={() => setView("feed")}
             />
           )}
           {view === "chat" && !openContact && (

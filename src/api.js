@@ -159,6 +159,14 @@ export const posts = {
   mine() { return apiFetch('/users/me/posts'); },
 };
 
+// ---------------- Tournaments (đấu loại) ----------------
+export const tournaments = {
+  create(body) { return apiFetch('/tournaments', { method: 'POST', body }); },
+  get(id) { return apiFetch(`/tournaments/${id}`); },
+  advance(id) { return apiFetch(`/tournaments/${id}/advance`, { method: 'POST' }); },
+  mine() { return apiFetch('/tournaments/mine'); },
+};
+
 // ---------------- Rankie vote ----------------
 export const rankies = {
   vote(id, optionIds) { return apiFetch(`/rankies/${id}/vote`, { method: 'POST', body: { optionIds } }); },
@@ -351,6 +359,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, paths, decks, comments, bookmarks, social, series, sessions, live,
+  auth, posts, rankies, tournaments, paths, decks, comments, bookmarks, social, series, sessions, live,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, voteRealtime, ApiError,
 };
