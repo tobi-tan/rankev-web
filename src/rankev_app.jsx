@@ -4576,7 +4576,7 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
           </div>
         )}
         {feedItems.map((item) => (
-          <div key={item.id}>
+          <SaveWrap key={item.id} item={item.type === "share" ? null : postSaveItem(item)}>
             <FeedSourceLabel source={feedSourceFor(item)} />
             {item.type === "path" ? (
               <PathCard path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[item.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[item.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
@@ -4602,7 +4602,7 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
                 onToggleBookmark={onToggleBookmark}
               />
             )}
-          </div>
+          </SaveWrap>
         ))}
       </div>
       {shareTarget && (
@@ -12753,9 +12753,11 @@ function useLongPress(onLong, ms = 450) {
   const timer = useRef(null);
   const fired = useRef(false);
   const start = useRef(null);
+  const onLongRef = useRef(onLong);
+  onLongRef.current = onLong; // luôn gọi bản mới nhất (feed re-render realtime → tránh stale closure)
   const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   return {
-    onPointerDown: (e) => { fired.current = false; start.current = { x: e.clientX, y: e.clientY }; clear(); timer.current = setTimeout(() => { fired.current = true; onLong(); }, ms); },
+    onPointerDown: (e) => { e.stopPropagation(); fired.current = false; start.current = { x: e.clientX, y: e.clientY }; clear(); timer.current = setTimeout(() => { fired.current = true; onLongRef.current(); }, ms); },
     onPointerMove: (e) => { if (start.current) { const dx = Math.abs(e.clientX - start.current.x), dy = Math.abs(e.clientY - start.current.y); if (dx > 10 || dy > 10) clear(); } },
     onPointerUp: clear,
     onPointerLeave: clear,
@@ -12793,7 +12795,7 @@ function RankieRefPreview({ item }) {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>{p.handle ? "@" + p.handle + " · " : ""}<Star size={10} color={C.gold} fill={C.gold} style={{ verticalAlign: -1 }} /> {fmtCompact(p.rp || 0)} RP</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>{p.handle ? "@" + String(p.handle).replace(/^@/, "") + " · " : ""}<Star size={10} color={C.gold} fill={C.gold} style={{ verticalAlign: -1 }} /> {fmtCompact(p.rp || 0)} RP</div>
         </div>
       </div>
     );
