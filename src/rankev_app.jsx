@@ -5915,11 +5915,8 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               </Pill>
             )
           )}
-          <Pill tone="muted">
-            {/* Vote không giới hạn + đang xem "lượt tương tác" → icon tương tác (không phải
-                người, vì số là tổng lượt bấm). Khi toggle sang "người tham gia" → icon người. */}
-            {isUnlimited && resultMetric === "votes" ? <SlidersHorizontal size={11} /> : <Users size={11} />} {fmt(isUnlimited ? displayTotal : total)}
-          </Pill>
+          {/* Tổng lượt tham gia KHÔNG lặp ở đây — đã hiển thị ở góc dưới-trái khung biểu
+              đồ (nơi còn kiêm nút đổi "người tham gia" ⇄ "lượt tương tác" cho vote vô hạn). */}
           {isUnlimited && (
             <Pill tone="live">
               <Flame size={11} /> KHÔNG GIỚI HẠN
@@ -12075,13 +12072,6 @@ function ProfileView({
 
   const visible =
     tab === "trash" ? trashedPosts : tab === "rankies" ? theirRankies : tab === "paths" ? theirPaths : tab === "decks" ? theirDecks : tab === "exams" ? theirExams : theirPosts;
-
-  const stat = (n, l) => (
-    <div style={{ textAlign: "center", flex: 1 }}>
-      <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>{n}</div>
-      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{l}</div>
-    </div>
-  );
 
   const [filterOpen, setFilterOpen] = useState(false);
   const filterOptions = [
