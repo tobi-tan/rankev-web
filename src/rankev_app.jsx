@@ -104,6 +104,9 @@ const FONT_IMPORT = (
       70% { opacity: 1; }
       100% { opacity: 0; }
     }
+    @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+    @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
+    @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
   `}</style>
 );
 
@@ -5171,6 +5174,12 @@ function ChartTypeIcon({ id, size = 16, color = "currentColor" }) {
     return (<svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 12 L12 3" /><path d="M12 12 L20 15" /></svg>);
   if (id === "line")
     return (<svg {...common}><polyline points="3,17 9,11 13,14 21,6" /></svg>);
+  if (id === "podium")
+    return (<svg {...common}><rect x="3" y="13" width="5" height="7" /><rect x="9.5" y="7" width="5" height="13" /><rect x="16" y="15" width="5" height="5" /></svg>);
+  if (id === "tug")
+    return (<svg {...common}><line x1="3" y1="12" x2="21" y2="12" /><circle cx="12" cy="12" r="2.4" fill={color} stroke="none" /></svg>);
+  if (id === "beam")
+    return (<svg {...common}><circle cx="12" cy="12" r="2.6" fill={color} stroke="none" /><line x1="12" y1="3" x2="12" y2="7" /><line x1="12" y1="17" x2="12" y2="21" /><line x1="3" y1="12" x2="7" y2="12" /><line x1="17" y1="12" x2="21" y2="12" /></svg>);
   // head_to_head
   return (<svg {...common}><polyline points="9,5 4,12 9,19" /><polyline points="15,5 20,12 15,19" /></svg>);
 }
@@ -5477,6 +5486,180 @@ function DeckDetailWithSwipe({ selectedDeck, allSeries, navigateChapter, partici
 }
 
 // ---------- RANKIE DETAIL VIEW ----------
+// ===== Skin kết quả bình chọn (bản vui, vote thẳng trên hình) =====
+// Ba "bộ trang phục" cho cùng dữ liệu vote: Bục vinh danh (≥3 lựa chọn), Kéo co &
+// Kamehameha (1v1). Nhận `options` (đã có màu), `onVote(id, e)`, `votedId`, `isClosed`
+// — giống HeadToHead/BarViz nên cắm thẳng vào cùng chartVoteHandler.
+const ellip = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" };
+
+function PodiumViz({ options, onVote, votedId, isClosed }) {
+  const clickable = !!onVote && !isClosed;
+  const sorted = [...options].sort((a, b) => b.votes - a.votes);
+  const top = sorted.slice(0, 3);
+  const max = top[0]?.votes || 1;
+  const total = options.reduce((s, o) => s + o.votes, 0) || 1;
+  const order = [top[1], top[0], top[2]].filter(Boolean); // bạc · vàng · đồng
+  const medalFor = (o) => (o === top[0] ? "🥇" : o === top[1] ? "🥈" : "🥉");
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 12, height: 252, paddingTop: 10 }}>
+        {order.map((c) => {
+          const isWin = c === top[0];
+          const ht = 66 + Math.round((c.votes / max) * 128);
+          const pct = Math.round((c.votes / total) * 100);
+          const picked = votedId === c.id;
+          return (
+            <div key={c.id} onClick={clickable ? (e) => onVote(c.id, e) : undefined}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "32%", maxWidth: 150, cursor: clickable ? "pointer" : "default", justifyContent: "flex-end" }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: isWin ? 14 : 13, color: C.text, textAlign: "center", lineHeight: 1.2, marginBottom: 1, ...ellip }}>{c.label}</div>
+              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, marginBottom: 8 }}>{pct}%</div>
+              <div style={{ width: "100%", height: ht, borderRadius: "12px 12px 0 0", position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 10, border: `1px solid ${picked ? C.gold : "rgba(255,255,255,.10)"}`, borderBottom: "none", background: `linear-gradient(180deg, ${c.color} 0%, ${c.color} 55%, rgba(0,0,0,.34) 100%)`, transition: "height .6s cubic-bezier(.2,1,.3,1)", boxShadow: picked ? `0 0 0 2px ${C.gold} inset` : "none" }}>
+                {c.image ? (
+                  <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: "12px 12px 0 0", pointerEvents: "none", background: "linear-gradient(0deg, rgba(0,0,0,.30), rgba(0,0,0,0) 62%)" }}>
+                    <img src={c.image} alt="" style={{ position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "86%", opacity: 0.5, objectFit: "contain" }} />
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 30, opacity: 0.92, filter: "drop-shadow(0 3px 5px rgba(0,0,0,.4))" }}>{c.emoji || ""}</span>
+                )}
+                <span style={{ position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)", fontSize: 22, zIndex: 3, filter: "drop-shadow(0 3px 5px rgba(0,0,0,.4))" }}>{medalFor(c)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, marginTop: 12 }}>{clickable ? "Chạm vào một người để bình chọn" : "Bục vinh danh · Top 3"}</div>
+    </div>
+  );
+}
+
+function TugViz({ options, onVote, votedId, isClosed }) {
+  const clickable = !!onVote && !isClosed;
+  const a = options[0], b = options[1];
+  const total = (a.votes + b.votes) || 1;
+  const ra = a.votes / total, pa = Math.round(ra * 100);
+  const aLead = a.votes >= b.votes;
+  const flagRef = useRef(null);
+  const tap = (opt) => (e) => {
+    if (!clickable) return;
+    onVote(opt.id, e);
+    const f = flagRef.current;
+    if (f) { f.style.animation = "none"; void f.offsetWidth; f.style.animation = "flagYank .28s"; }
+  };
+  // Không có emoji do creator đặt → chấm tròn theo màu đội (luôn hiển thị, không "tofu").
+  const face = (o) => o.emoji || "●";
+  const faceStyle = (o) => (o.emoji ? undefined : { color: o.color });
+  const pullers = (o) => [0, 1, 2].map((i) => (
+    <span key={i} style={{ marginLeft: i === 0 ? 0 : -5, filter: "drop-shadow(0 3px 5px rgba(0,0,0,.5))", ...faceStyle(o) }}>{face(o)}</span>
+  ));
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontFamily: displayFont, fontWeight: 800, fontSize: 17 }}>
+        <span style={{ color: a.color }}>{face(a)} {pa}%</span>
+        <span style={{ color: b.color }}>{100 - pa}% {face(b)}</span>
+      </div>
+      <div style={{ position: "relative", height: 176, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.border}`, background: "linear-gradient(180deg,#0e1c15 0%,#0e1c15 60%,#17291f 60%,#132419 100%)" }}>
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "16%", background: `linear-gradient(90deg, ${a.color}28, transparent)` }} />
+        <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "16%", background: `linear-gradient(270deg, ${b.color}28, transparent)` }} />
+        <div style={{ position: "absolute", left: "50%", top: "24%", bottom: "24%", width: 0, borderLeft: "2px dashed rgba(255,255,255,.22)" }} />
+        <div style={{ position: "absolute", left: "7%", right: "7%", top: "50%", height: 7, transform: "translateY(-50%)", background: "linear-gradient(180deg,#C79455,#7c5a30)", borderRadius: 99, boxShadow: "0 2px 4px rgba(0,0,0,.45)" }} />
+        <div style={{ position: "absolute", top: "50%", left: 12, display: "flex", fontSize: 30, transition: "transform .25s ease", transform: `translateY(-58%) rotate(${aLead ? -15 : -8}deg)`, transformOrigin: "center bottom" }}>{pullers(a)}</div>
+        <div style={{ position: "absolute", top: "50%", right: 12, display: "flex", fontSize: 30, transition: "transform .25s ease", transform: `translateY(-58%) rotate(${aLead ? 8 : 15}deg)`, transformOrigin: "center bottom" }}>{pullers(b)}</div>
+        <div style={{ position: "absolute", top: "50%", left: `${85 - ra * 70}%`, transform: "translate(-50%,-50%)", transition: "left .45s cubic-bezier(.34,1.1,.4,1)", zIndex: 3 }}>
+          <span ref={flagRef} style={{ fontSize: 30, display: "block", transformOrigin: "bottom center", animation: "flagSway 2.6s ease-in-out infinite", filter: "drop-shadow(0 3px 5px rgba(0,0,0,.5))" }}>🚩</span>
+        </div>
+        {clickable && <>
+          <div onClick={tap(a)} style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "50%", zIndex: 5, cursor: "pointer" }} />
+          <div onClick={tap(b)} style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "50%", zIndex: 5, cursor: "pointer" }} />
+        </>}
+      </div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để kéo dây" : "Kéo co · 1v1"}</div>
+    </div>
+  );
+}
+
+function BeamViz({ options, onVote, votedId, isClosed }) {
+  const clickable = !!onVote && !isClosed;
+  const a = options[0], b = options[1];
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const stateRef = useRef({ clashX: 0, t: 0, parts: [], shake: 0, W: 0, H: 0 });
+  const optsRef = useRef(options);
+  optsRef.current = options;
+  const total = (a.votes + b.votes) || 1;
+  const pa = Math.round((a.votes / total) * 100);
+
+  useEffect(() => {
+    const cv = canvasRef.current, wrap = wrapRef.current;
+    if (!cv || !wrap) return;
+    const ctx = cv.getContext("2d");
+    const K = stateRef.current;
+    let raf = null;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    const hexA = (h, al) => { h = (h || "#5FC9A8").replace("#", ""); return `rgba(${parseInt(h.substr(0, 2), 16)},${parseInt(h.substr(2, 2), 16)},${parseInt(h.substr(4, 2), 16)},${al})`; };
+    const fit = () => { const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); K.W = r.width; K.H = r.height; };
+    fit(); if (!K.clashX) K.clashX = K.W * 0.5;
+    let ro; if (window.ResizeObserver) { ro = new ResizeObserver(() => { fit(); if (!K.clashX) K.clashX = K.W * 0.5; }); ro.observe(cv); }
+    const spawn = (x, y, n, col) => { for (let i = 0; i < n; i++) { const ang = Math.random() * 6.283, sp = 1 + Math.random() * 4.5; K.parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 0.6, life: 1, col }); } };
+    const beam = (x0, x1, cy, thin, thick, color) => {
+      const mx = (x0 + x1) / 2; ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 28;
+      ctx.beginPath(); ctx.moveTo(x0, cy - thin); ctx.quadraticCurveTo(mx, cy - thick * 0.55, x1, cy - thick); ctx.lineTo(x1, cy + thick); ctx.quadraticCurveTo(mx, cy + thick * 0.55, x0, cy + thin); ctx.closePath();
+      const g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, hexA(color, 0.10)); g.addColorStop(0.72, color); g.addColorStop(1, "#ffffff"); ctx.fillStyle = g; ctx.fill();
+      ctx.shadowBlur = 0; ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x1, cy); ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.lineWidth = Math.max(2, thin * 0.9); ctx.lineCap = "round"; ctx.stroke(); ctx.restore();
+    };
+    const orb = (cx, cy, R) => {
+      ctx.save(); ctx.shadowColor = "#ffe08a"; ctx.shadowBlur = 34;
+      const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, R); g.addColorStop(0, "#ffffff"); g.addColorStop(.42, "#fff2bf"); g.addColorStop(.78, hexA("#ffcf47", .92)); g.addColorStop(1, hexA("#ffcf47", 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(K.t * 0.5); ctx.fillStyle = "rgba(255,255,255,.45)";
+      for (let i = 0; i < 8; i++) { ctx.rotate(0.7854); const L = R * (1.5 + Math.sin(K.t * 4 + i) * 0.45); ctx.beginPath(); ctx.moveTo(0, -3.5); ctx.lineTo(L, 0); ctx.lineTo(0, 3.5); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    };
+    const draw = (step) => {
+      const o = optsRef.current, av = o[0].votes, bv = o[1].votes;
+      const W = K.W, H = K.H, cy = H / 2, tt = (av + bv) || 1, ra = av / tt, margin = 66;
+      const target = margin + ra * (W - 2 * margin);
+      K.clashX += (target - K.clashX) * (step ? 0.10 : 1);
+      const sh = K.shake > 0 ? K.shake : 0, cx = K.clashX + (Math.random() - .5) * sh, sy = cy + (Math.random() - .5) * sh;
+      ctx.clearRect(0, 0, W, H);
+      beam(margin - 26, cx, sy, 7, 30, a.color || C.teal);
+      beam(W - (margin - 26), cx, sy, 7, 30, b.color || C.coral);
+      K.t += 0.08; const R = (30 + Math.min(24, (tt / 7000) * 20)) * (1 + Math.sin(K.t * 3) * 0.08) + (sh ? 6 : 0);
+      orb(cx, sy, R);
+      for (let i = K.parts.length - 1; i >= 0; i--) { const p = K.parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.07; p.life -= 0.028; if (p.life <= 0) { K.parts.splice(i, 1); continue; } ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 2.3, 0, 6.283); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      if (step && Math.random() < 0.4) spawn(cx, sy, 1, "#fff6cf");
+      if (K.shake > 0) { K.shake *= 0.86; if (K.shake < 0.4) K.shake = 0; }
+      if (step && !reduce) raf = requestAnimationFrame(() => draw(true));
+    };
+    if (reduce) draw(false); else draw(true);
+    K.surge = (side, color) => { K.shake = 11; spawn(K.clashX, K.H / 2, 16, color); if (reduce) draw(false); };
+    return () => { if (raf) cancelAnimationFrame(raf); if (ro) ro.disconnect(); K.surge = null; };
+  }, [a.color, b.color]);
+
+  const tap = (opt, color) => (e) => { if (!clickable) return; onVote(opt.id, e); const K = stateRef.current; if (K.surge) K.surge(opt, color); };
+  const sideLabel = (o, i, pct) => (
+    <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", [i === 0 ? "left" : "right"]: 8, textAlign: "center", zIndex: 2, filter: "drop-shadow(0 5px 12px rgba(0,0,0,.55))", pointerEvents: "none" }}>
+      <span style={{ display: "block", fontFamily: displayFont, fontWeight: 800, fontSize: 20, color: o.color, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+      <span style={{ fontSize: 46, lineHeight: 1, color: o.emoji ? undefined : o.color }}>{o.emoji || "●"}</span>
+      <span style={{ display: "block", fontFamily: bodyFont, fontWeight: 600, fontSize: 11, color: C.text, marginTop: 3, opacity: .9, maxWidth: 92, ...ellip }}>{o.label}</span>
+    </div>
+  );
+  return (
+    <div>
+      <div ref={wrapRef} style={{ position: "relative", height: 216, borderRadius: 16, overflow: "hidden", background: "radial-gradient(130% 100% at 50% 130%, #123024, #0a1510 70%)", border: `1px solid ${C.border}` }}>
+        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
+        {sideLabel(a, 0, pa)}
+        {sideLabel(b, 1, 100 - pa)}
+        {clickable && <>
+          <div onClick={tap(a, a.color || C.teal)} style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "50%", zIndex: 4, cursor: "pointer" }} />
+          <div onClick={tap(b, b.color || C.coral)} style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "50%", zIndex: 4, cursor: "pointer" }} />
+        </>}
+      </div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để dồn khí" : "Kamehameha · 1v1"}</div>
+    </div>
+  );
+}
+
 function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded }) {
   const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
@@ -5558,11 +5741,19 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   // Which chart types the viewer can switch between for this rankie.
   // Head-to-head is offered only when there are exactly 2 options.
   const chartTypes = [
-    ...(options.length === 2 ? [{ id: "head_to_head", label: "Đối đầu" }] : []),
+    ...(options.length === 2
+      ? [{ id: "head_to_head", label: "Đối đầu" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }]
+      : []),
+    ...(options.length >= 3 ? [{ id: "podium", label: "Bục vinh danh" }] : []),
     { id: "bar", label: "Cột" },
     { id: "pie", label: "Tròn" },
     { id: "line", label: "Theo thời gian" },
   ];
+
+  // Biểu đồ cho phép bình chọn thẳng trên hình (ẩn nút chọn riêng bên dưới). Multiple/
+  // rating cần bước xác nhận riêng nên KHÔNG tính là "clickable" dù đang xem skin này.
+  const inlineChart = ["bar", "head_to_head", "tug", "beam", "podium"].includes(activeChart);
+  const clickableChart = inlineChart && rankie.votingType !== "multiple" && rankie.votingType !== "rating";
 
   const castVote = (optId, e) => {
     if (isClosed) return;
@@ -5780,6 +5971,15 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               voteMarker={rankie.voteMarker}
             />
           )}
+          {activeChart === "tug" && (
+            <TugViz options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} />
+          )}
+          {activeChart === "beam" && (
+            <BeamViz options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} />
+          )}
+          {activeChart === "podium" && (
+            <PodiumViz options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} />
+          )}
           {activeChart === "pie" && <PieViz options={displayOptions} />}
           {activeChart === "line" && <LineViz options={displayOptions} colorFor={colorFor} createdAt={rankie.createdAt} />}
 
@@ -5822,7 +6022,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             </span>
           </div>
         ) : isUnlimited ? (
-          activeChart === "bar" || activeChart === "head_to_head" ? null : (
+          clickableChart ? null : (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 8 }}>
               Bấm liên tục để tăng vote cho phương án yêu thích — không giới hạn số lần!
@@ -6043,7 +6243,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           // to switch — it's only hidden when Cột/Đối đầu is active, since those charts
           // already let the viewer vote directly on the same options.
           <>
-            {activeChart !== "bar" && activeChart !== "head_to_head" && (
+            {!clickableChart && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 8 }}>
                   {voted ? "Bình chọn của bạn (bấm lại để hủy, hoặc chọn phương án khác):" : "Bình chọn của bạn:"}
