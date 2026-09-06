@@ -31,6 +31,10 @@ const C = {
 const displayFont = "'Fraunces', Georgia, serif";
 const bodyFont = "'Inter', system-ui, sans-serif";
 const monoFont = "'JetBrains Mono', ui-monospace, monospace";
+// Thang cỡ chữ chuẩn (px) — dùng cho code mới để giữ nhất quán. Thân bài chỉ đi theo
+// các bậc này (không dùng mức nửa-point); cỡ lớn hơn dành cho tiêu đề/hero.
+// micro 10 · caption 11 · small 12 · base 13 · body 14 · title 16 · h3 18 · h2 22 · h1 28
+const TS = { micro: 10, caption: 11, small: 12, base: 13, body: 14, title: 16, h3: 18, lead: 20, h2: 22, h1: 28 };
 
 // Reusable style fragments for patterns that recur throughout the app. Spread these
 // into a style object and override individual properties as needed, e.g.
@@ -47,7 +51,7 @@ const raisedSurface = {
   borderRadius: 12,
 };
 // Small muted caption text — hints, counts, timestamps, empty states.
-const captionText = { fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint };
+const captionText = { fontFamily: bodyFont, fontSize: 12, color: C.textFaint };
 // Bare icon button with no chrome of its own.
 const iconButton = {
   background: "none",
@@ -1149,7 +1153,7 @@ function DurationPicker({ value, onChange }) {
                 background: active ? C.goldSoft : C.surface,
                 color: active ? C.gold : C.textMuted,
                 fontFamily: bodyFont,
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -1167,7 +1171,7 @@ function DurationPicker({ value, onChange }) {
             background: customOpen ? C.goldSoft : C.surface,
             color: customOpen ? C.gold : C.textMuted,
             fontFamily: bodyFont,
-            fontSize: 12.5,
+            fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
           }}
@@ -1200,7 +1204,7 @@ function DurationPicker({ value, onChange }) {
               outline: "none",
             }}
           />
-          <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>phút</span>
+          <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>phút</span>
         </div>
       )}
     </div>
@@ -1237,7 +1241,7 @@ function ClosingTimePicker({ value, onChange }) {
                 background: active ? C.goldSoft : C.surface,
                 color: active ? C.gold : C.textMuted,
                 fontFamily: bodyFont,
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -1255,7 +1259,7 @@ function ClosingTimePicker({ value, onChange }) {
             background: isCustom ? C.goldSoft : C.surface,
             color: isCustom ? C.gold : C.textMuted,
             fontFamily: bodyFont,
-            fontSize: 12.5,
+            fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
           }}
@@ -1306,7 +1310,7 @@ function SmallDropdown({ icon, options, value, onChange, align = "left" }) {
           background: C.surfaceRaised,
           color: C.text,
           fontFamily: bodyFont,
-          fontSize: 12.5,
+          fontSize: 13,
           fontWeight: 600,
           cursor: "pointer",
           whiteSpace: "nowrap",
@@ -1516,7 +1520,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
         <button
           onClick={tap}
           aria-label="RankUp"
-          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `${color}1A`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `${color}1A`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
         >
           <RankChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={14} />
           {t === 0 ? "RankUp" : info.label}
@@ -1566,7 +1570,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
                       <div style={{ height: 5, borderRadius: 999, background: C.surface, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${Math.min(100, (fanCount / fanRequired) * 100)}%`, background: C.coral, borderRadius: 999 }} />
                       </div>
-                      <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.coral, marginTop: 4 }}>Tham gia &gt;{fanRequired} bài của kênh để mở ({fanCount}/{fanRequired})</div>
+                      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.coral, marginTop: 4 }}>Tham gia &gt;{fanRequired} bài của kênh để mở ({fanCount}/{fanRequired})</div>
                     </div>
                   )}
                 </div>
@@ -1576,7 +1580,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
           {t > 0 && (
             <>
               <div style={{ height: 1, background: C.border, margin: "4px 8px" }} />
-              <button onClick={() => { onSetTier?.(0); setOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 10px", borderRadius: 10, border: "none", background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => { onSetTier?.(0); setOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 10px", borderRadius: 10, border: "none", background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 <X size={14} /> Bỏ RankUp (về trung lập)
               </button>
             </>
@@ -1740,7 +1744,7 @@ function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, o
           textAlign: "left",
           cursor: "pointer",
           fontFamily: bodyFont,
-          fontSize: 13.5,
+          fontSize: 14,
           fontWeight: 500,
           color: tone === "danger" ? "#E4634A" : C.text,
         }}
@@ -1822,7 +1826,7 @@ function SessionResultCard({ session }) {
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>
             {session.rankieTitle || "Phiên trình chiếu"}
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <span>{new Date(session.startedAt).toLocaleString("vi-VN")}</span>
             {duration !== null && <span>{duration} phút</span>}
             <span>{fmt(total)} lượt bình chọn</span>
@@ -1839,7 +1843,7 @@ function SessionResultCard({ session }) {
               const pct = Math.round((o.votes / total) * 1000) / 10;
               return (
                 <div key={o.id}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12.5, marginBottom: 3 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
                     <span style={{ color: C.text, fontWeight: 600 }}>{`#${i + 1} `}{o.label}</span>
                     <span style={{ color: C.textMuted, fontFamily: monoFont }}>{pct}% · {fmt(o.votes)}</span>
                   </div>
@@ -1966,7 +1970,7 @@ function QuestionFilterAccordion({ qi, qLabel, opts, selected, onToggle }) {
   return (
     <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 7, overflow: "hidden" }}>
       <button onClick={() => setOpen((v) => !v)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 12px", background: "transparent", border: "none", cursor: "pointer" }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.text, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
+        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
           {qLabel}
           {activeCount > 0 && <span style={{ color: C.gold, fontWeight: 700 }}> ({activeCount})</span>}
         </span>
@@ -1977,7 +1981,7 @@ function QuestionFilterAccordion({ qi, qLabel, opts, selected, onToggle }) {
           {opts.map((o) => {
             const active = selected.includes(o.id);
             return (
-              <button key={o.id} onClick={() => onToggle(o.id)} style={{ padding: "6px 11px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 11.5, fontWeight: active ? 700 : 400, cursor: "pointer" }}>{o.label}</button>
+              <button key={o.id} onClick={() => onToggle(o.id)} style={{ padding: "6px 11px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: active ? 700 : 400, cursor: "pointer" }}>{o.label}</button>
             );
           })}
         </div>
@@ -2009,14 +2013,14 @@ function SessionFilterGroup({ title, options, selected, onToggle }) {
 function SessionBreakdown({ title, keys, counts, total }) {
   return (
     <div style={{ ...cardSurface, marginBottom: 12 }}>
-      <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>{title}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>{title}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {keys.map((k) => {
           const c = counts[k] || 0;
           const pct = total > 0 ? Math.round((c / total) * 1000) / 10 : 0;
           return (
             <div key={k}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12.5, marginBottom: 3 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
                 <span style={{ color: C.textMuted }}>{k}</span>
                 <span style={{ color: C.textFaint, fontFamily: monoFont }}>{c} · {pct}%</span>
               </div>
@@ -2215,13 +2219,13 @@ function RankieTimeline({ rankie, options }) {
   if (!events.length) return null;
   return (
     <div style={{ ...cardSurface, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>
         <Flame size={13} color={C.coral} /> Dòng thời gian cạnh tranh
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {events.slice(0, 8).map((e, i) => (
           <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
-            <span style={{ fontSize: 15, lineHeight: 1.4, flexShrink: 0 }}>{e.icon}</span>
+            <span style={{ fontSize: 16, lineHeight: 1.4, flexShrink: 0 }}>{e.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{e.text}</div>
               <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{timeAgo(e.ts)}</div>
@@ -2266,8 +2270,8 @@ function LiveSessionDetailView({ session, post, onBack }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
         <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ChevronLeft size={20} /></button>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name || "Chi tiết phiên"}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>Phiên trực tiếp · {session.itemTitle}</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name || "Chi tiết phiên"}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Phiên trực tiếp · {session.itemTitle}</div>
         </div>
       </div>
       <div style={{ padding: 16 }}>
@@ -2283,14 +2287,14 @@ function LiveSessionDetailView({ session, post, onBack }) {
         {/* Phổ điểm 0–10 */}
         {isExam && scored.length > 0 && (
           <div style={{ ...cardSurface, marginBottom: 14 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
             <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passing} />
           </div>
         )}
 
         {/* Bảng người tham gia thật */}
         <div style={{ ...cardSurface, marginBottom: isExam && qStats.some((s) => s.hasKey) ? 14 : 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Bảng kết quả ({parts.length})</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Bảng kết quả ({parts.length})</div>
           {parts.length === 0 ? (
             <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Không có người tham gia.</div>
           ) : (
@@ -2300,13 +2304,13 @@ function LiveSessionDetailView({ session, post, onBack }) {
                   <div key={p.id || i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                      {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 10.5, color: C.textFaint }}>⏱ {fmtDur(timeTaken(p))}</div>}
+                      <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                      {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>⏱ {fmtDur(timeTaken(p))}</div>}
                     </div>
                     {!p.submitted ? (
                       <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>không nộp</span>
                     ) : isExam ? (
-                      <span style={{ fontFamily: monoFont, fontSize: 15, fontWeight: 800, color: C.gold, flexShrink: 0 }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                      <span style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: C.gold, flexShrink: 0 }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                     ) : (
                       <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
                     )}
@@ -2320,14 +2324,14 @@ function LiveSessionDetailView({ session, post, onBack }) {
         {/* % đúng từng câu (exam) */}
         {isExam && qStats.some((s) => s.hasKey) && (
           <div style={{ ...cardSurface }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tỉ lệ đúng theo câu</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tỉ lệ đúng theo câu</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {qStats.map(({ q, correct, total, hasKey }, qi) => {
                 const pct = total ? Math.round((correct / total) * 100) : 0;
                 return (
                   <div key={q.id}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-                      <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Câu {qi + 1}: {q.text}</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Câu {qi + 1}: {q.text}</span>
                       <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: hasKey ? C.gold : C.textFaint, flexShrink: 0 }}>{hasKey ? `${correct}/${total} · ${pct}%` : "khảo sát"}</span>
                     </div>
                     <div style={{ height: 7, borderRadius: 99, background: C.border, overflow: "hidden" }}>
@@ -2406,7 +2410,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ChevronLeft size={20} /></button>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>{session.name || "Chi tiết phiên"}</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>{session.name || "Chi tiết phiên"}</div>
         </div>
         <button onClick={() => setShowFilter(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: anyFilter ? `${C.gold}18` : "transparent", border: `1px solid ${anyFilter ? C.gold : C.border}`, borderRadius: 999, padding: "6px 11px", cursor: "pointer" }}>
           <SlidersHorizontal size={14} color={anyFilter ? C.gold : C.textMuted} />
@@ -2480,15 +2484,15 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         {/* KẾT QUẢ TỪNG HỌC SINH (exam) — điểm + đạt/chưa đạt, xếp theo điểm giảm dần. */}
         {isExam && examTab === "results" && (
           <div style={{ ...cardSurface, marginBottom: 12 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Kết quả từng người ({fmt(filtered.length)})</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Kết quả từng người ({fmt(filtered.length)})</div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {[...filtered].sort((a, b) => (b.score10 || 0) - (a.score10 || 0)).map((p, i) => {
                 const passed = post.passingScore == null || (p.score10 || 0) >= post.passingScore;
                 return (
                   <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 22, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
-                    <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
-                    <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: passed ? "#4ADE80" : C.coral, background: passed ? "#4ADE8018" : `${C.coral}18`, borderRadius: 99, padding: "3px 9px", flexShrink: 0 }}>{passed ? "ĐẠT" : "CHƯA ĐẠT"}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: passed ? "#4ADE80" : C.coral, background: passed ? "#4ADE8018" : `${C.coral}18`, borderRadius: 99, padding: "3px 9px", flexShrink: 0 }}>{passed ? "ĐẠT" : "CHƯA ĐẠT"}</span>
                     <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold, flexShrink: 0, width: 54, textAlign: "right" }}>{p.score10}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                   </div>
                 );
@@ -2538,7 +2542,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         {/* Path / Rankie — phân bố kết quả */}
         {(isPath || (!isSurvey && !isExam)) && (
           <div style={{ ...cardSurface, marginBottom: 12 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {(() => {
                 const maxCnt = Math.max(0, ...resultOpts.map((x) => resultCountById[x.id] || 0));
@@ -2572,7 +2576,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         )}
         <button
           onClick={() => setDemoOpen((v) => !v)}
-          style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: demoOpen ? 10 : 0, textTransform: "uppercase", letterSpacing: 0.4 }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: demoOpen ? 10 : 0, textTransform: "uppercase", letterSpacing: 0.4 }}
         >
           <Users size={15} />
           <span style={{ flex: 1, textAlign: "left" }}>Nhân khẩu học{anyFilter ? " (nhóm được lọc)" : ""}</span>
@@ -2626,7 +2630,7 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
         <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
           <ChevronLeft size={20} />
         </button>
-        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Lịch sử trình chiếu</div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Lịch sử trình chiếu</div>
       </div>
 
       <div style={{ padding: 16 }}>
@@ -2650,7 +2654,7 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
           </div>
         )}
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+          <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             {history.length === 0
               ? "Chưa có phiên trình chiếu nào được lưu. Sau khi trình chiếu một Rankie, Survey, hoặc Exam, bấm \"Lưu phiên trình chiếu\" để nó xuất hiện ở đây."
               : "Không có mục nào khớp với bộ lọc này."}
@@ -2673,7 +2677,7 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
                       <Pill tone="muted">{getLabel(entry)}</Pill>
                       <span style={captionText}>{timeAgo(entry.endedAt)} trước</span>
                     </div>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {entry.name}
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -2707,12 +2711,12 @@ function BookmarksView({ bookmarks, onOpenRankie, onOpenPath, onOpenDeck, onTogg
         <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
           <ChevronLeft size={20} />
         </button>
-        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Đánh dấu</div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Đánh dấu</div>
       </div>
 
       <div style={{ padding: 16 }}>
         {list.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+          <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             Chưa đánh dấu bài nào. Bấm icon 🔖 trên một bài để lưu lại xem/làm sau.
           </div>
         ) : (
@@ -2732,7 +2736,7 @@ function BookmarksView({ bookmarks, onOpenRankie, onOpenPath, onOpenDeck, onTogg
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                       <Pill tone="muted">{getLabel(item)}</Pill>
                     </div>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.title}
                     </div>
                   </div>
@@ -2785,7 +2789,7 @@ function ParticipationHistoryView({ history, onOpenRankie, onOpenPath, onOpenDec
           <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
             <ChevronLeft size={20} />
           </button>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Lịch sử tham gia</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Lịch sử tham gia</div>
         </div>
         {history.length > 0 && (
           <button onClick={onClear} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, cursor: "pointer" }}>
@@ -2815,7 +2819,7 @@ function ParticipationHistoryView({ history, onOpenRankie, onOpenPath, onOpenDec
           </div>
         )}
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+          <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             {history.length === 0
               ? "Chưa có hoạt động nào. Khi bạn bình chọn một Rankie, làm một Path, trả lời một Survey, hoặc làm một Exam, nó sẽ xuất hiện ở đây."
               : "Không có mục nào khớp với bộ lọc này."}
@@ -2838,7 +2842,7 @@ function ParticipationHistoryView({ history, onOpenRankie, onOpenPath, onOpenDec
                       <Pill tone="muted">{getLabel(entry)}</Pill>
                       <span style={captionText}>{timeAgo(entry.timestamp)} trước</span>
                     </div>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {entry.title}
                     </div>
                     {entry.detail && (
@@ -2964,17 +2968,17 @@ function EditPostModal({ post, onClose, onSave }) {
   return (
     <ModalShell title="Chỉnh sửa bài đăng" onClose={onClose}>
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Tiêu đề</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Tiêu đề</span>
         <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
       </div>
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Mô tả</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Mô tả</span>
         <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: bodyFont }} />
       </div>
 
       {/* Ảnh bìa */}
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Ảnh bìa</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Ảnh bìa</span>
         {media && (media.url || media.emoji) ? (
           <div style={{ marginTop: 8, position: "relative" }}>
             <PostMedia media={media} height={140} />
@@ -2991,7 +2995,7 @@ function EditPostModal({ post, onClose, onSave }) {
       {/* Phương án bình chọn (chỉ rankie) */}
       {isRankie && (
         <div style={{ marginBottom: 16 }}>
-          <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>Phương án bình chọn</span>
+          <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Phương án bình chọn</span>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
             {options.map((o, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3003,12 +3007,12 @@ function EditPostModal({ post, onClose, onSave }) {
               </div>
             ))}
           </div>
-          <button onClick={addOpt} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer" }}><PlusCircle size={15} /> Thêm phương án</button>
+          <button onClick={addOpt} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}><PlusCircle size={15} /> Thêm phương án</button>
           <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Phương án cũ giữ nguyên số phiếu; thêm mới bắt đầu từ 0; xoá thì bỏ phiếu của phương án đó. Phần trăm tự tính lại.</div>
         </div>
       )}
       {!isRankie && (
-        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 16, lineHeight: 1.4 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 16, lineHeight: 1.4 }}>
           Chỉnh sửa câu hỏi/đáp án của {post.type === "path" ? "Path" : "bài Khảo sát/Thi"} sẽ được bổ sung ở bản sau. Hiện có thể sửa tiêu đề, mô tả và ảnh bìa.
         </div>
       )}
@@ -3051,11 +3055,11 @@ function PostStatsModal({ post, onClose, onExport }) {
       <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
         <div style={{ ...raisedSurface, flex: 1, textAlign: "center", padding: "10px 0" }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text }}>{fmt(total)}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>{isUnlimited ? "Tổng lượt bấm" : "Tổng lượt bình chọn"}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{isUnlimited ? "Tổng lượt bấm" : "Tổng lượt bình chọn"}</div>
         </div>
         <div style={{ ...raisedSurface, flex: 1, textAlign: "center", padding: "10px 0" }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text }}>{fmt(post.participants || 0)}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Người tham gia</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>Người tham gia</div>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
@@ -3091,7 +3095,7 @@ function PostStatsModal({ post, onClose, onExport }) {
           color: C.text,
           fontFamily: bodyFont,
           fontWeight: 600,
-          fontSize: 13.5,
+          fontSize: 14,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
@@ -3151,7 +3155,7 @@ function VotedMarker({ voteMarker, size = 16 }) {
         background: C.gold,
         color: "#1A1305",
         fontFamily: monoFont,
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: 700,
         letterSpacing: 0.3,
         verticalAlign: "middle",
@@ -3181,7 +3185,7 @@ function VoteBubble({ emoji, image, avatarColor, left, bottom, drift1, drift2, d
         display: "grid",
         placeItems: "center",
         overflow: "hidden",
-        fontSize: 17,
+        fontSize: 16,
         pointerEvents: "none",
         animation: `bubbleFloat ${duration}s ease-out forwards`,
         // CSS custom properties consumed by the bubbleFloat keyframes for a slight sideways drift
@@ -3298,7 +3302,7 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
             ref={textRef}
             style={{
               fontFamily: bodyFont,
-              fontSize: 13.5,
+              fontSize: 14,
               color: C.text,
               lineHeight: 1.45,
               ...collapsedStyle,
@@ -3310,13 +3314,13 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
             ? overflowing && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-                  style={{ background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}
+                  style={{ background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}
                 >
                   {expanded ? "Thu gọn" : "…xem thêm"}
                 </button>
               )
             : showMore && (
-                <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
               )}
         </div>
       )}
@@ -3346,7 +3350,7 @@ function TopBar({ title, onBack, right }) {
             <ChevronLeft size={20} />
           </button>
         )}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 17, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {title}
         </div>
       </div>
@@ -3435,7 +3439,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
           >
             <TypeIcon size={20} color={joinColor} />
-            <span style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: joined ? C.text : C.textFaint }}>{fmtCompact(participants)}</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: joined ? C.text : C.textFaint }}>{fmtCompact(participants)}</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onCommentClick?.(); }}
@@ -3443,7 +3447,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             aria-label="Bình luận"
           >
             <IconCommentBubble />
-            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{fmtCompact(comments)}</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(comments)}</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onShareClick?.(); }}
@@ -3451,7 +3455,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             aria-label="Chia sẻ"
           >
             <IconShareArrow />
-            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{fmtCompact(shares)}</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(shares)}</span>
           </button>
           {sessionCount !== null && (
             <button
@@ -3462,7 +3466,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
               aria-label="Lịch sử trình chiếu"
             >
               <Monitor size={19} color={hasSessions ? C.gold : C.textMuted} />
-              <span style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: hasSessions ? 700 : 400, color: hasSessions ? C.gold : C.textFaint }}>{fmtCompact(sessionCount)}</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: hasSessions ? 700 : 400, color: hasSessions ? C.gold : C.textFaint }}>{fmtCompact(sessionCount)}</span>
             </button>
           )}
         </div>
@@ -3495,7 +3499,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
                 >
                   <Monitor size={13} color={C.gold} style={{ flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {s.name}
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
@@ -3670,7 +3674,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
           {/* Preview */}
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, background: C.surfaceRaised, marginBottom: 16 }}>
             <Pill tone="gold">{typeLabel}</Pill>
-            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 14.5, color: C.text, marginTop: 6 }}>{item.title}</div>
+            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 14, color: C.text, marginTop: 6 }}>{item.title}</div>
             {item.category && <div style={{ ...captionText, marginTop: 3 }}>{item.category}</div>}
           </div>
 
@@ -3720,7 +3724,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
                         border: `1px solid ${active ? C.gold : C.border}`,
                         background: active ? C.goldSoft : C.surface,
                         color: active ? C.gold : C.textMuted,
-                        cursor: "pointer", fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600,
+                        cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 600,
                       }}
                     >
                       <Icon size={16} />
@@ -3757,7 +3761,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
                         <div style={{
                           width: 36, height: 36, borderRadius: 999, flexShrink: 0,
                           background: c.author.avatarColor || C.goldSoft,
-                          display: "grid", placeItems: "center", fontSize: 17,
+                          display: "grid", placeItems: "center", fontSize: 16,
                           border: `1.5px solid ${active ? C.gold : C.border}`,
                         }}>
                           {c.author.avatarEmoji}
@@ -3820,7 +3824,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
                 </div>
                 <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
                   Quét mã để tham gia ngay.
-                  <div style={{ fontFamily: monoFont, color: C.teal, marginTop: 5, fontSize: 11.5 }}>{link}</div>
+                  <div style={{ fontFamily: monoFont, color: C.teal, marginTop: 5, fontSize: 12 }}>{link}</div>
                 </div>
               </div>
             )}
@@ -3877,7 +3881,7 @@ function HeadToHead({ rankie, options, onVote, votedId, isClosed, tapCounts, act
       >
         <span style={{ fontSize: 22 }}>{opt.flag}</span>
         <div style={{ textAlign: align === "right" ? "right" : "left" }}>
-          <div style={{ color: C.text, fontWeight: 700, fontSize: 15, display: "flex", alignItems: "center", gap: 5, flexDirection: align === "right" ? "row-reverse" : "row" }}>
+          <div style={{ color: C.text, fontWeight: 700, fontSize: 16, display: "flex", alignItems: "center", gap: 5, flexDirection: align === "right" ? "row-reverse" : "row" }}>
             {opt.label}
             {isMine && <VotedMarker voteMarker={rankie.voteMarker} />}
             {isActivelyTapping && (
@@ -3972,7 +3976,7 @@ function HeadToHead({ rankie, options, onVote, votedId, isClosed, tapCounts, act
       </div>
 
       {clickable && (
-        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center", marginTop: 8 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 8 }}>
           {votedId ? "Bấm lại để hủy, hoặc chọn bên kia để đổi" : "Bấm vào một bên để bình chọn"}
         </div>
       )}
@@ -4034,7 +4038,7 @@ function BarViz({ options, onVote, votedId, isClosed, tapCounts, activeTapId, vo
                       placeItems: "center",
                       border: `2px solid ${C.surface}`,
                       fontFamily: monoFont,
-                      fontSize: 9.5,
+                      fontSize: 10,
                       fontWeight: 700,
                       color: "#1A1305",
                       transform: "scale(1.15)",
@@ -4077,7 +4081,7 @@ function BarViz({ options, onVote, votedId, isClosed, tapCounts, activeTapId, vo
         );
       })}
       {clickable && (
-        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center", marginTop: 2 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 2 }}>
           {votedId ? "Bấm lại để hủy, hoặc chọn phương án khác" : "Bấm vào một phương án để bình chọn"}
         </div>
       )}
@@ -4236,14 +4240,14 @@ function LineViz({ options, colorFor, createdAt }) {
       {/* Legend with current cumulative totals */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, justifyContent: "center" }}>
         {options.map((o, i) => (
-          <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 11.5 }}>
+          <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12 }}>
             <span style={{ width: 12, height: 3, borderRadius: 2, background: getColor(o, i) }} />
             <span style={{ color: C.textMuted }}>{o.label}</span>
             <span style={{ color: C.text, fontFamily: monoFont, fontWeight: 600 }}>{fmt(o.votes)}</span>
           </div>
         ))}
       </div>
-      <div style={{ textAlign: "center", marginTop: 6, fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>
+      <div style={{ textAlign: "center", marginTop: 6, fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
         Tổng lượt vote tích lũy từ khi tạo · {fmtTs(created)} → nay
       </div>
     </div>
@@ -4346,7 +4350,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
             <Lock size={17} color={C.gold} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text }}>{rankie.options.length} lựa chọn</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{rankie.options.length} lựa chọn</div>
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Bình chọn để xem kết quả</div>
           </div>
         </div>
@@ -4373,7 +4377,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
                 <div style={{ height: "100%", width: `${(avg / maxStars) * 100}%`, background: C.gold, borderRadius: 5 }} />
               </div>
               {myStarOption && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>
                   Bạn đã đánh giá: <span style={{ color: C.text, fontWeight: 600 }}>{myStarOption.label}</span>
                   <VotedMarker voteMarker={rankie.voteMarker} />
                 </div>
@@ -4476,7 +4480,7 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
           <div style={{ fontFamily: displayFont, fontStyle: "italic", fontSize: 30, color: C.text, lineHeight: 1 }}>
             Rankev
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 4, letterSpacing: 0.4 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 4, letterSpacing: 0.4 }}>
             RANK EVERYTHING
           </div>
         </div>
@@ -4574,7 +4578,7 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
         {feedItems.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+          <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             Chưa có bài đăng nào phù hợp
             {typeFilter !== "all" ? ` (${currentLabel})` : ""}
             {activeCategory !== "Đang thịnh hành" ? ` trong "${activeCategory}"` : ""}.
@@ -4713,7 +4717,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
           <div>
             {sectionLabel(`${CATEGORIES.find((c) => CATEGORY_NAMES[c.id] === browseCategory)?.label || browseCategory}`)}
             {categoryPosts.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 0", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+              <div style={{ textAlign: "center", padding: "40px 0", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
                 Chưa có bài đăng nào trong danh mục này.
               </div>
             ) : (
@@ -4728,7 +4732,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
         {q.length > 0 && (
           <div>
             {results.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+              <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
                 Không tìm thấy kết quả nào cho "{query}".
               </div>
             ) : (
@@ -4815,7 +4819,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
                       {i + 1}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {post.title}
                       </div>
                       <div style={{ ...captionText, marginTop: 2 }}>
@@ -4848,7 +4852,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
                       color: C.text,
                       fontFamily: bodyFont,
                       fontWeight: 600,
-                      fontSize: 13.5,
+                      fontSize: 14,
                       cursor: "pointer",
                       textAlign: "left",
                       display: "flex",
@@ -4913,7 +4917,7 @@ function CommentComposer({ value, onChange, onSubmit, placeholder, image, setIma
           <button onClick={() => setShowEmoji((v) => !v)} title="Biểu tượng cảm xúc" style={iconGhost}><Smile size={18} color={showEmoji ? C.gold : C.textMuted} /></button>
           {setImage && <button onClick={() => setImage(image ? null : mockImageColor())} title="Đính ảnh" style={iconGhost}><ImageIcon size={18} color={image ? C.gold : C.textMuted} /></button>}
         </div>
-        <button onClick={onSubmit} disabled={!canSend} style={{ padding: "7px 16px", borderRadius: 9, border: "none", background: canSend ? C.gold : C.surfaceRaised, color: canSend ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: canSend ? "pointer" : "not-allowed" }}>{submitLabel}</button>
+        <button onClick={onSubmit} disabled={!canSend} style={{ padding: "7px 16px", borderRadius: 9, border: "none", background: canSend ? C.gold : C.surfaceRaised, color: canSend ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: canSend ? "pointer" : "not-allowed" }}>{submitLabel}</button>
       </div>
     </div>
   );
@@ -4925,7 +4929,7 @@ function SupportDropdown({ options, selected, onToggle }) {
   const sel = options.filter((o) => selected.includes(o.id));
   return (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer" }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}>
         <span style={{ color: sel.length ? C.text : C.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {sel.length ? sel.map((o) => o.label).join(", ") : "Chọn phương án ủng hộ (có thể chọn nhiều)"}
         </span>
@@ -4936,7 +4940,7 @@ function SupportDropdown({ options, selected, onToggle }) {
           {options.map((opt) => {
             const active = selected.includes(opt.id);
             return (
-              <button key={opt.id} onClick={() => onToggle(opt.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: active ? `${opt.color || C.gold}18` : "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer", textAlign: "left" }}>
+              <button key={opt.id} onClick={() => onToggle(opt.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: active ? `${opt.color || C.gold}18` : "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer", textAlign: "left" }}>
                 <span style={{ width: 16, height: 16, borderRadius: 4, border: `1px solid ${active ? (opt.color || C.gold) : C.border}`, background: active ? (opt.color || C.gold) : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>
                   {active && <Check size={11} strokeWidth={3} color="#1A1305" />}
                 </span>
@@ -5067,7 +5071,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
           {supportOptions.map((opt) => {
             const active = draftSupport.includes(opt.id);
             return (
-              <button key={opt.id} onClick={() => toggleSupport(opt.id)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 999, border: `1px solid ${active ? (opt.color || C.gold) : C.border}`, background: active ? `${opt.color || C.gold}22` : "transparent", color: active ? (opt.color || C.gold) : C.textMuted, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
+              <button key={opt.id} onClick={() => toggleSupport(opt.id)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 999, border: `1px solid ${active ? (opt.color || C.gold) : C.border}`, background: active ? `${opt.color || C.gold}22` : "transparent", color: active ? (opt.color || C.gold) : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                 {active && <Check size={11} strokeWidth={3} />}
                 {opt.label}
               </button>
@@ -5119,9 +5123,9 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                   <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 13, marginRight: 2 }}>{c.user}</span>
                   {supportLabels.length > 0 && (
                     <>
-                      <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 10.5 }}>{supportPrefix || "ủng hộ:"}</span>
+                      <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>{supportPrefix || "ủng hộ:"}</span>
                       {supportLabels.map((sp, idx) => (
-                        <span key={idx} style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
+                        <span key={idx} style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
                       ))}
                     </>
                   )}
@@ -5140,10 +5144,10 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                     {c.replies.map((r) => (
                       <div key={r.id}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                          <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 12.5 }}>{r.user}</span>
-                          <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 10.5 }}>· {timeAgo(r.createdAt)}</span>
+                          <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 13 }}>{r.user}</span>
+                          <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>· {timeAgo(r.createdAt)}</span>
                         </div>
-                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, lineHeight: 1.4, wordBreak: "break-word" }}>{r.text}</div>}
+                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}>{r.text}</div>}
                         {r.image && <div style={{ marginTop: 4, width: 96, height: 96, borderRadius: 8, background: r.image }} />}
                       </div>
                     ))}
@@ -5206,7 +5210,7 @@ function LockedCommentsNotice() {
         <div style={{ width: 44, height: 44, borderRadius: 999, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center" }}>
           <Lock size={20} color={C.textMuted} />
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13.5, fontWeight: 700, color: C.text }}>Tham gia để xem bình luận</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text }}>Tham gia để xem bình luận</div>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Hoàn thành bài để mở phần bình luận &amp; trình chiếu</div>
       </div>
     </div>
@@ -5233,11 +5237,11 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
           {editName ? (
             <div style={{ display: "flex", gap: 8 }}>
               <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" }} autoFocus />
-              <button onClick={() => { onRename?.(series.id, nameInput); setEditName(false); }} style={{ padding: "6px 12px", borderRadius: 8, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Lưu</button>
+              <button onClick={() => { onRename?.(series.id, nameInput); setEditName(false); }} style={{ padding: "6px 12px", borderRadius: 8, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Lưu</button>
             </div>
           ) : (
             <button onClick={() => { setNameInput(series.name); setEditName(true); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
-              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>{series.name}</span>
+              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>{series.name}</span>
               <Edit3 size={13} color={C.textFaint} />
             </button>
           )}
@@ -5246,7 +5250,7 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
       </div>
 
       {reorderWarn && (
-        <div style={{ margin: "12px 16px 0", padding: 12, background: `${C.coral}18`, border: `1px solid ${C.coral}`, borderRadius: 12, fontFamily: bodyFont, fontSize: 12.5, color: C.text }}>
+        <div style={{ margin: "12px 16px 0", padding: 12, background: `${C.coral}18`, border: `1px solid ${C.coral}`, borderRadius: 12, fontFamily: bodyFont, fontSize: 13, color: C.text }}>
           ⚠️ Thay đổi thứ tự có thể gây nhầm lẫn cho người đang đọc dở.
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button onClick={() => setReorderWarn(false)} style={{ flex: 1, padding: "7px", borderRadius: 8, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Vẫn tiếp tục</button>
@@ -5262,7 +5266,7 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
               {idx + 1}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
+              <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: typeColor(p), background: `${typeColor(p)}18`, padding: "2px 7px", borderRadius: 999 }}>{typeLabel(p)}</span>
                 <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{timeAgo(p.createdAt)}</span>
@@ -5294,7 +5298,7 @@ function ChapterQuickAccess({ current, total, onOpen }) {
   return (
     <button onClick={onOpen} style={{ position: "fixed", bottom: 18, right: 14, zIndex: 12, display: "flex", alignItems: "center", gap: 5, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}`, borderRadius: 999, padding: "7px 12px 7px 10px", cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}>
       <Layers size={12} color={C.gold} />
-      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, color: C.text }}>Ch.{current}/{total}</span>
+      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.text }}>Ch.{current}/{total}</span>
     </button>
   );
 }
@@ -5335,7 +5339,7 @@ function ChapterSwitcher({ series, currentIdx, participatedKeys, resultData, onS
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 12px 8px" }}>
           <button onClick={onClose} style={{ ...iconButton, color: C.text }}><X size={20} /></button>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>{series.name}</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>{series.name}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>Chapter {currentIdx + 1} / {series.posts.length}</div>
           </div>
           <button onClick={onManage} title="Quản lý chapter" style={{ ...iconButton, color: C.textFaint }}><Edit3 size={17} /></button>
@@ -5389,7 +5393,7 @@ function RankieDetailWithSwipe({ selected, allSeries, navigateChapter, participa
     <>
       {series && <ChapterQuickAccess current={chapterIdx + 1} total={series.posts.length} onOpen={() => setSwitcherOpen(true)} />}
       {skipToast && (
-        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
+        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 13, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
           Bạn chưa tham gia chapter này
         </div>
       )}
@@ -5427,7 +5431,7 @@ function PathDetailWithSwipe({ selectedPath, allSeries, navigateChapter, partici
     <>
       {series && <ChapterQuickAccess current={chapterIdx + 1} total={series.posts.length} onOpen={() => setSwitcherOpen(true)} />}
       {skipToast && (
-        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
+        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 13, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
           Bạn chưa tham gia chapter này
         </div>
       )}
@@ -5465,7 +5469,7 @@ function DeckDetailWithSwipe({ selectedDeck, allSeries, navigateChapter, partici
     <>
       {series && <ChapterQuickAccess current={chapterIdx + 1} total={series.posts.length} onOpen={() => setSwitcherOpen(true)} />}
       {skipToast && (
-        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
+        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 13, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
           Bạn chưa tham gia chapter này
         </div>
       )}
@@ -5527,7 +5531,7 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
           );
         })}
       </div>
-      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, marginTop: 12 }}>{clickable ? "Chạm vào một người để bình chọn" : "Bục vinh danh · Top 3"}</div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 12 }}>{clickable ? "Chạm vào một người để bình chọn" : "Bục vinh danh · Top 3"}</div>
     </div>
   );
 }
@@ -5554,7 +5558,7 @@ function TugViz({ options, onVote, votedId, isClosed }) {
   ));
   return (
     <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontFamily: displayFont, fontWeight: 800, fontSize: 17 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontFamily: displayFont, fontWeight: 800, fontSize: 16 }}>
         <span style={{ color: a.color }}>{face(a)} {pa}%</span>
         <span style={{ color: b.color }}>{100 - pa}% {face(b)}</span>
       </div>
@@ -5573,7 +5577,7 @@ function TugViz({ options, onVote, votedId, isClosed }) {
           <div onClick={tap(b)} style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "50%", zIndex: 5, cursor: "pointer" }} />
         </>}
       </div>
-      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để kéo dây" : "Kéo co · 1v1"}</div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để kéo dây" : "Kéo co · 1v1"}</div>
     </div>
   );
 }
@@ -5657,7 +5661,7 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
           <div onClick={tap(b, b.color || C.coral)} style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "50%", zIndex: 4, cursor: "pointer" }} />
         </>}
       </div>
-      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để dồn khí" : "Kamehameha · 1v1"}</div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để dồn khí" : "Kamehameha · 1v1"}</div>
     </div>
   );
 }
@@ -5895,7 +5899,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         {rankie.author && (
           <AuthorRow author={rankie.author} onOpenAuthor={undefined} />
         )}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {rankie.title}
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -6026,7 +6030,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         ) : isUnlimited ? (
           clickableChart ? null : (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 8 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 8 }}>
               Bấm liên tục để tăng vote cho phương án yêu thích — không giới hạn số lần!
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -6092,7 +6096,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         ) : rankie.votingType === "multiple" ? (
           !voted ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 2 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 2 }}>
                 Chọn các phương án bạn ủng hộ (được chọn nhiều):
               </div>
               {options.map((o) => {
@@ -6184,7 +6188,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         ) : rankie.votingType === "rating" ? (
           !voted ? (
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 10 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 10 }}>
                 Chọn mức đánh giá của bạn:
               </div>
               <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 14 }}>
@@ -6247,7 +6251,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           <>
             {!clickableChart && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 8 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 8 }}>
                   {voted ? "Bình chọn của bạn (bấm lại để hủy, hoặc chọn phương án khác):" : "Bình chọn của bạn:"}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 10 }}>
@@ -6306,7 +6310,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                           style={{
                             fontFamily: bodyFont,
                             fontWeight: 600,
-                            fontSize: 12.5,
+                            fontSize: 13,
                             color: isMine ? C.gold : C.text,
                             textAlign: "center",
                             lineHeight: 1.25,
@@ -6395,7 +6399,7 @@ function ChoiceButton({ choice, onClick, accent, layout = "col", imageSize = 76 
       >
         <img src={choice.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 100%)" }} />
-        <span style={{ position: "absolute", left: 12, right: 12, bottom: 10, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: "#fff", textAlign: "left", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+        <span style={{ position: "absolute", left: 12, right: 12, bottom: 10, fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: "#fff", textAlign: "left", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
           {choice.label}
         </span>
       </button>
@@ -6501,7 +6505,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         <div style={{ padding: 16 }}>
           {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
           {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
-          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
             {path.category && <Pill tone="muted">{path.category}</Pill>}
@@ -6514,7 +6518,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           )}
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
               Phân bố kết quả
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -6522,7 +6526,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Illustration emoji={r.emoji} image={r.image} size={30} radius={8} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12.5, marginBottom: 3 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
                       <span style={{ color: C.text, fontWeight: 600 }}>{name}</span>
                       <span style={{ color: C.textFaint, fontFamily: monoFont }}>{r.pct}%</span>
                     </div>
@@ -6538,7 +6542,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button
               onClick={() => setOwnerPreview(true)}
-              style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}
+              style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
             >
               Xem trước dạng người tham gia
             </button>
@@ -6551,7 +6555,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
       <div style={{ padding: 16 }}>
         {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
         {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
           {path.category && <Pill tone="muted">{path.category}</Pill>}
@@ -6578,7 +6582,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         </div>
         <button
           onClick={() => setStep(first.id)}
-          style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15 }}
+          style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 16 }}
         >
           Bắt đầu
         </button>
@@ -6610,7 +6614,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     return (
       <div style={{ padding: 16 }}>
         {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {path.title}
         </div>
 
@@ -6649,7 +6653,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <div style={{ ...cardSurface, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ display: "flex", flexShrink: 0 }}>
                 {mates.slice(0, 5).map((m, i) => (
-                  <div key={i} style={{ width: 32, height: 32, borderRadius: "50%", background: m.color, display: "grid", placeItems: "center", fontSize: 15, border: `2px solid ${C.surface}`, marginLeft: i ? -10 : 0 }}>{m.emoji}</div>
+                  <div key={i} style={{ width: 32, height: 32, borderRadius: "50%", background: m.color, display: "grid", placeItems: "center", fontSize: 16, border: `2px solid ${C.surface}`, marginLeft: i ? -10 : 0 }}>{m.emoji}</div>
                 ))}
               </div>
               <div style={{ minWidth: 0 }}>
@@ -6682,7 +6686,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
               </div>
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>
                 {hideCount ? `Đã khám phá ${discovered} kết quả` : `Đã khám phá ${discovered}/${allEndings.length} kết quả`}
               </div>
               <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>
@@ -6695,7 +6699,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         )}
 
         <div style={{ ...cardSurface, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {Object.entries(path.results).map(([name, d]) => {
               const isUnlocked = revealAll || unlocked.has(name);
@@ -6716,7 +6720,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                       </div>
                     )}
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12.5, marginBottom: 3 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
                         <span style={{ color: C.textFaint }}>{showName ? name : "Kết quả chưa khám phá"}</span>
                         {showStats && <span style={{ color: C.textFaint, fontFamily: monoFont }}>{d.pct}%</span>}
                       </div>
@@ -6735,7 +6739,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Illustration emoji={d.emoji} image={d.image} size={30} radius={8} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12.5, marginBottom: 3 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
                       <span style={{ color: name === step ? C.gold : C.textMuted, fontWeight: name === step ? 700 : 500 }}>{name}{name === step ? " · bạn" : ""}</span>
                       <span style={{ color: C.textFaint, fontFamily: monoFont }}>{d.pct}%</span>
                     </div>
@@ -6747,7 +6751,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
               );
             })}
             {hideCount && remaining > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontStyle: "italic" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontStyle: "italic" }}>
                 <Lock size={13} color={C.textFaint} /> Còn những kết quả bí ẩn khác…
               </div>
             )}
@@ -6794,7 +6798,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                       return (
                         <button key={name} onClick={() => setThreadEnding(name)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : "transparent", cursor: "pointer" }}>
                           <span style={{ fontSize: 14 }}>{path.results[name].emoji}</span>
-                          <span style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: active ? 700 : 500, color: active ? C.gold : C.textMuted }}>{name}</span>
+                          <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? C.gold : C.textMuted }}>{name}</span>
                         </button>
                       );
                     })}
@@ -6854,7 +6858,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <div style={{ position: "absolute", inset: 0, background: interactive
             ? "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.1) 30%, rgba(0,0,0,0.35) 100%)"
             : "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 55%, rgba(0,0,0,0) 100%)" }} />
-          <div style={{ position: "absolute", left: 14, right: 14, ...(interactive ? { top: 12 } : { bottom: 12 }), fontFamily: displayFont, fontWeight: 700, fontSize: 19, color: "#fff", lineHeight: 1.25, textShadow: "0 1px 6px rgba(0,0,0,0.7)", textAlign: interactive ? "center" : "left" }}>
+          <div style={{ position: "absolute", left: 14, right: 14, ...(interactive ? { top: 12 } : { bottom: 12 }), fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: "#fff", lineHeight: 1.25, textShadow: "0 1px 6px rgba(0,0,0,0.7)", textAlign: interactive ? "center" : "left" }}>
             {q.text}
           </div>
           {/* Nút lựa chọn đặt tự do trên ảnh */}
@@ -6862,7 +6866,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <button
               key={i}
               onClick={() => answer(choice)}
-              style={{ position: "absolute", left: `${choice.hotspot.x}%`, top: `${choice.hotspot.y}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1.5px solid ${C.gold}`, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", boxShadow: "0 4px 14px rgba(0,0,0,0.4)", maxWidth: "70%", whiteSpace: "nowrap" }}
+              style={{ position: "absolute", left: `${choice.hotspot.x}%`, top: `${choice.hotspot.y}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1.5px solid ${C.gold}`, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", boxShadow: "0 4px 14px rgba(0,0,0,0.4)", maxWidth: "70%", whiteSpace: "nowrap" }}
             >
               {choice.emoji && <span style={{ fontSize: 16 }}>{choice.emoji}</span>}
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{choice.label}</span>
@@ -6870,7 +6874,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           ))}
         </div>
       ) : (
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 19, color: C.text, marginBottom: 18, textAlign: "center", lineHeight: 1.3 }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 18, textAlign: "center", lineHeight: 1.3 }}>
           {q.text}
         </div>
       )}
@@ -6945,7 +6949,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}55`, marginBottom: 12 }}>
               <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
                 <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(path.participants || 0)}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 2 }}>tham gia</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>tham gia</div>
               </div>
               <div style={{ width: 1, alignSelf: "stretch", background: `${C.gold}33` }} />
               <div style={{ minWidth: 0 }}>
@@ -6962,7 +6966,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
             <GitBranch size={18} color={C.gold} />
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
             Trắc nghiệm {nq} câu · nhấn để xem giới thiệu và thử
           </div>
         </div>
@@ -7037,10 +7041,10 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
           <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
             {path.questions.length} câu hỏi · {Object.keys(path.results).length} kết quả · Người tham gia làm bài qua QR hoặc link.
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.5 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
             Sau bước này là phòng chờ — mỗi người tham gia tự đi qua các câu hỏi và ra một kết quả; bạn xem phân bố kết quả của cả nhóm khi kết thúc.
           </div>
-          <button onClick={() => setPhase("waiting")} style={{ ...primaryButton, width: "100%", marginTop: 24, padding: 15, borderRadius: 14, fontSize: 15 }}>
+          <button onClick={() => setPhase("waiting")} style={{ ...primaryButton, width: "100%", marginTop: 24, padding: 15, borderRadius: 14, fontSize: 16 }}>
             Mở phòng chờ
           </button>
         </div>
@@ -7064,13 +7068,13 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
           <div style={{ width: 180, height: 180, background: "#fff", borderRadius: 16, display: "grid", placeItems: "center", marginBottom: 20 }}>
             <QrCode size={140} color="#111" />
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13.5, fontWeight: 600, color: C.text, marginBottom: 4 }}>Quét mã hoặc bấm link để bắt đầu</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Quét mã hoặc bấm link để bắt đầu</div>
           <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700, marginBottom: 28 }}>rankev.app/path/{path.id}</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 28px", marginBottom: 28 }}>
             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1 }}>{fmt(participantCount)}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>người đã vào phòng chờ</div>
           </div>
-          <button onClick={startResults} style={{ ...primaryButton, width: "100%", maxWidth: 320, padding: 16, borderRadius: 14, fontSize: 15.5 }}>
+          <button onClick={startResults} style={{ ...primaryButton, width: "100%", maxWidth: 320, padding: 16, borderRadius: 14, fontSize: 16 }}>
             Kết thúc & Xem kết quả
           </button>
         </div>
@@ -7092,7 +7096,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
           <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 30, color: C.gold }}>{fmt(participants.length)}</div>
           <div style={{ ...captionText, marginTop: 2 }}>người đã tham gia</div>
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Phân bố kết quả</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Phân bố kết quả</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {distribution.map((d) => (
             <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -7126,7 +7130,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
                   onSessionEnd?.({ name: presenterSessionName.trim() || `Phiên ${new Date().toLocaleString("vi-VN")}`, endedAt: Date.now(), participants: participants.length });
                   setPresenterSessionSaved(true);
                 }}
-                style={{ padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                style={{ padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
                 <Monitor size={16} /> Lưu phiên trình chiếu
               </button>
@@ -7165,7 +7169,7 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
           style={{
             width: "100%", padding: "10px 12px", borderRadius: 10,
             border: `1px solid ${C.border}`, background: showResults ? C.surfaceRaised : C.surface,
-            color: C.text, fontFamily: bodyFont, fontSize: 13.5, resize: "vertical", outline: "none",
+            color: C.text, fontFamily: bodyFont, fontSize: 14, resize: "vertical", outline: "none",
           }}
         />
         {showResults && graded && (
@@ -7251,7 +7255,7 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
               color: C.text,
               fontFamily: bodyFont,
               fontWeight: 600,
-              fontSize: 13.5,
+              fontSize: 14,
               textAlign: "left",
               cursor: showResults ? "default" : "pointer",
               display: "flex",
@@ -7284,7 +7288,7 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
               <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                 <span style={{ color: showResults && graded ? resultBorder : C.text }}>{o.label}</span>
                 {showGradeIcon && (
-                  <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: resultBorder, marginTop: 1 }}>
+                  <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: resultBorder, marginTop: 1 }}>
                     {isCorrect ? "Đáp án đúng" : "Bạn đã chọn — sai"}
                   </span>
                 )}
@@ -7350,19 +7354,19 @@ function DeckResultsDashboard({ deck }) {
 
       {isExam && scores.length > 0 && (
         <div style={{ ...cardSurface, marginBottom: 12 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
           <ScoreSpectrum scores={scores} passing={passing} />
         </div>
       )}
 
       {n === 0 ? (
         <div style={{ ...cardSurface, textAlign: "center", padding: "20px 16px" }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted }}>Chưa có ai làm bài.</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>Chưa có ai làm bài.</div>
           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>Chia sẻ bài hoặc mở phiên trình chiếu để thu kết quả.</div>
         </div>
       ) : (
         <div style={{ ...cardSurface }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {(eff?.questions || []).map((q, qi) => (
               <div key={q.id}>
@@ -7371,7 +7375,7 @@ function DeckResultsDashboard({ deck }) {
                   {isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points}đ)</span>}
                 </div>
                 {q.votingType === "text" ? (
-                  <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, fontStyle: "italic" }}>{q.answered} câu trả lời tự luận</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontStyle: "italic" }}>{q.answered} câu trả lời tự luận</div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     {q.options.map((o) => {
@@ -7380,7 +7384,7 @@ function DeckResultsDashboard({ deck }) {
                       return (
                         <div key={o.id}>
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-                            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ fontFamily: bodyFont, fontSize: 13, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
                             </span>
                             <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{o.count} · {pct}%</span>
@@ -7438,7 +7442,7 @@ function DeckCardResultPreview({ deck }) {
         <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surface, display: "grid", placeItems: "center", flexShrink: 0 }}>
           {isExam ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
           {isExam ? `Bài thi ${nq} câu` : `Khảo sát ${nq} câu`} · {real && !data ? "đang tải kết quả…" : "chưa có ai làm bài"}
         </div>
       </div>
@@ -7453,9 +7457,9 @@ function DeckCardResultPreview({ deck }) {
     <div style={{ ...cardSurface, marginBottom: 12 }}>
       {/* Số liệu tổng hợp */}
       <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", marginBottom: 12 }}>
-        <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>đã làm</div></div>
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>điểm TB</div></div></>}
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: "#4ADE80" }}>{fmt(passCount)}</div><div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+        <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: "#4ADE80" }}>{fmt(passCount)}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
       </div>
 
       {isExam && scores.length > 0 && (
@@ -7469,7 +7473,7 @@ function DeckCardResultPreview({ deck }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {shownQ.map((q, qi) => (
           <div key={q.id}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.text, marginBottom: 7 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 7 }}>
               {qi + 1}. {q.text || "(câu hỏi)"}{isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points}đ)</span>}
             </div>
             {q.votingType === "text" ? (
@@ -7484,7 +7488,7 @@ function DeckCardResultPreview({ deck }) {
                         <span style={{ fontFamily: bodyFont, fontSize: 12, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
                         </span>
-                        <span style={{ fontFamily: monoFont, fontSize: 11.5, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.count)} · {pct}%</span>
+                        <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.count)} · {pct}%</span>
                       </div>
                       <div style={{ height: 6, borderRadius: 99, background: C.border, overflow: "hidden" }}>
                         <div style={{ width: `${pct}%`, height: "100%", background: o.correct ? C.teal : C.gold, borderRadius: 99 }} />
@@ -7630,7 +7634,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         <div style={{ padding: 16 }}>
           {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
           {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
-          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
             {deck.category && <Pill tone="muted">{deck.category}</Pill>}
@@ -7669,7 +7673,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       {q.options.map((o) => (
-                        <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 12.5, color: o.correct ? "#4ADE80" : C.textMuted }}>
+                        <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, color: o.correct ? "#4ADE80" : C.textMuted }}>
                           {o.correct ? <Check size={13} color="#4ADE80" /> : <span style={{ width: 13, display: "inline-block" }} />}
                           {o.label}
                         </div>
@@ -7685,7 +7689,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             {deck.deckMode !== "exam" && (
               <button
                 onClick={() => setOwnerPreview(true)}
-                style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}
+                style={{ width: "100%", padding: 13, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
               >
                 Xem trước dạng người tham gia
               </button>
@@ -7728,7 +7732,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
       <div style={{ padding: 16 }}>
         {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
         {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
           {deck.category && <Pill tone="muted">{deck.category}</Pill>}
@@ -7741,7 +7745,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         )}
         <button
           onClick={() => setStarted(true)}
-          style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15, marginTop: 4 }}
+          style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 16, marginTop: 4 }}
         >
           Bắt đầu
         </button>
@@ -7755,7 +7759,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
     return (
       <div style={{ padding: 16 }}>
         {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 21, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {deck.title}
         </div>
         <div style={{ textAlign: "center", marginBottom: 18 }}>
@@ -7800,17 +7804,17 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               {/* SECTION 2 — So sánh cộng đồng: điểm TB + chênh lệch của bạn */}
               <div style={{ ...cardSurface, marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left" }}>
                 <div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>Điểm trung bình cộng đồng</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Điểm trung bình cộng đồng</div>
                   <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text, marginTop: 2 }}>{communityAvg}<span style={{ fontSize: 12, color: C.textFaint }}>/10</span></div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>Chênh lệch của bạn</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Chênh lệch của bạn</div>
                   <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: diffFromAvg >= 0 ? "#4ADE80" : C.coral, marginTop: 2 }}>
                     {diffFromAvg >= 0 ? "+" : ""}{diffFromAvg}
                   </div>
                 </div>
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 8, textAlign: "center" }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8, textAlign: "center" }}>
                 {diffFromAvg >= 0
                   ? `Bạn cao hơn trung bình ${Math.abs(diffFromAvg)} điểm 🎉`
                   : `Bạn thấp hơn trung bình ${Math.abs(diffFromAvg)} điểm — thử lại để cải thiện nhé`}
@@ -7818,7 +7822,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
               {/* SECTION 3 — Histogram phân bố điểm + vị trí của bạn (thay xếp loại A–F) */}
               <div style={{ ...cardSurface, marginTop: 16, textAlign: "left" }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>
                   Phân bố điểm · {fmt(allScores.length)} người đã thi
                 </div>
                 {(() => {
@@ -7832,10 +7836,10 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                           return (
                             <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
                               {isMine && (
-                                <div style={{ fontFamily: bodyFont, fontSize: 9.5, fontWeight: 800, color: C.gold, marginBottom: 1, whiteSpace: "nowrap" }}>▲ Bạn</div>
+                                <div style={{ fontFamily: bodyFont, fontSize: 10, fontWeight: 800, color: C.gold, marginBottom: 1, whiteSpace: "nowrap" }}>▲ Bạn</div>
                               )}
                               {b.count > 0 && (
-                                <div style={{ fontFamily: monoFont, fontSize: 9.5, fontWeight: 700, color: isMine ? C.gold : C.textMuted, marginBottom: 2 }}>{b.count}</div>
+                                <div style={{ fontFamily: monoFont, fontSize: 10, fontWeight: 700, color: isMine ? C.gold : C.textMuted, marginBottom: 2 }}>{b.count}</div>
                               )}
                               <div style={{ width: "100%", height: h, borderRadius: 4, background: isMine ? C.gold : C.border, transition: "height 0.5s ease" }} />
                             </div>
@@ -7845,7 +7849,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                       {/* Nhãn trục theo ranh giới: 0 ở mép trái … 10 ở mép phải (11 mốc) */}
                       <div style={{ display: "flex", justifyContent: "space-between", padding: "0 1px" }}>
                         {Array.from({ length: 11 }, (_, i) => (
-                          <span key={i} style={{ fontFamily: monoFont, fontSize: 9.5, color: (i === myBandIdx || i === myBandIdx + 1) ? C.gold : C.textFaint, fontWeight: (i === myBandIdx || i === myBandIdx + 1) ? 800 : 400 }}>{i}</span>
+                          <span key={i} style={{ fontFamily: monoFont, fontSize: 10, color: (i === myBandIdx || i === myBandIdx + 1) ? C.gold : C.textFaint, fontWeight: (i === myBandIdx || i === myBandIdx + 1) ? 800 : 400 }}>{i}</span>
                         ))}
                       </div>
                     </>
@@ -7856,7 +7860,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               {/* SECTION 4 — Tiến độ: chỉ hiện khi đã có lần làm trước */}
               {prevScore != null && (
                 <div style={{ ...cardSurface, marginTop: 16, textAlign: "left" }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tiến bộ của bạn</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tiến bộ của bạn</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ textAlign: "center", flex: 1 }}>
                       <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: C.textMuted }}>{prevScore}</div>
@@ -7869,7 +7873,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                     </div>
                     <div style={{ flex: 1, textAlign: "center" }}>
                       <div style={{ display: "inline-block", padding: "5px 12px", borderRadius: 999, background: score10 >= prevScore ? "#4ADE8018" : `${C.coral}18`, border: `1px solid ${score10 >= prevScore ? "#4ADE80" : C.coral}` }}>
-                        <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 15, color: score10 >= prevScore ? "#4ADE80" : C.coral }}>
+                        <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: score10 >= prevScore ? "#4ADE80" : C.coral }}>
                           {score10 - prevScore >= 0 ? "+" : ""}{Math.round((score10 - prevScore) * 10) / 10}
                         </span>
                       </div>
@@ -7957,7 +7961,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                               })}
                             </div>
                             {rare && (
-                              <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.gold, background: C.goldSoft, borderRadius: 8, padding: "6px 10px" }}>
+                              <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.gold, background: C.goldSoft, borderRadius: 8, padding: "6px 10px" }}>
                                 💡 Chỉ {s.dist[myIdx]}% người tham gia chọn giống bạn — một lựa chọn hiếm gặp!
                               </div>
                             )}
@@ -8062,7 +8066,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               return (
                 <div key={q.id} style={{ background: C.surface, border: `1px solid ${deck.deckMode === "exam" ? (correct ? C.teal + "55" : C.coral + "55") : C.border}`, borderRadius: 14, padding: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, flex: 1 }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, flex: 1 }}>
                       {i + 1}. {q.text}
                     </div>
                     {deck.deckMode === "exam" && (
@@ -8084,7 +8088,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             nhưng không tự động ghi đè lịch sử tham gia trước đó cho tới khi nộp lại. */}
         <button
           onClick={resetDeck}
-          style={{ width: "100%", marginTop: 20, padding: 13, borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          style={{ width: "100%", marginTop: 20, padding: 13, borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           <ArchiveRestore size={15} /> Làm lại
         </button>
@@ -8175,7 +8179,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {deck.questions.map((q, i) => (
           <div key={q.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14.5, color: C.text, marginBottom: 12 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 12 }}>
               {i + 1}. {q.text}
             </div>
             <DeckQuestion q={q} answer={answers[q.id]} onAnswer={(v) => setAnswer(q.id, v)} />
@@ -8194,7 +8198,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           color: answeredCount ? "#1A1305" : C.textFaint,
           fontFamily: bodyFont,
           fontWeight: 700,
-          fontSize: 15,
+          fontSize: 16,
           cursor: answeredCount ? "pointer" : "not-allowed",
           marginTop: 20,
         }}
@@ -8263,7 +8267,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
             {deck.deckMode === "exam" ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.35 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
             {deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`}
           </div>
         </div>
@@ -8317,7 +8321,7 @@ function SharedPostCard({ post, onOpen, onOpenAuthor, menuSlot }) {
       )}
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, background: C.surfaceRaised }}>
         <Pill tone="gold">Đã chia sẻ · {typeLabel}</Pill>
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text, marginTop: 8 }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginTop: 8 }}>
           {post.sharedTitle}
         </div>
         {post.sharedCategory && (
@@ -8430,7 +8434,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
     return (
       <div key={q.id} style={box}>
         <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}</div>
-        <div style={{ fontFamily: bodyFont, fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
         {q.votingType === "text" ? (
           <div style={{ ...input, marginTop: 0, minHeight: 44, whiteSpace: "pre-wrap", color: myArr[0] ? C.text : C.textFaint }}>{myArr[0] || "(bỏ trống)"}</div>
         ) : (
@@ -8476,8 +8480,8 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
 
         {phase === "code" && (
           <div style={box}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 4 }}>Nhập mã phiên</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>Mã do người trình chiếu cung cấp (6 ký tự).</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 4 }}>Nhập mã phiên</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Mã do người trình chiếu cung cấp (6 ký tự).</div>
             <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="VD: ABC123" maxLength={6} style={{ ...input, fontFamily: monoFont, fontSize: 22, letterSpacing: 3, textAlign: "center" }} />
             <button onClick={() => lookup(code)} disabled={busy || code.trim().length < 4} style={{ ...primaryButton, width: "100%", marginTop: 14, opacity: busy || code.trim().length < 4 ? 0.5 : 1 }}>Tiếp tục</button>
           </div>
@@ -8507,12 +8511,12 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, position: "sticky", top: 0, background: "#050A07", padding: "2px 0 8px", zIndex: 5 }}>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.post?.title}</div>
-              {mmss && <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 17, color: remainingSec <= 30 ? C.coral : C.gold, flexShrink: 0 }}>{mmss}</div>}
+              {mmss && <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: remainingSec <= 30 ? C.coral : C.gold, flexShrink: 0 }}>{mmss}</div>}
             </div>
             {(session.post?.questions || []).map((q, qi) => (
               <div key={q.id} style={box}>
                 <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}{q.votingType === "multiple" ? " · chọn nhiều" : ""}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
                 {q.votingType === "text" ? (
                   <textarea value={answers[q.id] || ""} onChange={(e) => setAns(q.id, e.target.value)} rows={3} placeholder="Nhập câu trả lời..." style={{ ...input, resize: "vertical", marginTop: 0 }} />
                 ) : (
@@ -8543,7 +8547,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Đã nộp bài!</div>
               <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4 }}>{isExam ? "Điểm sẽ hiện khi chủ phiên công bố hoặc hết giờ." : "Cảm ơn bạn đã tham gia."}</div>
             </div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textFaint }}>BÀI LÀM CỦA BẠN</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textFaint }}>BÀI LÀM CỦA BẠN</div>
             {(session.post?.questions || []).map((q, qi) => renderReviewQuestion(q, qi, false))}
           </div>
         )}
@@ -8561,7 +8565,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "4px 14px", borderRadius: 999, background: passed ? `${C.teal}1E` : `${C.coral}1E`, border: `1px solid ${passed ? C.teal : C.coral}55` }}>
                       <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: passed ? C.teal : C.coral }}>{passed ? "Đạt" : "Chưa đạt"}</span>
                     </div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 10 }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10 }}>
                       {result.correctCount}/{result.totalGradable} câu đúng <span style={{ color: C.textFaint }}>(cần ≥{passing} để đạt)</span>
                     </div>
                   </>
@@ -8574,7 +8578,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
             </div>
             {isExam && result?.submitted && (
               <>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textFaint }}>XEM LẠI ĐÁP ÁN</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textFaint }}>XEM LẠI ĐÁP ÁN</div>
                 {(session.post?.questions || []).map((q, qi) => renderReviewQuestion(q, qi, !!result?.revealed))}
               </>
             )}
@@ -8667,9 +8671,9 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
     <div style={{ ...cardSurface, textAlign: "center", marginBottom: 14 }}>
       <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>MÃ THAM GIA</div>
       <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 40, letterSpacing: 6, color: C.gold }}>{sess?.code || "····"}</div>
-      <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 8 }}>Người tham gia vào <b style={{ color: C.text }}>rankev-web.vercel.app</b> → nhập mã, hoặc mở link:</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8 }}>Người tham gia vào <b style={{ color: C.text }}>rankev-web.vercel.app</b> → nhập mã, hoặc mở link:</div>
       <button onClick={() => { if (joinUrl) { navigator.clipboard?.writeText(joinUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } }}
-        style={{ marginTop: 8, width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: copied ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer", wordBreak: "break-all" }}>
+        style={{ marginTop: 8, width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: copied ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 13, cursor: "pointer", wordBreak: "break-all" }}>
         {copied ? "✓ Đã sao chép link" : joinUrl || "…"}
       </button>
     </div>
@@ -8679,7 +8683,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
         <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ChevronLeft size={20} /></button>
-        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Trình chiếu trực tiếp</div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Trình chiếu trực tiếp</div>
         <div style={{ flex: 1 }} />
         {phase === "waiting" && <Pill tone="muted">PHÒNG CHỜ</Pill>}
         {phase === "live" && <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> {isExam ? "ĐANG THI" : "ĐANG MỞ"}{mmss ? ` · ${mmss}` : ""}</Pill>}
@@ -8696,27 +8700,27 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
           <>
             {isExam && (
               <div style={{ ...cardSurface, marginBottom: 14 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
                 <DurationPicker value={duration} onChange={setDuration} />
               </div>
             )}
             <div style={{ ...cardSurface, marginBottom: 14 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Đã vào phòng chờ ({parts.length})</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Đã vào phòng chờ ({parts.length})</div>
               {parts.length === 0 ? (
                 <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Đang chờ người tham gia vào…</div>
               ) : (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {parts.map((p) => (
-                    <span key={p.id} style={{ padding: "5px 12px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>{p.name}</span>
+                    <span key={p.id} style={{ padding: "5px 12px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.gold }}>{p.name}</span>
                   ))}
                 </div>
               )}
             </div>
             <button onClick={startExam} disabled={busy}
-              style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15, opacity: busy ? 0.6 : 1 }}>
+              style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 16, opacity: busy ? 0.6 : 1 }}>
               {isExam ? `Bắt đầu bài thi (${parts.length} người)` : `Mở nhận trả lời (${parts.length} người)`}
             </button>
-            <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center" }}>
+            <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center" }}>
               Người tham gia đang chờ ở màn hình của họ — chỉ làm bài được sau khi bạn bấm nút này.
             </div>
           </>
@@ -8737,14 +8741,14 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
             {/* Phổ điểm 0–10 (realtime) */}
             {isExam && scored.length > 0 && (
               <div style={{ ...cardSurface, marginBottom: 14 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
                 <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passingScore} />
               </div>
             )}
 
             {/* Bảng người tham gia: hạng · tên · thời gian · điểm/xếp loại */}
             <div style={{ ...cardSurface }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
                 {phase === "ended" ? "Bảng kết quả" : "Người tham gia"} ({parts.length})
               </div>
               {parts.length === 0 ? (
@@ -8757,14 +8761,14 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
                       <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 2px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : "none" }}>
                         {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                          {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 10.5, color: C.textFaint }}>⏱ {fmtDur(secs)}</div>}
+                          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                          {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>⏱ {fmtDur(secs)}</div>}
                         </div>
                         {!p.submitted ? (
                           <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>{phase === "ended" ? "không nộp" : "đang làm…"}</span>
                         ) : isExam ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                            {g && <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
+                            {g && <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
                             <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                           </div>
                         ) : (
@@ -8786,7 +8790,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
               <div style={{ ...cardSurface, marginTop: 14 }}>
                 {!saved ? (
                   <>
-                    <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Lưu phiên vào lịch sử</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Lưu phiên vào lịch sử</div>
                     <input value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Đặt tên phiên (VD: Lớp 10A1 · buổi sáng)"
                       style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
                     <button onClick={saveSession}
@@ -8795,7 +8799,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
                     </button>
                   </>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: C.teal, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, padding: "4px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: C.teal, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, padding: "4px 0" }}>
                     <Check size={16} /> Đã lưu phiên “{sessionName.trim() || "không tên"}”
                   </div>
                 )}
@@ -8900,19 +8904,19 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
           {/* Duration */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
             <DurationPicker value={durationMinutes} onChange={setDurationMinutes} />
           </div>
 
           {/* Passing score — free text input, e.g. "7,5/10" */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Điểm đạt (thang 10)</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Điểm đạt (thang 10)</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="number" min={0} max={10} step={0.1}
                 value={passingScore}
                 onChange={(e) => setPassingScore(Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
-                style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 15, textAlign: "center" }}
+                style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
               />
               <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
             </div>
@@ -8920,7 +8924,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
           {/* Question overview */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Tổng quan câu hỏi</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Tổng quan câu hỏi</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {deck.questions.map((q, qi) => {
                 const correct = q.options.filter((o) => o.correct);
@@ -8930,7 +8934,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                     <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.text }}>Câu {qi+1}: {q.text.slice(0,40)}{q.text.length > 40 ? "…" : ""}</span>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       {q.votingType !== "text" && <span style={{ fontFamily: monoFont, fontSize: 11, color: C.gold, fontWeight: 700 }}>{q.points||1}đ</span>}
-                      <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.teal }}>{typeLabel}</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal }}>{typeLabel}</span>
                     </div>
                   </div>
                 );
@@ -8938,7 +8942,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             </div>
           </div>
 
-          <button onClick={() => setPhase("waiting")} style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15 }}>
+          <button onClick={() => setPhase("waiting")} style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 16 }}>
             Mở phòng chờ
           </button>
         </div>
@@ -8960,7 +8964,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <div style={{ flex: 1, padding: "20px 18px", display: "flex", flexDirection: "column" }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text, marginBottom: 4 }}>{deck.title}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>{deck.questions.length} câu · {durationMinutes} phút · Tổng {maxPts} điểm</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>{deck.questions.length} câu · {durationMinutes} phút · Tổng {maxPts} điểm</div>
           </div>
 
           {/* QR */}
@@ -8991,7 +8995,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                   <div key={p.id} style={{
                     padding: "5px 12px", borderRadius: 999,
                     background: C.goldSoft, border: `1px solid ${C.gold}`,
-                    fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold,
+                    fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.gold,
                     animation: "popIn 0.2s ease",
                   }}>
                     {p.name}
@@ -9003,11 +9007,11 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
           <button
             onClick={() => { setPhase("live"); }}
-            style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 15, marginTop: 16 }}
+            style={{ ...primaryButton, width: "100%", padding: 15, borderRadius: 14, fontSize: 16, marginTop: 16 }}
           >
             Bắt đầu bài thi ({participants.length} người)
           </button>
-          <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center", lineHeight: 1.4 }}>
+          <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", lineHeight: 1.4 }}>
             Đồng hồ chỉ chạy sau khi bạn bấm nút này.
           </div>
         </div>
@@ -9052,7 +9056,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
               <QrCode size={48} color="#111" />
             </div>
             <div style={{ textAlign: "left" }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.text }}>Vào muộn? Vẫn quét được</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>Vào muộn? Vẫn quét được</div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal }}>rankev.app/exam/{deck.id}</div>
             </div>
           </div>
@@ -9113,7 +9117,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
         {/* Grade distribution — public filter (thí sinh chỉ thấy số lượng mỗi loại) */}
         <div style={{ ...cardSurface, marginBottom: 16 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textFaint, marginBottom: 12 }}>PHÂN LOẠI KẾT QUẢ</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textFaint, marginBottom: 12 }}>PHÂN LOẠI KẾT QUẢ</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <button onClick={() => setGradeFilter("all")}
               style={{ padding: "6px 14px", borderRadius: 99, border: `1px solid ${gradeFilter === "all" ? C.gold : C.border}`, background: gradeFilter === "all" ? C.goldSoft : C.surface, color: gradeFilter === "all" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
@@ -9151,7 +9155,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
           {[{id:"score",label:"Điểm cao nhất"},{id:"name",label:"Tên A→Z"},{id:"time",label:"Nộp sớm nhất"}].map((s) => (
             <button key={s.id} onClick={() => setSortBy(s.id)}
-              style={{ padding: "6px 12px", borderRadius: 99, border: `1px solid ${sortBy === s.id ? C.gold : C.border}`, background: sortBy === s.id ? C.goldSoft : C.surface, color: sortBy === s.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 11.5, cursor: "pointer" }}>
+              style={{ padding: "6px 12px", borderRadius: 99, border: `1px solid ${sortBy === s.id ? C.gold : C.border}`, background: sortBy === s.id ? C.goldSoft : C.surface, color: sortBy === s.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
               {s.label}
             </button>
           ))}
@@ -9174,7 +9178,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{p.name}</div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 1 }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 1 }}>
                       {Math.round(p.score10 * maxPts / 10 * 10)/10}/{maxPts} điểm
                     </div>
                   </div>
@@ -9189,7 +9193,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                 {/* Expanded detail */}
                 {isExpanded && (
                   <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 14px", background: C.surfaceRaised }}>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: C.textFaint, marginBottom: 10 }}>CHI TIẾT BÀI LÀM</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 10 }}>CHI TIẾT BÀI LÀM</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       {deck.questions.map((q, qi) => {
                         const ans = p.answers[q.id];
@@ -9199,7 +9203,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                           return (
                             <div key={q.id}>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                                <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12.5, color: C.text }}>
+                                <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text }}>
                                   Câu {qi+1}: {q.text.slice(0,50)}{q.text.length>50?"…":""}
                                   <span style={{ marginLeft: 6, fontFamily: bodyFont, fontSize: 10, fontWeight: 700, color: C.textFaint }}>· TỰ LUẬN</span>
                                 </span>
@@ -9209,12 +9213,12 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                 {eScore?.estimated && !eScore.confirmed && (
-                                  <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.teal, background: `${C.teal}18`, border: `1px solid ${C.teal}40`, borderRadius: 99, padding: "3px 9px" }}>
+                                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, background: `${C.teal}18`, border: `1px solid ${C.teal}40`, borderRadius: 99, padding: "3px 9px" }}>
                                     🤖 Gợi ý AI: {eScore.score}/{pts}đ
                                   </span>
                                 )}
                                 {eScore?.confirmed && (
-                                  <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: "#4ADE80", background: "#4ADE8018", border: "1px solid #4ADE8040", borderRadius: 99, padding: "3px 9px", display: "flex", alignItems: "center", gap: 4 }}>
+                                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: "#4ADE80", background: "#4ADE8018", border: "1px solid #4ADE8040", borderRadius: 99, padding: "3px 9px", display: "flex", alignItems: "center", gap: 4 }}>
                                     <Check size={10} strokeWidth={3} /> Đã chốt: {eScore.score}/{pts}đ
                                   </span>
                                 )}
@@ -9226,7 +9230,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                                     type="number" min={0} max={pts} step={0.1}
                                     defaultValue={eScore?.score || 0}
                                     onBlur={(e) => setEssayScore(p.id, q.id, Math.max(0, Math.min(pts, parseFloat(e.target.value.replace(",", ".")) || 0)))}
-                                    style={{ width: 52, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 12.5, textAlign: "center" }}
+                                    style={{ width: 52, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 13, textAlign: "center" }}
                                   />
                                   <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>/{pts}đ</span>
                                 </div>
@@ -9242,7 +9246,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                         return (
                           <div key={q.id}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                              <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12.5, color: C.text }}>
+                              <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text }}>
                                 Câu {qi+1}: {q.text.slice(0,50)}{q.text.length>50?"…":""}
                               </span>
                               <span style={{ fontFamily: monoFont, fontSize: 11, color: qColor, fontWeight: 700, flexShrink: 0, marginLeft: 6 }}>
@@ -9260,7 +9264,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                                 return (
                                   <div key={o.id} style={{
                                     display: "flex", alignItems: "center", gap: 8,
-                                    fontFamily: bodyFont, fontSize: 11.5, color: pillColor,
+                                    fontFamily: bodyFont, fontSize: 12, color: pillColor,
                                     padding: "5px 10px", borderRadius: 8,
                                     background: `${pillColor}14`, border: `1px solid ${pillColor}40`,
                                   }}>
@@ -9300,7 +9304,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                 onSessionEnd?.({ name: presenterSessionName.trim() || `Phiên ${new Date().toLocaleString("vi-VN")}`, endedAt: Date.now(), participants: participants.length, avgScore });
                 setPresenterSessionSaved(true);
               }}
-              style={{ padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              style={{ padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             >
               <Monitor size={16} /> Lưu phiên trình chiếu
             </button>
@@ -9310,7 +9314,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             <Check size={16} /> Đã lưu phiên "{presenterSessionName.trim() || "không tên"}"
           </div>
         )}
-        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center" }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center" }}>
           Muốn công bố kết quả? Dùng icon Chia sẻ ngay trên bài thi này.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -9399,12 +9403,12 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
           <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
             {deck.questions.length} câu hỏi · Người tham gia trả lời qua QR hoặc link.
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng phiên</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng phiên</div>
           <DurationPicker value={durationMinutes} onChange={setDurationMinutes} />
-          <div style={{ marginTop: 14, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.5 }}>
+          <div style={{ marginTop: 14, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
             Sau bước này là phòng chờ — người tham gia quét mã trước, đồng hồ chỉ chạy khi bạn bấm "Bắt đầu".
           </div>
-          <button onClick={() => setPhase("waiting")} style={{ ...primaryButton, width: "100%", marginTop: 24, padding: 15, borderRadius: 14, fontSize: 15 }}>
+          <button onClick={() => setPhase("waiting")} style={{ ...primaryButton, width: "100%", marginTop: 24, padding: 15, borderRadius: 14, fontSize: 16 }}>
             Mở phòng chờ
           </button>
         </div>
@@ -9431,16 +9435,16 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
           <div style={{ width: 180, height: 180, background: "#fff", borderRadius: 16, display: "grid", placeItems: "center", marginBottom: 20 }}>
             <QrCode size={140} color="#111" />
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13.5, fontWeight: 600, color: C.text, marginBottom: 4 }}>Quét mã hoặc bấm link để vào phòng chờ</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Quét mã hoặc bấm link để vào phòng chờ</div>
           <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700, marginBottom: 28 }}>rankev.app/deck/{deck.id}</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 28px", marginBottom: 28 }}>
             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1 }}>{fmt(participantCount)}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>người đã vào phòng chờ</div>
           </div>
-          <button onClick={() => setPhase("live")} style={{ ...primaryButton, width: "100%", maxWidth: 320, padding: 16, borderRadius: 14, fontSize: 15.5 }}>
+          <button onClick={() => setPhase("live")} style={{ ...primaryButton, width: "100%", maxWidth: 320, padding: 16, borderRadius: 14, fontSize: 16 }}>
             Bắt đầu ({fmt(participantCount)} người)
           </button>
-          <div style={{ marginTop: 12, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4, maxWidth: 320 }}>
+          <div style={{ marginTop: 12, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4, maxWidth: 320 }}>
             Đồng hồ đếm giờ chỉ bắt đầu chạy khi bạn bấm nút này — người vào muộn sẽ không bị mất thời gian.
           </div>
         </div>
@@ -9497,7 +9501,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                     const isTop = i === 0;
                     return (
                       <div key={o.id}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontFamily: bodyFont, fontSize: 13.5 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontFamily: bodyFont, fontSize: 14 }}>
                           <span style={{ color: isTop ? C.text : C.textMuted, fontWeight: isTop ? 700 : 500 }}>
                             {isTop && "🥇 "}{o.label}
                           </span>
@@ -9531,7 +9535,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                   onSessionEnd?.({ name: presenterSessionName.trim() || `Phiên ${new Date().toLocaleString("vi-VN")}`, endedAt: Date.now() });
                   setPresenterSessionSaved(true);
                 }}
-                style={{ padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                style={{ padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
                 <Monitor size={16} /> Lưu phiên trình chiếu
               </button>
@@ -9541,7 +9545,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
               <Check size={16} /> Đã lưu phiên "{presenterSessionName.trim() || "không tên"}"
             </div>
           )}
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center" }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center" }}>
             Muốn công bố kết quả? Dùng icon Chia sẻ ngay trên bài khảo sát này.
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -9602,7 +9606,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
           ))}
         </div>
 
-        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 8 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 8 }}>
           Câu {qIdx + 1} / {deck.questions.length} · {deck.title}
         </div>
         <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, marginBottom: 18, lineHeight: 1.25 }}>
@@ -9613,7 +9617,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 28, color: C.gold, lineHeight: 1 }}>{fmt(total)}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 3 }}>lượt trả lời</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 3 }}>lượt trả lời</div>
           </div>
         </div>
 
@@ -9625,7 +9629,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                 const pct = Math.round((qCounts[o.id] / total) * 1000) / 10;
                 return (
                   <div key={o.id}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 15, marginBottom: 5 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 16, marginBottom: 5 }}>
                       <span style={{ color: C.text, fontWeight: 700 }}>{i === 0 ? "🥇 " : `#${i + 1} `}{o.label}</span>
                       <span style={{ color: COLORS[i % 5], fontFamily: monoFont, fontWeight: 700 }}>{pct}%</span>
                     </div>
@@ -9790,8 +9794,8 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           {icon}
         </div>
         <div>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 3 }}>{title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.4 }}>{desc}</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 3 }}>{title}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.4 }}>{desc}</div>
         </div>
       </button>
     );
@@ -9824,13 +9828,13 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           </div>
 
           <div style={{ marginTop: 24 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
               Thời lượng phiên trình chiếu
             </div>
             <DurationPicker value={durationMinutes} onChange={setDurationMinutes} />
           </div>
 
-          <div style={{ marginTop: 16, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             Trong bản demo, reset chỉ ảnh hưởng phiên trình chiếu này; dữ liệu gốc của Rankie không bị xóa vĩnh viễn.
           </div>
         </div>
@@ -9908,7 +9912,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
                   const pct = Math.round((o.votes / total) * 1000) / 10;
                   return (
                     <div key={o.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 17, marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 16, marginBottom: 6 }}>
                         <span style={{ color: C.text, fontWeight: 700 }}>
                           {`#${i + 1} `}{o.label}
                         </span>
@@ -9923,7 +9927,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
               </div>
             )
           ) : (
-            <div style={{ textAlign: "center", padding: "48px 20px", color: C.textMuted, fontFamily: bodyFont, fontSize: 15 }}>
+            <div style={{ textAlign: "center", padding: "48px 20px", color: C.textMuted, fontFamily: bodyFont, fontSize: 16 }}>
               🙈 Kết quả đang được ẩn.
               <br />Bấm "Hiện kết quả" khi bạn sẵn sàng công bố.
             </div>
@@ -9937,7 +9941,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           </div>
           <div>
             <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>Quét để bình chọn</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginBottom: 6 }}>Không cần cài app hay đăng nhập.</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 6 }}>Không cần cài app hay đăng nhập.</div>
             <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700 }}>rankev.app/vote/{rankie.id}</div>
           </div>
         </div>
@@ -9946,7 +9950,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
       {/* Presenter controls */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px", borderTop: `1px solid ${C.border}` }}>
         {(expired || sessionEnded) && (
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.coral, fontWeight: 600 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.coral, fontWeight: 600 }}>
             {expired ? "⏰ Đã hết thời gian trình chiếu." : "✅ Phiên trình chiếu đã kết thúc."}
           </div>
         )}
@@ -10487,7 +10491,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   };
 
   const field = { marginBottom: 20 };
-  const label = { fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8, display: "block", letterSpacing: 0.3 };
+  const label = { fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8, display: "block", letterSpacing: 0.3 };
   const input = {
     width: "100%",
     padding: "12px 14px",
@@ -10511,7 +10515,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         background: opt.active ? C.goldSoft : C.surface,
         color: opt.active ? C.gold : C.textMuted,
         fontFamily: bodyFont,
-        fontSize: 12.5,
+        fontSize: 13,
         fontWeight: 600,
         cursor: "pointer",
         textAlign: "center",
@@ -10547,14 +10551,14 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 color: contentType === t.id ? "#1A1305" : C.textMuted,
                 fontFamily: bodyFont,
                 fontWeight: 700,
-                fontSize: 12.5,
+                fontSize: 13,
                 cursor: editing ? "default" : "pointer",
                 opacity: editing && contentType !== t.id ? 0.4 : 1,
                 lineHeight: 1.3,
               }}
             >
               {t.label}
-              <div style={{ fontSize: 9.5, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
+              <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
             </button>
           ))}
         </div>
@@ -10609,13 +10613,13 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
                 onClick={addImageMedia}
-                style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <ImagePlus size={15} /> Thêm ảnh
               </button>
               <button
                 onClick={() => addMockMedia("video")}
-                style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <Play size={15} /> Thêm video
               </button>
@@ -10639,7 +10643,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               <span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} />
             </span>
           </button>
-          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             Khi bật, người xem cũng thấy nút trình chiếu và tự chạy phiên của riêng họ. Mỗi người tự quản lý phiên của mình.
           </div>
         </div>
@@ -10654,7 +10658,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           />
           {mySeries.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, alignSelf: "center" }}>Thêm vào series có sẵn:</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, alignSelf: "center" }}>Thêm vào series có sẵn:</span>
               {mySeries.map((s) => {
                 const active = selectedSeriesId === s.id;
                 return (
@@ -10669,7 +10673,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               })}
             </div>
           )}
-          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             Gom bài vào một bộ (series). Người đọc sẽ vuốt trái/phải giữa các chapter. Chọn series có sẵn để thêm chapter mới, hoặc gõ tên mới.
           </div>
         </div>
@@ -10731,14 +10735,14 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
             <button
               onClick={addOpt}
-              style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+              style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
             >
               <PlusCircle size={14} /> Thêm phương án
             </button>
             {(rk?.basket?.length || 0) > 0 && (
               <button
                 onClick={addFromBasket}
-                style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
               >
                 🏆 Thêm từ giỏ Rankie ({rk.basket.length})
               </button>
@@ -10763,7 +10767,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                     background: active ? C.goldSoft : C.surface,
                     color: active ? C.gold : C.textMuted,
                     fontFamily: bodyFont,
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
@@ -10784,7 +10788,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
           </div>
           {votingType === "unlimited" && (
-            <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+            <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
               Người bình chọn có thể bấm liên tục nhiều lần cho cùng một phương án — hợp cho fanclub live, bình chọn thần tượng. Kết quả sẽ tách riêng "tổng số vote" và "số người vote".
             </div>
           )}
@@ -10811,7 +10815,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                     placeItems: "center",
                     color: C.textFaint,
                     fontFamily: bodyFont,
-                    fontSize: 9.5,
+                    fontSize: 10,
                     fontWeight: 700,
                     letterSpacing: 0.3,
                   }}
@@ -10907,7 +10911,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         <div style={field}>
           <span style={label}>Thời gian kết thúc bình chọn</span>
           <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
-          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             Sau mốc này, Rankie tự động khóa — không nhận thêm bình chọn nhưng vẫn xem được kết quả. Chọn "Vô hạn" nếu muốn Rankie chạy mãi.
           </div>
         </div>
@@ -10924,7 +10928,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             color: canSubmit ? "#1A1305" : C.textFaint,
             fontFamily: bodyFont,
             fontWeight: 700,
-            fontSize: 15,
+            fontSize: 16,
             cursor: canSubmit ? "pointer" : "not-allowed",
             marginTop: 8,
           }}
@@ -10938,7 +10942,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         <>
         <div style={field}>
           <span style={label}>Các câu hỏi</span>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 12, lineHeight: 1.4 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 12, lineHeight: 1.4 }}>
             Với mỗi lựa chọn, chọn <b style={{ color: C.textMuted }}>Kết thúc</b> (dẫn tới một kết quả) hoặc <b style={{ color: C.textMuted }}>Đi tiếp</b> (tới câu hỏi khác). Không cần vẽ sơ đồ — cứ trả lời "sau lựa chọn này, điều gì xảy ra?".
           </div>
           {pathQuestions.map((q, qi) => (
@@ -10971,7 +10975,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.15)" }} />
                     {/* Marker các nút đã đặt vị trí */}
                     {q.answers.filter((a) => a.hotspot).map((a) => (
-                      <div key={a.id} style={{ position: "absolute", left: `${a.hotspot.x}%`, top: `${a.hotspot.y}%`, transform: "translate(-50%,-50%)", display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 999, background: "rgba(18,14,7,0.85)", border: `1.5px solid ${C.gold}`, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, whiteSpace: "nowrap", pointerEvents: "none" }}>
+                      <div key={a.id} style={{ position: "absolute", left: `${a.hotspot.x}%`, top: `${a.hotspot.y}%`, transform: "translate(-50%,-50%)", display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 999, background: "rgba(18,14,7,0.85)", border: `1.5px solid ${C.gold}`, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, whiteSpace: "nowrap", pointerEvents: "none" }}>
                         {a.emoji} {a.label.trim() || "(lựa chọn)"}
                       </div>
                     ))}
@@ -10995,7 +10999,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                           <div key={a.id} style={{ display: "flex", alignItems: "center" }}>
                             <button
                               onClick={() => setPlacingHotspot(active ? null : { qid: q.id, aid: a.id })}
-                              style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: placed ? "999px 0 0 999px" : 999, border: `1px solid ${active ? C.gold : placed ? C.teal : C.border}`, background: active ? C.goldSoft : placed ? `${C.teal}15` : "transparent", color: active ? C.gold : placed ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                              style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: placed ? "999px 0 0 999px" : 999, border: `1px solid ${active ? C.gold : placed ? C.teal : C.border}`, background: active ? C.goldSoft : placed ? `${C.teal}15` : "transparent", color: active ? C.gold : placed ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                             >
                               {placed && <Check size={11} />}{a.emoji} {a.label.trim() || "(lựa chọn)"}
                               {active && " · chạm ảnh"}
@@ -11031,11 +11035,11 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                       )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, marginLeft: 46 }}>
-                      <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, flexShrink: 0 }}>Sau đó →</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, flexShrink: 0 }}>Sau đó →</span>
                       <select
                         value={`${a.target.type}:${a.target.id}`}
                         onChange={(e) => setAnswerTarget(q.id, a.id, e.target.value)}
-                        style={{ flex: 1, padding: "7px 9px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer" }}
+                        style={{ flex: 1, padding: "7px 9px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}
                       >
                         <optgroup label="🏁 Kết thúc tại kết quả">
                           {pathEndings.map((e, ei) => (
@@ -11062,7 +11066,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 ))}
               </div>
               {q.answers.length < 4 && (
-                <button onClick={() => addAnswer(q.id)} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                <button onClick={() => addAnswer(q.id)} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                   <PlusCircle size={14} /> Thêm lựa chọn
                 </button>
               )}
@@ -11072,7 +11076,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         <div style={field}>
           <span style={label}>Các kết quả · {validEndings.length} kết quả</span>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: validEndings.length >= 2 && validEndings.length <= 5 ? C.textFaint : C.gold, marginBottom: 10, lineHeight: 1.4 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: validEndings.length >= 2 && validEndings.length <= 5 ? C.textFaint : C.gold, marginBottom: 10, lineHeight: 1.4 }}>
             {validEndings.length > 5
               ? "Trên 5 kết quả: bình luận & cộng đồng sẽ chuyển sang dạng chung cho cả Path."
               : "Khuyến nghị 2–5 kết quả. Nhiều lựa chọn có thể dẫn về cùng một kết quả."}
@@ -11105,7 +11109,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             ))}
           </div>
           {pathEndings.length < 8 && (
-            <button onClick={addEnding} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={addEnding} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               <PlusCircle size={14} /> Thêm kết quả
             </button>
           )}
@@ -11126,7 +11130,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 <div key={q.id}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
                     <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 11, color: "#1A1305", background: C.gold, padding: "2px 7px", borderRadius: 6 }}>CÂU {qi + 1}</span>
-                    <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.text.trim() || "(chưa có nội dung)"}</span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.text.trim() || "(chưa có nội dung)"}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5, paddingLeft: 12, borderLeft: `2px solid ${C.border}`, marginLeft: 6 }}>
                     {q.answers.filter((a) => a.label.trim() || a.target).map((a) => {
@@ -11150,7 +11154,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               ))}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {validEndings.map((e) => (
-                  <span key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 11.5, color: C.gold, background: C.goldSoft, padding: "3px 9px", borderRadius: 999 }}>{e.emoji} {e.name.trim()}</span>
+                  <span key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 12, color: C.gold, background: C.goldSoft, padding: "3px 9px", borderRadius: 999 }}>{e.emoji} {e.name.trim()}</span>
                 ))}
               </div>
             </div>
@@ -11161,7 +11165,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
           {/* Chế độ tiết lộ kết quả cho người chơi (tài liệu PATH: 4 mức) */}
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.text, marginBottom: 3 }}>Tiết lộ kết quả chưa khám phá</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>Tiết lộ kết quả chưa khám phá</div>
             <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 8 }}>Kiểm soát người chơi thấy gì về các kết quả họ chưa mở</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {[
@@ -11203,7 +11207,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             </button>
           )}
 
-          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             Path nhiều tầng: mỗi lựa chọn có thể dẫn tới câu hỏi khác hoặc một kết quả. Nhiều lựa chọn có thể về chung một kết quả. Sau khi đăng, Path xuất hiện trên bảng tin và tường cá nhân.
           </div>
         </div>
@@ -11220,7 +11224,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             color: canSubmitPath ? "#1A1305" : C.textFaint,
             fontFamily: bodyFont,
             fontWeight: 700,
-            fontSize: 15,
+            fontSize: 16,
             cursor: canSubmitPath ? "pointer" : "not-allowed",
             marginTop: 8,
           }}
@@ -11241,9 +11245,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 { id: "scroll", label: "Một trang", desc: "Cuộn trả lời tất cả" },
               ].map((m) => (
                 <button key={m.id} onClick={() => setDeckAnswerMode(m.id)}
-                  style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${deckAnswerMode === m.id ? C.gold : C.border}`, background: deckAnswerMode === m.id ? C.goldSoft : C.surface, color: deckAnswerMode === m.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer", lineHeight: 1.3, textAlign: "center" }}>
+                  style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${deckAnswerMode === m.id ? C.gold : C.border}`, background: deckAnswerMode === m.id ? C.goldSoft : C.surface, color: deckAnswerMode === m.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", lineHeight: 1.3, textAlign: "center" }}>
                   {m.label}
-                  <div style={{ fontSize: 9.5, fontWeight: 500, opacity: 0.85, marginTop: 2 }}>{m.desc}</div>
+                  <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.85, marginTop: 2 }}>{m.desc}</div>
                 </button>
               ))}
             </div>
@@ -11259,7 +11263,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 { id: false, text: "Có giới hạn" },
               ].map((o) => (
                 <button key={String(o.id)} onClick={() => setExamDurationUnlimited(o.id)}
-                  style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: `1px solid ${examDurationUnlimited === o.id ? C.gold : C.border}`, background: examDurationUnlimited === o.id ? C.goldSoft : C.surface, color: examDurationUnlimited === o.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+                  style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: `1px solid ${examDurationUnlimited === o.id ? C.gold : C.border}`, background: examDurationUnlimited === o.id ? C.goldSoft : C.surface, color: examDurationUnlimited === o.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                   {o.text}
                 </button>
               ))}
@@ -11270,7 +11274,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                   type="number" min={1} step={1}
                   value={examDurationValue}
                   onChange={(e) => setExamDurationValue(Math.max(1, parseInt(e.target.value) || 1))}
-                  style={{ width: 76, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 15, textAlign: "center" }}
+                  style={{ width: 76, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
                 />
                 <select
                   value={examDurationUnit}
@@ -11295,9 +11299,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 type="number" min={0} max={10} step={0.1}
                 value={examPassingScore}
                 onChange={(e) => setExamPassingScore(Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
-                style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 15, textAlign: "center" }}
+                style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
               />
-              <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
             </div>
           </div>
         )}
@@ -11349,7 +11353,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 <select
                   value={q.votingType}
                   onChange={(e) => updateDeckQ(qi, { votingType: e.target.value })}
-                  style={{ ...input, marginBottom: 10, padding: "8px 10px", fontSize: 12.5, cursor: "pointer" }}
+                  style={{ ...input, marginBottom: 10, padding: "8px 10px", fontSize: 13, cursor: "pointer" }}
                 >
                   <option value="single">{deckMode === "exam" ? "Chọn 1 đáp án" : "1 phương án"}</option>
                   <option value="multiple">{deckMode === "exam" ? "Chọn nhiều đáp án" : "Nhiều phương án"}</option>
@@ -11368,7 +11372,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                         value={q.answerKey || ""}
                         onChange={(e) => updateDeckQ(qi, { answerKey: e.target.value })}
                         rows={2}
-                        style={{ ...input, width: "100%", resize: "vertical", fontFamily: bodyFont, fontSize: 12.5, padding: "8px 10px" }}
+                        style={{ ...input, width: "100%", resize: "vertical", fontFamily: bodyFont, fontSize: 13, padding: "8px 10px" }}
                       />
                       <div style={{ ...captionText, marginTop: 6, lineHeight: 1.4 }}>
                         Có đáp án mẫu → hệ thống tự gợi ý điểm dựa trên từ khoá trùng khớp khi có kết quả; bạn xem lại và chốt điểm trước khi công bố. Không nhập thì chấm hoàn toàn thủ công.
@@ -11419,7 +11423,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                       </div>
                     )}
                     <button onClick={() => addDeckOpt(qi)}
-                      style={{ alignSelf: "flex-start", background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      style={{ alignSelf: "flex-start", background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
                       <PlusCircle size={13} /> Thêm phương án
                     </button>
                   </div>
@@ -11431,17 +11435,17 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             style={{ marginTop: 12, width: "100%", padding: 11, borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <PlusCircle size={15} /> Thêm câu hỏi
           </button>
-          <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             {deckMode === "exam" ? "Bài thi chấm điểm tự động · Kết quả hiện sau khi host kết thúc" : "Survey khảo sát · Bấm Trình chiếu để thu thập phản hồi tại chỗ."}
           </div>
         </div>
 
         <button onClick={submitDeck} disabled={!canSubmitDeck}
-          style={{ width: "100%", padding: 15, borderRadius: 12, border: "none", background: canSubmitDeck ? C.gold : C.surfaceRaised, color: canSubmitDeck ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 15, cursor: canSubmitDeck ? "pointer" : "not-allowed", marginTop: 8 }}>
+          style={{ width: "100%", padding: 15, borderRadius: 12, border: "none", background: canSubmitDeck ? C.gold : C.surfaceRaised, color: canSubmitDeck ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, cursor: canSubmitDeck ? "pointer" : "not-allowed", marginTop: 8 }}>
           {editing ? "Lưu thay đổi" : (deckMode === "exam" ? "📝 Đăng Bài thi" : "📋 Đăng Survey")}
         </button>
         {!canSubmitDeck && deckSubmitIssues.length > 0 && (
-          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.coral, lineHeight: 1.5 }}>
+          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.coral, lineHeight: 1.5 }}>
             Còn thiếu: {deckSubmitIssues.join(" · ")}
           </div>
         )}
@@ -11530,7 +11534,7 @@ function ChatListView({ conversations = [], onOpen, onRefresh, onBack }) {
               <Avatar author={a} size={50} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontFamily: bodyFont, fontWeight: c.unread > 0 ? 700 : 600, fontSize: 14.5, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontFamily: bodyFont, fontWeight: c.unread > 0 ? 700 : 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {c.title}
                     {SHOW_VERIFIED && a.verified && <span style={{ marginLeft: 4, fontSize: 11, color: C.teal }}>✓</span>}
                   </span>
@@ -11556,12 +11560,12 @@ function ChatShareCard({ msg, onOpenShare }) {
   return (
     <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ display: "block", textAlign: "left", width: "100%", marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 10, cursor: "pointer" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 17, flexShrink: 0 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
           {msg.refType === "path" ? "🌿" : msg.refType === "deck" ? "📋" : "📊"}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.text }}>{msg.refType === "path" ? "Path" : msg.refType === "deck" ? "Bộ câu hỏi" : "Rankie"} được chia sẻ</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.teal, marginTop: 1 }}>Chạm để mở →</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{msg.refType === "path" ? "Path" : msg.refType === "deck" ? "Bộ câu hỏi" : "Rankie"} được chia sẻ</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal, marginTop: 1 }}>Chạm để mở →</div>
         </div>
       </div>
     </button>
@@ -11577,7 +11581,7 @@ function ChatPollCard({ msg, onVote }) {
   const my = msg.myVote;
   return (
     <div style={{ marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, minWidth: 220 }}>
-      <div style={{ fontFamily: bodyFont, fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 10 }}>📊 {poll.question}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 10 }}>📊 {poll.question}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {opts.map((o, i) => {
           const n = votes[i] || 0;
@@ -11604,7 +11608,7 @@ function ChatPollComposer({ onCreate, onCancel }) {
   const [q, setQ] = useState("");
   const [opts, setOpts] = useState(["", ""]);
   const canMake = q.trim() && opts.filter((o) => o.trim()).length >= 2;
-  const f = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 11px", color: C.text, fontFamily: bodyFont, fontSize: 13.5, outline: "none", width: "100%" };
+  const f = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 11px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", width: "100%" };
   return (
     <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}`, background: C.bg, display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -11678,8 +11682,8 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
         <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ArrowLeft size={22} /></button>
         <Avatar author={author} size={38} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, lineHeight: 1.1 }}>{conversation.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: "#4ADE80" }}>Đang hoạt động</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, lineHeight: 1.1 }}>{conversation.title}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: "#4ADE80" }}>Đang hoạt động</div>
         </div>
       </div>
 
@@ -11773,7 +11777,7 @@ function BottomNav({ active, setView, chatUnread = 0 }) {
                   minWidth: 16, height: 16, borderRadius: 999,
                   background: C.coral, color: "#fff",
                   display: "grid", placeItems: "center",
-                  fontFamily: bodyFont, fontWeight: 700, fontSize: 9,
+                  fontFamily: bodyFont, fontWeight: 700, fontSize: 10,
                   border: `1.5px solid ${C.bg}`, padding: "0 3px",
                 }}>
                   {it.badge}
@@ -11823,8 +11827,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         ) : (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang bình chọn</div>
-              {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 12.5, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Chốt vòng</button>}
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang bình chọn</div>
+              {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Chốt vòng</button>}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(rounds[ar] || []).filter((m) => m.rankiePostId).map((m, i) => {
@@ -11851,7 +11855,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           </div>
         )}
         <div style={{ ...cardSurface }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textMuted, marginBottom: 12 }}>Sơ đồ phân nhánh</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Sơ đồ phân nhánh</div>
           <div style={{ overflowX: "auto" }}>
             <div style={{ display: "flex", gap: 16, minWidth: "min-content" }}>
               {rounds.map((round, r) => (
@@ -11864,9 +11868,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                       const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
                       const pv = side === "a" ? p : (100 - p);
                       return (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", fontSize: 11.5, background: win ? "rgba(231,188,85,.10)" : "transparent" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", fontSize: 12, background: win ? "rgba(231,188,85,.10)" : "transparent" }}>
                           <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: win ? C.gold : lose ? C.textFaint : ref ? C.text : C.textFaint, fontWeight: win ? 700 : 400, fontStyle: ref ? "normal" : "italic" }}>{nm(ref)}</span>
-                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 10.5, color: C.textFaint }}>{pv}%</span>}
+                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>{pv}%</span>}
                         </div>
                       );
                     };
@@ -11883,7 +11887,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                 {champ ? (
                   <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
                     <div style={{ fontSize: 26 }}>{champ.emoji || "🏆"}</div>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 12.5, color: C.gold, marginTop: 3 }}>{champ.name}</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3 }}>{champ.name}</div>
                   </div>
                 ) : <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 9, padding: 8, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
               </div>
@@ -11916,7 +11920,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack }) {
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Tên giải (vd: GOAT bóng đá mọi thời đại)" style={fieldStyle} />
         <div>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Đấu thủ ({contestants.length}) — cần ít nhất 2</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 }}>Đấu thủ ({contestants.length}) — cần ít nhất 2</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {contestants.map((c, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px" }}>
@@ -12075,7 +12079,7 @@ function ProfileView({
   const stat = (n, l) => (
     <div style={{ textAlign: "center", flex: 1 }}>
       <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>{n}</div>
-      <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 1 }}>{l}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{l}</div>
     </div>
   );
 
@@ -12155,7 +12159,7 @@ function ProfileView({
             </div>
             <div style={{ minWidth: 0, paddingTop: 2 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 17, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {isMe ? currentUser.name : author.name}
                 </div>
                 {SHOW_VERIFIED && author.verified && (
@@ -12168,7 +12172,7 @@ function ProfileView({
                 )}
               </div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{author.handle}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 <Star size={12} color={C.gold} fill={C.gold} /> {fmtCompact(author.followers)} RP
               </div>
             </div>
@@ -12217,7 +12221,7 @@ function ProfileView({
         </div>
 
         {author.bio && (
-          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 10, lineHeight: 1.4 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10, lineHeight: 1.4 }}>
             {author.bio}
           </div>
         )}
@@ -12247,7 +12251,7 @@ function ProfileView({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm trong bài đăng của bạn..."
-              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 13.5 }}
+              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }}
             />
             <button
               onClick={() => { setQuery(""); setShowSearch(false); }}
@@ -12312,7 +12316,7 @@ function ProfileView({
                     <button
                       key={o.id}
                       onClick={() => { setTab(o.id); setFilterOpen(false); }}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", borderRadius: 8, border: "none", background: tab === o.id ? C.goldSoft : "transparent", color: tab === o.id ? C.gold : C.text, fontFamily: bodyFont, fontSize: 13.5, fontWeight: tab === o.id ? 700 : 500, cursor: "pointer", textAlign: "left" }}
+                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", borderRadius: 8, border: "none", background: tab === o.id ? C.goldSoft : "transparent", color: tab === o.id ? C.gold : C.text, fontFamily: bodyFont, fontSize: 14, fontWeight: tab === o.id ? 700 : 500, cursor: "pointer", textAlign: "left" }}
                     >
                       {IconEl && <IconEl size={15} color={tab === o.id ? C.gold : C.textMuted} />}
                       <span style={{ flex: 1 }}>{o.label}</span>
@@ -12332,7 +12336,7 @@ function ProfileView({
       {/* Timeline of this author's posts (pinned first, then newest) */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
         {visible.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+          <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             {tab === "trash" ? (
               "Thùng rác trống."
             ) : query.trim() ? (
@@ -12366,10 +12370,10 @@ function ProfileView({
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {item.title}
                 </div>
-                <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 2 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>
                   Đã xóa {timeAgo(item.deletedAt)} trước
                 </div>
               </div>
@@ -12441,7 +12445,7 @@ function ProfileView({
       {mainTab === "participation" && (
         <div style={{ padding: 16 }}>
           {(!participationHistory || participationHistory.length === 0) ? (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+            <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
               Chưa có hoạt động nào. Khi bạn bình chọn một Rankie, làm một Path, trả lời một Survey, hoặc làm một Exam, nó sẽ xuất hiện ở đây.
             </div>
           ) : (
@@ -12460,7 +12464,7 @@ function ProfileView({
                         <Pill tone="muted">{label}</Pill>
                         <span style={captionText}>{timeAgo(entry.timestamp)} trước</span>
                       </div>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {entry.title}
                       </div>
                       {entry.detail && (
@@ -12484,7 +12488,7 @@ function ProfileView({
       {mainTab === "presentation" && (
         <div style={{ padding: 16 }}>
           {(!presentationHistory || presentationHistory.length === 0) ? (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+            <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
               Chưa có phiên trình chiếu nào được lưu. Sau khi trình chiếu một Rankie, Survey, hoặc Exam, bấm "Lưu phiên trình chiếu" để nó xuất hiện ở đây.
             </div>
           ) : (
@@ -12503,7 +12507,7 @@ function ProfileView({
                         <Pill tone="muted">{label}</Pill>
                         <span style={captionText}>{timeAgo(entry.endedAt)} trước</span>
                       </div>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {entry.name}
                       </div>
                       <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -12525,7 +12529,7 @@ function ProfileView({
             const list = Object.values(bookmarks || {}).sort((a, b) => (b.bookmarkedAt || 0) - (a.bookmarkedAt || 0));
             if (list.length === 0) {
               return (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13.5 }}>
+                <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
                   Chưa đánh dấu bài nào. Bấm icon 🔖 trên một bài để lưu lại xem/làm sau.
                 </div>
               );
@@ -12549,7 +12553,7 @@ function ProfileView({
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                           <Pill tone="muted">{label}</Pill>
                         </div>
-                        <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {item.title}
                         </div>
                       </div>
@@ -12578,14 +12582,14 @@ function ProfileView({
         <ModalShell title="Xóa vĩnh viễn?" onClose={() => setConfirmDelete(null)}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 20 }}>
             <AlertTriangle size={18} color="#E4634A" style={{ flexShrink: 0, marginTop: 1 }} />
-            <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, lineHeight: 1.5 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.5 }}>
               "{confirmDelete.title}" sẽ bị xóa vĩnh viễn cùng toàn bộ số liệu bình chọn. Hành động này không thể hoàn tác.
             </div>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button
               onClick={() => setConfirmDelete(null)}
-              style={{ flex: 1, padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}
+              style={{ flex: 1, padding: 13, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
             >
               Hủy
             </button>
@@ -12594,7 +12598,7 @@ function ProfileView({
                 onPermanentDelete(confirmDelete);
                 setConfirmDelete(null);
               }}
-              style={{ flex: 1, padding: 13, borderRadius: 12, border: "none", background: "#E4634A", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}
+              style={{ flex: 1, padding: 13, borderRadius: 12, border: "none", background: "#E4634A", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
             >
               Xóa vĩnh viễn
             </button>
@@ -13002,8 +13006,8 @@ function RankieRefPreview({ item }) {
           {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (p.avatarEmoji || "🙂")}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>{p.handle ? "@" + String(p.handle).replace(/^@/, "") + " · " : ""}<Star size={10} color={C.gold} fill={C.gold} style={{ verticalAlign: -1 }} /> {fmtCompact(p.rp || 0)} RP</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{p.handle ? "@" + String(p.handle).replace(/^@/, "") + " · " : ""}<Star size={10} color={C.gold} fill={C.gold} style={{ verticalAlign: -1 }} /> {fmtCompact(p.rp || 0)} RP</div>
         </div>
       </div>
     );
@@ -13013,7 +13017,7 @@ function RankieRefPreview({ item }) {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
         <MessageCircle size={16} color={C.teal} style={{ marginTop: 2, flexShrink: 0 }} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text || item.label}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text || item.label}</div>
           <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>▲ {fmt(p.rankUp || 0)} · ▼ {fmt(p.rankDown || 0)}{p.user ? " · " + p.user : ""}</div>
         </div>
       </div>
@@ -13025,7 +13029,7 @@ function RankieRefPreview({ item }) {
       <div style={{ width: 34, height: 34, borderRadius: 9, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><TypeIcon size={16} color={C.gold} /></div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
-        <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>{fmtCompact(p.participants || 0)} tham gia · {fmt(p.comments || 0)} bình luận</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{fmtCompact(p.participants || 0)} tham gia · {fmt(p.comments || 0)} bình luận</div>
       </div>
     </div>
   );
