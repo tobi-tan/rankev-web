@@ -5535,8 +5535,9 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
 function TugViz({ options, onVote, votedId, isClosed }) {
   const clickable = !!onVote && !isClosed;
   const a = options[0], b = options[1];
-  const total = (a.votes + b.votes) || 1;
-  const ra = a.votes / total, pa = Math.round(ra * 100);
+  const totalV = a.votes + b.votes;
+  const ra = totalV ? a.votes / totalV : 0.5; // chưa có phiếu → 50/50 trung tính
+  const pa = Math.round(ra * 100);
   const aLead = a.votes >= b.votes;
   const flagRef = useRef(null);
   const tap = (opt) => (e) => {
@@ -5585,8 +5586,8 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   const stateRef = useRef({ clashX: 0, t: 0, parts: [], shake: 0, W: 0, H: 0 });
   const optsRef = useRef(options);
   optsRef.current = options;
-  const total = (a.votes + b.votes) || 1;
-  const pa = Math.round((a.votes / total) * 100);
+  const totalV = a.votes + b.votes;
+  const pa = Math.round((totalV ? a.votes / totalV : 0.5) * 100); // 0 phiếu → 50/50
 
   useEffect(() => {
     const cv = canvasRef.current, wrap = wrapRef.current;
@@ -5616,7 +5617,8 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
     };
     const draw = (step) => {
       const o = optsRef.current, av = o[0].votes, bv = o[1].votes;
-      const W = K.W, H = K.H, cy = H / 2, tt = (av + bv) || 1, ra = av / tt, margin = 66;
+      const tt = av + bv, ra = tt ? av / tt : 0.5; // 0 phiếu → cầu ở giữa
+      const W = K.W, H = K.H, cy = H / 2, margin = 66;
       const target = margin + ra * (W - 2 * margin);
       K.clashX += (target - K.clashX) * (step ? 0.10 : 1);
       const sh = K.shake > 0 ? K.shake : 0, cx = K.clashX + (Math.random() - .5) * sh, sy = cy + (Math.random() - .5) * sh;
