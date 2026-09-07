@@ -4999,7 +4999,7 @@ function SupportDropdown({ options, selected, onToggle }) {
 
 // Each comment is itself a mini-vote: rank up / rank down, and shows which option the author supports.
 // getSupportLabel maps a comment's "supports" id to a display label + color (option or path result).
-function CommentsSection({ initialComments, getSupportLabel, supportOptions, promptLabel, supportPrefix, placeholder, postId = null, ending = null, onCommentAdded }) {
+function CommentsSection({ initialComments, getSupportLabel, supportOptions, promptLabel, supportPrefix, placeholder, postId = null, ending = null, onCommentAdded, commentApi = api.comments }) {
   const norm = (s) => (Array.isArray(s) ? s : s == null ? [] : [s]);
   const apiMode = isUuid(postId); // bài THẬT → comment đọc/ghi qua backend
   const [comments, setComments] = useState(
@@ -5017,7 +5017,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
   useEffect(() => {
     if (!apiMode) return;
     let alive = true;
-    api.comments
+    commentApi
       .list(postId, ending ? { ending } : {})
       .then((res) => { if (alive) setComments(((res && res.items) || res || []).map(apiCommentToProto)); })
       .catch(() => {});
@@ -5058,7 +5058,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
     if (apiMode) {
       const body = { text: draft.trim() || undefined, supports: draftSupport.length ? draftSupport : undefined };
       if (draftImage && /^https?:/.test(draftImage)) body.imageUrl = draftImage;
-      api.comments
+      commentApi
         .create(postId, body)
         .then((c) => { setComments((prev) => [apiCommentToProto(c), ...prev]); onCommentAdded?.(); })
         .catch(() => {});
@@ -5075,7 +5075,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
   const postReply = (cid) => {
     if (!replyDraft.trim() && !replyImage) return;
     if (apiMode && isUuid(cid)) {
-      api.comments
+      commentApi
         .create(postId, { text: replyDraft.trim() || undefined, parentId: cid })
         .then((c) =>
           setComments((prev) => prev.map((x) => (x.id === cid ? { ...x, replies: [...(x.replies || []), { id: c.id, user: (c.author && (c.author.name || c.author.handle)) || "Bạn", text: c.text || "", createdAt: Date.parse(c.createdAt) || Date.now() }] } : x)))
@@ -11885,6 +11885,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
     <div>
       <TopBar title={data.title} onBack={onBack} />
       <div style={{ padding: 16 }}>
+        {data.caption && (
+          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
+        )}
         {champ ? (
           <div style={{ ...cardSurface, textAlign: "center", padding: "22px 16px", marginBottom: 16 }}>
             <div style={{ fontSize: 46 }}>{champ.emoji || "🏆"}</div>
@@ -12035,6 +12038,18 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Bình luận trên thẻ đấu — như một bài rankie. */}
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 10 }}>Thảo luận</div>
+          <CommentsSection
+            postId={data.id}
+            initialComments={[]}
+            supportOptions={[]}
+            placeholder="Thảo luận, dự đoán về giải đấu…"
+            commentApi={{ list: (id, opts) => api.tournaments.listComments(id, opts), create: (id, body) => api.tournaments.createComment(id, body) }}
+          />
         </div>
       </div>
     </div>

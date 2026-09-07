@@ -174,6 +174,14 @@ export const tournaments = {
   setSchedule(id, round, position, sched) { return apiFetch(`/tournaments/${id}/matches/${round}/${position}/schedule`, { method: 'POST', body: sched }); },
   mine() { return apiFetch('/tournaments/mine'); },
   feed() { return apiFetch('/tournaments'); }, // danh sách giải cho feed (mỗi giải = 1 thẻ)
+  // Bình luận trên thẻ đấu (dùng chung CommentsSection qua prop commentApi).
+  listComments(id, opts = {}) {
+    const q = new URLSearchParams();
+    if (opts.cursor) q.set('cursor', opts.cursor);
+    if (opts.parentId) q.set('parentId', opts.parentId);
+    return apiFetch(`/tournaments/${id}/comments?${q.toString()}`);
+  },
+  createComment(id, body) { return apiFetch(`/tournaments/${id}/comments`, { method: 'POST', body }); },
 };
 
 // ---------------- Messaging (chat) ----------------
