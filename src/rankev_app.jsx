@@ -10104,7 +10104,10 @@ function trendingScore(item) {
   const participants = item.participants || 0;
   const comments = (Array.isArray(item.comments) ? item.comments.length : item.comments) || 0;
   const liveBonus = item.live && !isRankieClosed?.(item) ? 1.4 : 1;
-  return freshBoost + (participants * 0.6 + comments * 2) * decay * liveBonus;
+  // Nền theo độ mới: bài mới (dù chưa có tương tác) vẫn nổi trên bài cũ đã "chết".
+  // Sau ~2 phút freshBoost hết, decay*3 giữ bài mới ở trên rồi mờ dần khi cũ đi.
+  const recencyBase = decay * 3;
+  return freshBoost + recencyBase + (participants * 0.6 + comments * 2) * decay * liveBonus;
 }
 
 // Distribute a fixed 10-point budget across exam questions. Questions the host
