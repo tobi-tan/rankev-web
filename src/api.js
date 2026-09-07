@@ -165,6 +165,7 @@ export const tournaments = {
   get(id) { return apiFetch(`/tournaments/${id}`); },
   advance(id) { return apiFetch(`/tournaments/${id}/advance`, { method: 'POST' }); },
   mine() { return apiFetch('/tournaments/mine'); },
+  feed() { return apiFetch('/tournaments'); }, // danh sách giải cho feed (mỗi giải = 1 thẻ)
 };
 
 // ---------------- Messaging (chat) ----------------

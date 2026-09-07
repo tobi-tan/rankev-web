@@ -4452,7 +4452,48 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
 }
 
 // ---------- FEED VIEW ----------
-function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession }) {
+// Thẻ GIẢI ĐẤU trên feed — cả giải là MỘT thẻ (tag Giải đấu), mở ra là bảng phân nhánh.
+// Các ván lẻ đã bị ẩn khỏi feed (backend) để không ngập feed.
+function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
+  const champ = t.championRef;
+  const roundLabel = (() => {
+    if (t.status === "done") return null;
+    const teams = Math.pow(2, Math.max(1, (t.rounds || 1) - (t.currentRound || 0)));
+    return ({ 2: "Chung kết", 4: "Bán kết", 8: "Tứ kết", 16: "Vòng 1/8", 32: "Vòng 1/16" }[teams]) || `Vòng ${(t.currentRound || 0) + 1}/${t.rounds || 1}`;
+  })();
+  return (
+    <div onClick={() => onOpen(t.id)} style={{ ...cardSurface, cursor: "pointer", animation: "popIn 0.3s ease" }}>
+      {t.author && (
+        <AuthorRow author={t.author} onOpenAuthor={onOpenAuthor} rightSlot={<Pill tone="gold"><Trophy size={11} /> GIẢI ĐẤU</Pill>} />
+      )}
+      <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 12, background: champ ? C.goldSoft : C.surfaceRaised, border: `1px solid ${champ ? C.gold : C.border}`, marginBottom: 10 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 11, background: champ ? "transparent" : C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0, fontSize: champ ? 30 : 20 }}>
+          {champ ? (champ.emoji || "🏆") : <Trophy size={20} color={C.gold} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {champ ? (
+            <>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.gold, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>🏆 Vô địch</div>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>{champ.name}</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{roundLabel} · đang bình chọn</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{t.matchCount} trận · {t.rounds} vòng</div>
+            </>
+          )}
+        </div>
+        <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textMuted, textAlign: "right", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={12} /> {fmt(t.totalVotes || 0)}</div>
+        </div>
+      </div>
+      <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal, textAlign: "center" }}>Xem bảng đấu →</div>
+    </div>
+  );
+}
+
+function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
   const typeOptions = [
@@ -4585,9 +4626,11 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
           </div>
         )}
         {feedItems.map((item) => (
-          <SaveWrap key={item.id} item={item.type === "share" ? null : postSaveItem(item)}>
+          <SaveWrap key={item.id} item={item.type === "share" || item.type === "tournament" ? null : postSaveItem(item)}>
             <FeedSourceLabel source={feedSourceFor(item)} />
-            {item.type === "path" ? (
+            {item.type === "tournament" ? (
+              <TournamentFeedCard t={item} onOpen={onOpenTournament} onOpenAuthor={onOpenAuthor} />
+            ) : item.type === "path" ? (
               <PathCard path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[item.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[item.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
             ) : item.type === "deck" ? (
               <DeckCard deck={item} onOpen={() => onOpenDeck(item.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[item.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[item.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
@@ -13183,6 +13226,11 @@ export default function RankevApp() {
   const [apiPosts, setApiPosts] = useState([]);
   const [apiCursor, setApiCursor] = useState(null);
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  // Giải đấu cho feed (mỗi giải = 1 thẻ; các ván lẻ đã ẩn khỏi feed ở backend).
+  const [tournamentFeed, setTournamentFeed] = useState([]);
+  const loadTournamentFeed = useCallback(() => {
+    api.tournaments.feed().then((r) => setTournamentFeed(r.items || [])).catch(() => {});
+  }, []);
   // Kết quả Deck thật từ API (Phần 5): { [deckId]: { answers, submitted, result } }
   const [apiDeckResults, setApiDeckResults] = useState({});
   const [apiDeckStats, setApiDeckStats] = useState({}); // { [deckId]: { participants, avgScore } }
@@ -13670,8 +13718,14 @@ export default function RankevApp() {
   // "Đang thịnh hành" sorts by a composite trending score (participants × recency × live bonus);
   // any other category just uses newest-first so fresh content surfaces immediately.
   // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
+  const tournamentItems = tournamentFeed.map((t) => ({
+    id: t.id, type: "tournament", title: t.title, category: t.category || "Khác",
+    author: apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
+    status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
+    participants: t.totalVotes || 0, // để xếp trending hợp lý
+  }));
   const feedDedup = new Map();
-  for (const item of [...apiRankies, ...rankies, ...allPaths, ...allDecks].map(withMeta)) {
+  for (const item of [...tournamentItems, ...apiRankies, ...rankies, ...allPaths, ...allDecks].map(withMeta)) {
     const existing = feedDedup.get(item.id);
     if (!existing || (item.author?.id === "me" && existing.author?.id !== "me")) feedDedup.set(item.id, item);
   }
@@ -13900,7 +13954,8 @@ export default function RankevApp() {
     setSelectedTournamentId(id);
     setBasketOpen(false);
     setView("tournament");
-  }, []);
+    loadTournamentFeed(); // giải mới sẽ hiện trên feed
+  }, [loadTournamentFeed]);
   const startCreateTournament = useCallback((seed = []) => {
     setCreateTournamentSeed(seed);
     setBasketOpen(false);
@@ -14124,6 +14179,7 @@ export default function RankevApp() {
       } catch { /* giữ mock */ }
     })();
     loadMySeries(); // nạp series của mình để chọn khi thêm chapter
+    loadTournamentFeed(); // nạp giải đấu để hiện thẻ giải trên feed
     // Nạp danh sách đã lưu (bookmark) thật để đồng bộ trạng thái nút lưu.
     (async () => {
       try {
@@ -14347,6 +14403,7 @@ export default function RankevApp() {
               onOpenPath={openPathFromFeed}
               onOpenDeck={openDeckFromFeed}
               onOpenAuthor={openAuthorWall}
+              onOpenTournament={openTournament}
               onOpenSearch={() => setView("search")}
               onShareToProfile={shareToProfile}
               activeCategory={activeCategory}
