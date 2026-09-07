@@ -11847,6 +11847,12 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const setResult = (m, winner) => {
     api.tournaments.setResult(tournamentId, m.round, m.position, winner).then(setData).catch((e) => showToast?.(e?.message || "Lỗi nhập kết quả"));
   };
+  const setSchedule = (m, closesAt) => {
+    api.tournaments.setSchedule(tournamentId, m.round, m.position, closesAt).then(setData).catch((e) => showToast?.(e?.message || "Lỗi đặt lịch"));
+  };
+  // datetime-local dùng giờ local; chuyển qua lại ISO.
+  const toLocalInput = (iso) => { if (!iso) return ""; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const fmtWhen = (iso) => { if (!iso) return null; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   if (!data) return (<div><TopBar title="Giải đấu" onBack={onBack} /><div style={{ padding: 24, textAlign: "center", color: C.textMuted, fontFamily: bodyFont }}>Đang tải…</div></div>);
 
   const isOwner = data.authorId && currentUserId && data.authorId === currentUserId;
@@ -11906,6 +11912,17 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                         <span>{fmt(m.votes?.b || 0)} · {pb}%</span>
                       </div>
                     </div>
+                    {(m.closesAt || isOwner) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: m.closesAt && new Date(m.closesAt) <= new Date() ? C.coral : C.textFaint }}>
+                          {m.closesAt ? (new Date(m.closesAt) <= new Date() ? "⏰ Đã đóng bình chọn" : `⏰ Đóng bình chọn: ${fmtWhen(m.closesAt)}`) : "⏰ Chưa hẹn giờ"}
+                        </span>
+                        {isOwner && (
+                          <input type="datetime-local" value={toLocalInput(m.closesAt)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSchedule(m, e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.text, fontFamily: bodyFont, fontSize: 11.5, outline: "none", colorScheme: "dark" }} />
+                        )}
+                        {isOwner && m.closesAt && <button onClick={(e) => { e.stopPropagation(); setSchedule(m, null); }} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, cursor: "pointer", textDecoration: "underline" }}>bỏ giờ</button>}
+                      </div>
+                    )}
                     {isPrediction && m.winnerRef && (
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 12 }}>
                         <span style={{ color: C.gold, fontWeight: 700 }}>Kết quả thật: {m.winnerRef.name}</span>
@@ -12003,6 +12020,12 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   const field = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
   const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 };
   const updateC = (i, patch) => setContestants((p) => p.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  // Đổi chỗ đấu thủ → tự đổi cặp đấu (cặp = 2 người liền kề: 0-1, 2-3, …).
+  const moveC = (i, dir) => setContestants((p) => {
+    const j = i + dir;
+    if (j < 0 || j >= p.length) return p;
+    const n = [...p]; [n[i], n[j]] = [n[j], n[i]]; return n;
+  });
   const addName = () => { const n = nameInput.trim(); if (n) { setContestants((p) => [...p, { name: n, emoji: EMOJI_CHOICES[p.length % EMOJI_CHOICES.length] }]); setNameInput(""); } };
   const uploadFor = (i) => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%232E5D4E'/><text x='40' y='48' font-size='28' text-anchor='middle' fill='white'>${contestants[i]?.emoji || "🏳️"}</text></svg>`;
@@ -12066,6 +12089,10 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
                       </button>
                     </>
                   )}
+                  <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+                    <button onClick={() => moveC(i, -1)} disabled={i === 0} title="Lên" style={{ background: "none", border: "none", color: i === 0 ? C.border : C.textMuted, cursor: i === 0 ? "default" : "pointer", padding: 0, lineHeight: 1 }}><ChevronsUp size={15} /></button>
+                    <button onClick={() => moveC(i, 1)} disabled={i === contestants.length - 1} title="Xuống" style={{ background: "none", border: "none", color: i === contestants.length - 1 ? C.border : C.textMuted, cursor: i === contestants.length - 1 ? "default" : "pointer", padding: 0, lineHeight: 1 }}><ChevronsDown size={15} /></button>
+                  </div>
                   <button onClick={() => setContestants((p) => p.filter((_, idx) => idx !== i))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
                 </div>
                 {emojiPickerFor === i && !c.refType && (
@@ -12083,6 +12110,25 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
             <button onClick={addName} style={{ padding: "0 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontWeight: 700, cursor: "pointer", fontFamily: bodyFont }}>+ Thêm</button>
           </div>
         </div>
+
+        {contestants.length >= 2 && (
+          <div>
+            <div style={label}>Cặp đấu vòng 1 — dùng ↑↓ ở trên để đổi ai gặp ai</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {Array.from({ length: Math.ceil(contestants.length / 2) }, (_, k) => {
+                const a = contestants[k * 2], b = contestants[k * 2 + 1];
+                return (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontFamily: bodyFont, fontSize: 13 }}>
+                    <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint, width: 18 }}>{k + 1}</span>
+                    <span style={{ flex: 1, textAlign: "right", fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a?.emoji ? a.emoji + " " : ""}{a?.name || "—"}</span>
+                    <span style={{ color: C.gold, fontWeight: 800, flexShrink: 0 }}>🆚</span>
+                    <span style={{ flex: 1, fontWeight: 600, color: b ? C.text : C.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b ? `${b.emoji ? b.emoji + " " : ""}${b.name}` : "miễn đấu (vào thẳng)"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div>
           <div style={label}>Bảng đấu đi tiếp theo</div>
