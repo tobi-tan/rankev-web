@@ -13407,24 +13407,36 @@ export default function RankevApp() {
   // vị trí feed đã lưu. (Nếu đọc `view` qua closure/effect-cũ sẽ bị lưu nhầm 0.)
   const viewRef = useRef(view);
   viewRef.current = view;
+  // Trên các máy khác nhau, có khi WINDOW cuộn, có khi div nội bộ cuộn → lấy giá trị lớn
+  // hơn để lưu đúng vị trí dù ở chế độ nào.
+  const currentFeedScroll = () => Math.max(window.scrollY || window.pageYOffset || 0, scrollContainerRef.current?.scrollTop || 0);
   const handleScrollContainer = () => {
-    if (viewRef.current === "feed" && scrollContainerRef.current) {
-      feedScrollTopRef.current = scrollContainerRef.current.scrollTop;
-    }
+    if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
   };
   useEffect(() => {
     const onWindowScroll = () => {
-      if (viewRef.current === "feed") feedScrollTopRef.current = window.scrollY || window.pageYOffset || 0;
+      if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
     };
     window.addEventListener("scroll", onWindowScroll, { passive: true });
     return () => window.removeEventListener("scroll", onWindowScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useLayoutEffect(() => {
-    if (view === "feed") {
-      // Khôi phục vị trí feed đã lưu (quay lại từ chi tiết → về đúng bài đang xem).
-      window.scrollTo(0, feedScrollTopRef.current);
-      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = feedScrollTopRef.current;
-    }
+    if (view !== "feed") return;
+    // Khôi phục vị trí feed đã lưu (quay lại từ chi tiết → về đúng bài; sau khi tạo bài = 0
+    // → về đầu). App cuộn bằng WINDOW. Ảnh trong feed tải BẤT ĐỒNG BỘ, tăng chiều cao SAU
+    // paint đầu → scrollTo bị "kẹp" ngắn. Nên LẶP LẠI việc đặt vị trí tới khi ổn định
+    // (~1.2s) hoặc khi người dùng tự cuộn thì dừng ngay để không giật.
+    const y = feedScrollTopRef.current;
+    const apply = () => { window.scrollTo(0, y); if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = y; };
+    apply();
+    if (y <= 0) return; // về đầu: đặt 1 lần là đủ
+    let cancelled = false, n = 0;
+    const iv = setInterval(() => { if (cancelled) { clearInterval(iv); return; } apply(); if (++n > 24) clearInterval(iv); }, 50);
+    const stop = () => { cancelled = true; clearInterval(iv); };
+    window.addEventListener("wheel", stop, { passive: true, once: true });
+    window.addEventListener("touchmove", stop, { passive: true, once: true });
+    return () => { cancelled = true; clearInterval(iv); window.removeEventListener("wheel", stop); window.removeEventListener("touchmove", stop); };
   }, [view]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPath, setSelectedPath] = useState(samplePath);
