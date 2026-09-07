@@ -13807,7 +13807,9 @@ export default function RankevApp() {
   const allSeries = useMemo(() => {
     const map = {};
     const seen = new Set(); // một post chỉ vào series 1 lần (nó có thể lặp ở list "mine" + "feed")
-    [...rankies, ...allPaths, ...allDecks].forEach((p) => {
+    // Gồm cả rankie THẬT từ feed/api (vd: các ván của một giải đấu — mỗi giải tự là 1 series).
+    const apiRankies = apiPosts.filter((p) => p.type === "rankie");
+    [...rankies, ...apiRankies, ...allPaths, ...allDecks].forEach((p) => {
       if (!p.seriesId || seen.has(p.id)) return;
       seen.add(p.id);
       if (!map[p.seriesId]) map[p.seriesId] = { id: p.seriesId, name: seriesOverrides[p.seriesId]?.name || p.seriesName || "Series", posts: [] };
@@ -13819,7 +13821,7 @@ export default function RankevApp() {
       else s.posts.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     });
     return map;
-  }, [rankies, allPaths, allDecks, seriesOverrides]);
+  }, [rankies, apiPosts, allPaths, allDecks, seriesOverrides]);
   const [selectedSeriesId2, setSelectedSeriesId2] = useState(null);
 
   const openPathFromPresentationHistory = (id) => {
