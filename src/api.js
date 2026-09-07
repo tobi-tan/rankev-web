@@ -117,7 +117,13 @@ async function toError(res) {
   let code = 'ERROR', message = res.statusText || 'Request failed', details;
   try {
     const b = await res.json();
-    if (b && b.error) { code = b.error.code || code; message = b.error.message || message; details = b.error.details; }
+    if (b && b.error && typeof b.error === 'object') {
+      // Dạng lồng: { error: { code, message, details } }
+      code = b.error.code || code; message = b.error.message || message; details = b.error.details;
+    } else if (b) {
+      // Dạng phẳng (Fastify mặc định): { code, error, message, statusCode }
+      code = b.code || code; message = b.message || message; details = b.details;
+    }
   } catch { /* non-json */ }
   return new ApiError(res.status, code, message, details);
 }
@@ -164,6 +170,7 @@ export const tournaments = {
   create(body) { return apiFetch('/tournaments', { method: 'POST', body }); },
   get(id) { return apiFetch(`/tournaments/${id}`); },
   advance(id) { return apiFetch(`/tournaments/${id}/advance`, { method: 'POST' }); },
+  setResult(id, round, position, winner) { return apiFetch(`/tournaments/${id}/matches/${round}/${position}/result`, { method: 'POST', body: { winner } }); },
   mine() { return apiFetch('/tournaments/mine'); },
   feed() { return apiFetch('/tournaments'); }, // danh sách giải cho feed (mỗi giải = 1 thẻ)
 };

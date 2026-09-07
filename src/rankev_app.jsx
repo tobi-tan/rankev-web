@@ -11844,15 +11844,24 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
     setBusy(true);
     api.tournaments.advance(tournamentId).then((t) => setData(t)).catch((e) => showToast?.(e?.message || "Chốt vòng thất bại")).finally(() => setBusy(false));
   };
+  const setResult = (m, winner) => {
+    api.tournaments.setResult(tournamentId, m.round, m.position, winner).then(setData).catch((e) => showToast?.(e?.message || "Lỗi nhập kết quả"));
+  };
   if (!data) return (<div><TopBar title="Giải đấu" onBack={onBack} /><div style={{ padding: 24, textAlign: "center", color: C.textMuted, fontFamily: bodyFont }}>Đang tải…</div></div>);
 
   const isOwner = data.authorId && currentUserId && data.authorId === currentUserId;
+  const isPrediction = data.advanceMode === "result";
   const rounds = [];
   for (let r = 0; r < data.rounds; r++) rounds.push(data.matches.filter((m) => m.round === r).sort((a, b) => a.position - b.position));
   const roundName = (r) => ({ 2: "Chung kết", 4: "Bán kết", 8: "Tứ kết", 16: "Vòng 1/8" }[(rounds[r]?.length || 1) * 2]) || `Vòng ${r + 1}`;
   const paOf = (m) => { const t = (m.votes?.a || 0) + (m.votes?.b || 0); return t ? Math.round((m.votes?.a || 0) / t * 100) : 50; };
   const nm = (ref) => ref ? `${ref.emoji ? ref.emoji + " " : ""}${ref.name}` : "— chờ —";
+  const winnerSide = (m) => (m.winnerRef ? (m.aRef && m.winnerRef.name === m.aRef.name ? "a" : "b") : null); // bên thắng thật
+  const voteSide = (m) => (paOf(m) >= 50 ? "a" : "b"); // bên đám đông dự đoán
   const ar = data.currentRound, champ = data.championRef;
+  // Điểm dự đoán của người xem: đúng khi phiếu của mình trùng kết quả thật.
+  const decided = data.matches.filter((m) => m.rankiePostId && m.winnerRef && m.myPick);
+  const myCorrect = decided.filter((m) => m.myPick === winnerSide(m)).length;
 
   return (
     <div>
@@ -11866,29 +11875,54 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           </div>
         ) : (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 }}>
               <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang bình chọn</div>
               {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Chốt vòng</button>}
             </div>
+            {isPrediction && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontFamily: bodyFont, fontSize: 12 }}>
+                <span style={{ padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontWeight: 700 }}>🏆 Giải dự đoán</span>
+                {decided.length > 0 && <span style={{ color: C.textMuted }}>Bạn đoán đúng <b style={{ color: C.teal }}>{myCorrect}/{decided.length}</b> trận</span>}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(rounds[ar] || []).filter((m) => m.rankiePostId).map((m, i) => {
                 const p = paOf(m), pb = 100 - p;
+                const ws = winnerSide(m);
+                const myOk = m.winnerRef && m.myPick ? (m.myPick === ws) : null; // đoán đúng?
                 return (
-                  <button key={i} onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ ...cardSurface, textAlign: "left", cursor: "pointer", padding: 12, width: "100%" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, marginBottom: 6, gap: 8 }}>
-                      <span style={{ color: m.aRef?.color || C.teal, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm(m.aRef)}</span>
-                      <span style={{ color: m.bRef?.color || C.coral, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm(m.bRef)}</span>
+                  <div key={i} style={{ ...cardSurface, padding: 12 }}>
+                    <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ cursor: "pointer" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, marginBottom: 6, gap: 8 }}>
+                        <span style={{ color: ws === "a" ? C.gold : (m.aRef?.color || C.teal), minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ws === "a" && "🏆 "}{nm(m.aRef)}</span>
+                        <span style={{ color: ws === "b" ? C.gold : (m.bRef?.color || C.coral), minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm(m.bRef)}{ws === "b" && " 🏆"}</span>
+                      </div>
+                      <div style={{ height: 12, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${C.border}`, background: "#0a120d" }}>
+                        <div style={{ width: `${p}%`, background: m.aRef?.color || C.teal }} />
+                        <div style={{ width: `${pb}%`, background: m.bRef?.color || C.coral }} />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 4 }}>
+                        <span>{p}% · {fmt(m.votes?.a || 0)}</span>
+                        <span>{fmt(m.votes?.b || 0)} · {pb}%</span>
+                      </div>
                     </div>
-                    <div style={{ height: 12, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${C.border}`, background: "#0a120d" }}>
-                      <div style={{ width: `${p}%`, background: m.aRef?.color || C.teal }} />
-                      <div style={{ width: `${pb}%`, background: m.bRef?.color || C.coral }} />
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 4 }}>
-                      <span>{p}% · {fmt(m.votes?.a || 0)}</span>
-                      <span>{fmt(m.votes?.b || 0)} · {pb}%</span>
-                    </div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, marginTop: 6, fontWeight: 600 }}>Mở để bình chọn →</div>
-                  </button>
+                    {isPrediction && m.winnerRef && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 12 }}>
+                        <span style={{ color: C.gold, fontWeight: 700 }}>Kết quả thật: {m.winnerRef.name}</span>
+                        {m.myPick && (myOk
+                          ? <span style={{ color: C.teal, fontWeight: 700 }}>· Bạn đoán ĐÚNG ✓</span>
+                          : <span style={{ color: C.coral, fontWeight: 700 }}>· Bạn đoán sai ✗</span>)}
+                      </div>
+                    )}
+                    {isPrediction && isOwner && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                        <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>Kết quả thật:</span>
+                        <button onClick={(e) => { e.stopPropagation(); setResult(m, "a"); }} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${ws === "a" ? C.gold : C.border}`, background: ws === "a" ? C.goldSoft : C.surfaceRaised, color: ws === "a" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{m.aRef?.name}</button>
+                        <button onClick={(e) => { e.stopPropagation(); setResult(m, "b"); }} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${ws === "b" ? C.gold : C.border}`, background: ws === "b" ? C.goldSoft : C.surfaceRaised, color: ws === "b" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{m.bRef?.name}</button>
+                      </div>
+                    )}
+                    <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, marginTop: 8, fontWeight: 600, cursor: "pointer" }}>{isPrediction ? "Mở để dự đoán →" : "Mở để bình chọn →"}</div>
+                  </div>
                 );
               })}
             </div>
@@ -11960,6 +11994,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   const [category, setCategory] = useState(Object.values(CATEGORY_NAMES)[0]);
   const [closingTime, setClosingTime] = useState(null); // null = vô hạn | số giờ | { custom }
   const [allowGuestPresent, setAllowGuestPresent] = useState(false);
+  const [advanceMode, setAdvanceMode] = useState("vote"); // 'vote' | 'result' (giải dự đoán)
   const [contestants, setContestants] = useState(initialContestants);
   const [nameInput, setNameInput] = useState("");
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
@@ -11993,6 +12028,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
       caption: caption.trim() || undefined,
       closesInHours,
       allowGuestPresent,
+      advanceMode,
       contestants: contestants.map((c) => ({ name: c.name, emoji: c.emoji || undefined, color: c.color || undefined, imageUrl: urlOK(c.image), refType: c.refType || undefined, refId: c.refId || undefined })),
     }).then((t) => onCreate?.(t)).catch((e) => { setBusy(false); showToast?.(e?.message || "Tạo giải đấu thất bại"); });
   };
@@ -12045,6 +12081,24 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addName(); }} placeholder="Thêm đấu thủ (gõ tên)" style={{ ...field, flex: 1 }} />
             <button onClick={addName} style={{ padding: "0 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontWeight: 700, cursor: "pointer", fontFamily: bodyFont }}>+ Thêm</button>
+          </div>
+        </div>
+
+        <div>
+          <div style={label}>Bảng đấu đi tiếp theo</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { id: "vote", title: "🗳️ Phiếu bình chọn", desc: "Bên nhiều phiếu hơn đi tiếp — bình chọn thuần." },
+              { id: "result", title: "🏆 Kết quả thật (dự đoán)", desc: "Chủ giải nhập kết quả thật mỗi trận; phiếu = dự đoán để đối chiếu đúng/sai." },
+            ].map((m) => {
+              const active = advanceMode === m.id;
+              return (
+                <button key={m.id} onClick={() => setAdvanceMode(m.id)} style={{ textAlign: "left", padding: "11px 13px", borderRadius: 12, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, cursor: "pointer" }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: active ? C.gold : C.text }}>{m.title}</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2, lineHeight: 1.35 }}>{m.desc}</div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
