@@ -5709,7 +5709,7 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   );
 }
 
-function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded }) {
+function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded, onOpenTournament }) {
   const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
   const isClosed = isRankieClosed(rankie);
@@ -5939,6 +5939,15 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
       />
 
       <div style={{ padding: 16 }}>
+        {rankie.tournamentId && onOpenTournament && (
+          <button onClick={() => onOpenTournament(rankie.tournamentId)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}`, cursor: "pointer", textAlign: "left" }}>
+            <Trophy size={16} color={C.gold} />
+            <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13, color: C.text }}>
+              Trận trong giải <b style={{ color: C.gold }}>{rankie.tournamentTitle}</b>
+            </span>
+            <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.gold, fontWeight: 700, flexShrink: 0 }}>Xem bảng đấu →</span>
+          </button>
+        )}
         {rankie.author && (
           <AuthorRow author={rankie.author} onOpenAuthor={undefined} />
         )}
@@ -12976,6 +12985,7 @@ function apiRankieToProto(r) {
     createdAt: Date.parse(r.createdAt) || Date.now(), closesAt: r.closesAt ? Date.parse(r.closesAt) : null,
     caption: r.caption || "", media: r.media || null, participants: r.totalVotes || 0,
     voteMarker: r.voteMarker || null, allowGuestPresent: !!r.allowGuestPresent,
+    tournamentId: r.tournamentId || null, tournamentTitle: r.tournamentTitle || null,
     options: opts, comments: [], _api: true,
   };
 }
@@ -14614,6 +14624,7 @@ export default function RankevApp() {
               onOpenSession={openSessionDetail}
               onParticipate={addToHistory}
               onShareToProfile={shareToProfile}
+              onOpenTournament={openTournament}
               onBack={() => setView(prevAfterDetail)}
               onPresent={() => {
                 setPresenterInitialOptions(getOptions(selected));
