@@ -11847,8 +11847,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const setResult = (m, winner) => {
     api.tournaments.setResult(tournamentId, m.round, m.position, winner).then(setData).catch((e) => showToast?.(e?.message || "Lỗi nhập kết quả"));
   };
-  const setSchedule = (m, closesAt) => {
-    api.tournaments.setSchedule(tournamentId, m.round, m.position, closesAt).then(setData).catch((e) => showToast?.(e?.message || "Lỗi đặt lịch"));
+  const setSchedule = (m, sched) => {
+    api.tournaments.setSchedule(tournamentId, m.round, m.position, sched).then(setData).catch((e) => showToast?.(e?.message || "Lỗi đặt lịch"));
   };
   // datetime-local dùng giờ local; chuyển qua lại ISO.
   const toLocalInput = (iso) => { if (!iso) return ""; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
@@ -11896,6 +11896,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                 const p = paOf(m), pb = 100 - p;
                 const ws = winnerSide(m);
                 const myOk = m.winnerRef && m.myPick ? (m.myPick === ws) : null; // đoán đúng?
+                const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date(); // chưa tới giờ mở
                 return (
                   <div key={i} style={{ ...cardSurface, padding: 12 }}>
                     <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ cursor: "pointer" }}>
@@ -11912,17 +11913,25 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                         <span>{fmt(m.votes?.b || 0)} · {pb}%</span>
                       </div>
                     </div>
-                    {(m.closesAt || isOwner) && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: m.closesAt && new Date(m.closesAt) <= new Date() ? C.coral : C.textFaint }}>
-                          {m.closesAt ? (new Date(m.closesAt) <= new Date() ? "⏰ Đã đóng bình chọn" : `⏰ Đóng bình chọn: ${fmtWhen(m.closesAt)}`) : "⏰ Chưa hẹn giờ"}
-                        </span>
-                        {isOwner && (
-                          <input type="datetime-local" value={toLocalInput(m.closesAt)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSchedule(m, e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.text, fontFamily: bodyFont, fontSize: 11.5, outline: "none", colorScheme: "dark" }} />
-                        )}
-                        {isOwner && m.closesAt && <button onClick={(e) => { e.stopPropagation(); setSchedule(m, null); }} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 11.5, cursor: "pointer", textDecoration: "underline" }}>bỏ giờ</button>}
-                      </div>
-                    )}
+                    {(m.opensAt || m.closesAt || isOwner) && (() => {
+                      const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
+                      const closed = m.closesAt && new Date(m.closesAt) <= new Date();
+                      return (
+                        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: closed || notYetOpen ? C.coral : C.textFaint }}>
+                            {notYetOpen ? `🕒 Bắt đầu lúc ${fmtWhen(m.opensAt)} · chưa mở` : m.closesAt ? (closed ? "⏰ Đã đóng bình chọn" : `⏰ Đóng bình chọn: ${fmtWhen(m.closesAt)}`) : (m.opensAt ? `🕒 Mở lúc ${fmtWhen(m.opensAt)}` : "⏰ Chưa hẹn giờ")}
+                          </div>
+                          {isOwner && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
+                              <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Mở</span>
+                              <input type="datetime-local" value={toLocalInput(m.opensAt)} onChange={(e) => setSchedule(m, { opensAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "3px 7px", color: C.text, fontFamily: bodyFont, fontSize: 11, outline: "none", colorScheme: "dark" }} />
+                              <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Đóng</span>
+                              <input type="datetime-local" value={toLocalInput(m.closesAt)} onChange={(e) => setSchedule(m, { closesAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "3px 7px", color: C.text, fontFamily: bodyFont, fontSize: 11, outline: "none", colorScheme: "dark" }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {isPrediction && m.winnerRef && (
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 12 }}>
                         <span style={{ color: C.gold, fontWeight: 700 }}>Kết quả thật: {m.winnerRef.name}</span>
@@ -11938,7 +11947,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                         <button onClick={(e) => { e.stopPropagation(); setResult(m, "b"); }} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${ws === "b" ? C.gold : C.border}`, background: ws === "b" ? C.goldSoft : C.surfaceRaised, color: ws === "b" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{m.bRef?.name}</button>
                       </div>
                     )}
-                    <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, marginTop: 8, fontWeight: 600, cursor: "pointer" }}>{isPrediction ? "Mở để dự đoán →" : "Mở để bình chọn →"}</div>
+                    {notYetOpen
+                      ? <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8, fontWeight: 600 }}>🕒 Chưa tới giờ mở</div>
+                      : <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, marginTop: 8, fontWeight: 600, cursor: "pointer" }}>{isPrediction ? "Mở để dự đoán →" : "Mở để bình chọn →"}</div>}
                   </div>
                 );
               })}
@@ -12272,6 +12283,8 @@ function ProfileView({
   onCycleVisibility,
   contacts,
   onMessage,
+  tournaments = [],
+  onOpenTournament,
 }) {
   const [tab, setTab] = useState("posts"); // posts | rankies | paths | decks | trash (bộ lọc con trong tab Bài viết)
   const [mainTab, setMainTab] = useState("posts"); // posts | participation | presentation | bookmarks — tab lớn kiểu Instagram
@@ -12565,7 +12578,11 @@ function ProfileView({
 
       {/* Timeline of this author's posts (pinned first, then newest) */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
-        {visible.length === 0 && (
+        {/* Giải đấu của tác giả — hiện dưới dạng thẻ giải (ván lẻ đã ẩn). Chỉ ở tab "Tất cả". */}
+        {tab === "posts" && !query.trim() && tournaments.map((t) => (
+          <TournamentFeedCard key={t.id} t={t} onOpen={onOpenTournament} onOpenAuthor={onOpenAuthor} />
+        ))}
+        {visible.length === 0 && !(tab === "posts" && tournaments.length > 0) && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             {tab === "trash" ? (
               "Thùng rác trống."
@@ -14061,6 +14078,13 @@ export default function RankevApp() {
     setBasketOpen(false);
     setView("createTournament");
   }, []);
+  // Giải đấu của một tác giả (để hiện thẻ giải trong trang Hồ sơ).
+  const tournamentsForAuthor = useCallback((aid) => {
+    const realId = aid === "me" ? currentUser.apiId : aid;
+    return tournamentFeed
+      .filter((t) => t.author?.id === realId)
+      .map((t) => ({ id: t.id, title: t.title, category: t.category, author: apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes }));
+  }, [tournamentFeed]);
 
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef, openTournament }), [saveToRankie, rankieBasket, openRef, openTournament]);
 
@@ -14693,6 +14717,8 @@ export default function RankevApp() {
               pathUnlocks={pathUnlocks}
               posts={allPosts}
               authorId="me"
+              tournaments={tournamentsForAuthor("me")}
+              onOpenTournament={openTournament}
               onLogout={handleLogout}
               onChangeAvatar={handleChangeAvatar}
               onEditStructure={startStructEdit}
@@ -14733,6 +14759,8 @@ export default function RankevApp() {
               pathUnlocks={pathUnlocks}
               posts={allPosts}
               authorId={viewedAuthorId}
+              tournaments={tournamentsForAuthor(viewedAuthorId)}
+              onOpenTournament={openTournament}
               rankTier={rankTiers[viewedAuthorId] || 0}
               onSetRank={setRank}
               fanCount={participationCountByAuthor[viewedAuthorId] || 0}
