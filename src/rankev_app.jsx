@@ -11897,42 +11897,139 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
 }
 
 // Tạo giải đấu: tên + danh sách đấu thủ (từ giỏ "Lưu vào Rankie" hoặc gõ tay).
-function CreateTournamentView({ initialContestants = [], onCreate, onBack }) {
+// Upload ảnh dùng chung (không phụ thuộc state của màn) — preview blob ngay rồi thay bằng URL thật.
+function pickImageUpload(apply, kind = "image", fallbackSvg = null) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    apply(URL.createObjectURL(file));
+    api.uploadImage(file, kind).then((res) => { if (res && res.url) apply(res.url); }).catch(() => { if (fallbackSvg) apply(fallbackSvg); });
+  };
+  input.click();
+}
+
+function CreateTournamentView({ initialContestants = [], onCreate, onBack, showToast }) {
   const [title, setTitle] = useState("");
+  const [caption, setCaption] = useState("");
+  const [category, setCategory] = useState(Object.values(CATEGORY_NAMES)[0]);
+  const [closingTime, setClosingTime] = useState(null); // null = vô hạn | số giờ | { custom }
+  const [allowGuestPresent, setAllowGuestPresent] = useState(false);
   const [contestants, setContestants] = useState(initialContestants);
   const [nameInput, setNameInput] = useState("");
+  const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   const [busy, setBusy] = useState(false);
-  const fieldStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
-  const addName = () => { const n = nameInput.trim(); if (n) { setContestants((p) => [...p, { name: n }]); setNameInput(""); } };
-  const canCreate = title.trim() && contestants.length >= 2;
-  const create = () => {
-    if (!canCreate || busy) return;
-    setBusy(true);
-    api.tournaments.create({ title: title.trim(), contestants: contestants.map((c) => ({ name: c.name, emoji: c.emoji || undefined, color: c.color || undefined, refType: c.refType || undefined, refId: c.refId || undefined })) })
-      .then((t) => onCreate?.(t)).catch(() => setBusy(false));
+
+  const field = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
+  const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 };
+  const updateC = (i, patch) => setContestants((p) => p.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const addName = () => { const n = nameInput.trim(); if (n) { setContestants((p) => [...p, { name: n, emoji: EMOJI_CHOICES[p.length % EMOJI_CHOICES.length] }]); setNameInput(""); } };
+  const uploadFor = (i) => {
+    const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%232E5D4E'/><text x='40' y='48' font-size='28' text-anchor='middle' fill='white'>${contestants[i]?.emoji || "🏳️"}</text></svg>`;
+    pickImageUpload((url) => updateC(i, { image: url }), "image", svg);
   };
+  const canCreate = title.trim() && contestants.length >= 2;
+
+  const create = () => {
+    if (busy) return;
+    if (!title.trim()) { showToast?.("Hãy đặt tên giải đấu"); return; }
+    if (contestants.length < 2) { showToast?.("Cần ít nhất 2 đấu thủ"); return; }
+    setBusy(true);
+    let closesInHours = null;
+    if (typeof closingTime === "number") closesInHours = closingTime;
+    else if (closingTime && closingTime.custom) {
+      const ms = new Date(closingTime.custom).getTime() - Date.now();
+      if (ms > 0) closesInHours = Math.max(1, Math.ceil(ms / 3600000));
+    }
+    const urlOK = (u) => (typeof u === "string" && /^https?:/.test(u) ? u : undefined);
+    api.tournaments.create({
+      title: title.trim(),
+      category,
+      caption: caption.trim() || undefined,
+      closesInHours,
+      allowGuestPresent,
+      contestants: contestants.map((c) => ({ name: c.name, emoji: c.emoji || undefined, color: c.color || undefined, imageUrl: urlOK(c.image), refType: c.refType || undefined, refId: c.refId || undefined })),
+    }).then((t) => onCreate?.(t)).catch((e) => { setBusy(false); showToast?.(e?.message || "Tạo giải đấu thất bại"); });
+  };
+
   return (
     <div>
       <TopBar title="Tạo giải đấu" onBack={onBack} />
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Tên giải (vd: GOAT bóng đá mọi thời đại)" style={fieldStyle} />
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 }}>Đấu thủ ({contestants.length}) — cần ít nhất 2</div>
+          <div style={label}>Câu hỏi / Tên giải</div>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="vd: Cầu thủ vĩ đại nhất mọi thời đại?" style={{ ...field, width: "100%" }} />
+        </div>
+
+        <div>
+          <div style={label}>Mô tả (không bắt buộc)</div>
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Giới thiệu thể lệ, bối cảnh…" rows={2} style={{ ...field, width: "100%", resize: "vertical" }} />
+        </div>
+
+        <div>
+          <div style={label}>Đấu thủ ({contestants.length}) — cần ít nhất 2, có thể thêm ảnh cho từng người</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {contestants.map((c, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px" }}>
-                <span style={{ fontSize: 18 }}>{c.emoji || (c.refType === "user" ? "👤" : c.refType === "post" ? "📊" : c.refType === "comment" ? "💬" : "🏳️")}</span>
-                <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
-                <button onClick={() => setContestants((p) => p.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={15} /></button>
+              <div key={i}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", background: c.refType ? C.surfaceRaised : "transparent", border: c.refType ? `1px solid ${C.gold}55` : "none", borderRadius: 12, padding: c.refType ? "8px 10px" : 0 }}>
+                  {c.refType ? (
+                    <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={{ ...c, label: c.name }} /></div>
+                  ) : (
+                    <>
+                      <button onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}>
+                        <Illustration emoji={c.emoji || "🏳️"} image={c.image} size={44} radius={10} />
+                      </button>
+                      <input style={{ ...field, flex: 1 }} placeholder={`Đấu thủ ${i + 1}`} value={c.name} onChange={(e) => updateC(i, { name: e.target.value })} />
+                      <button onClick={() => (c.image ? updateC(i, { image: null }) : uploadFor(i))} title={c.image ? "Xóa ảnh" : "Tải ảnh lên"} style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: c.image ? C.coral : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}>
+                        {c.image ? <X size={16} /> : <ImagePlus size={16} />}
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => setContestants((p) => p.filter((_, idx) => idx !== i))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
+                </div>
+                {emojiPickerFor === i && !c.refType && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                    {EMOJI_CHOICES.map((em) => (
+                      <button key={em} onClick={() => { updateC(i, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${c.emoji === em ? C.gold : C.border}`, background: c.emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addName(); }} placeholder="Thêm đấu thủ (gõ tên)" style={{ ...fieldStyle, flex: 1 }} />
+            <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addName(); }} placeholder="Thêm đấu thủ (gõ tên)" style={{ ...field, flex: 1 }} />
             <button onClick={addName} style={{ padding: "0 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontWeight: 700, cursor: "pointer", fontFamily: bodyFont }}>+ Thêm</button>
           </div>
         </div>
-        <button onClick={create} disabled={!canCreate || busy} style={{ ...primaryButton, width: "100%", opacity: (!canCreate || busy) ? 0.5 : 1 }}>Tạo giải đấu</button>
+
+        <div>
+          <div style={label}>Danh mục</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {Object.values(CATEGORY_NAMES).map((cat) => (
+              <button key={cat} onClick={() => setCategory(cat)} style={{ padding: "7px 12px", borderRadius: 999, border: `1px solid ${category === cat ? C.gold : C.border}`, background: category === cat ? C.goldSoft : C.surface, color: category === cat ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{cat}</button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div style={label}>Thời gian bình chọn mỗi vòng</div>
+          <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
+        </div>
+
+        <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}>
+            <Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu
+          </span>
+          <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}>
+            <span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} />
+          </span>
+        </button>
+
+        <button onClick={create} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: (!canCreate || busy) ? 0.6 : 1 }}>{busy ? "Đang tạo…" : "Tạo giải đấu"}</button>
+        {!canCreate && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center" }}>Cần có tên giải và ít nhất 2 đấu thủ.</div>}
       </div>
     </div>
   );
@@ -12687,7 +12784,7 @@ function apiRankieToProto(r) {
     category: r.category || "Khác", live: !!r.live, mine: false, seriesId: r.seriesId || null, seriesName: r.seriesName || null, author: apiAuthorToProto(r.author),
     createdAt: Date.parse(r.createdAt) || Date.now(), closesAt: r.closesAt ? Date.parse(r.closesAt) : null,
     caption: r.caption || "", media: r.media || null, participants: r.totalVotes || 0,
-    voteMarker: r.voteMarker || null,
+    voteMarker: r.voteMarker || null, allowGuestPresent: !!r.allowGuestPresent,
     options: opts, comments: [], _api: true,
   };
 }
@@ -14560,6 +14657,7 @@ export default function RankevApp() {
               initialContestants={createTournamentSeed}
               onCreate={(t) => openTournament(t.id)}
               onBack={() => setView("feed")}
+              showToast={showToast}
             />
           )}
           {view === "chat" && !openConversation && (
