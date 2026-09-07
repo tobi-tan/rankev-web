@@ -11883,8 +11883,13 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 }}>
               <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang bình chọn</div>
-              {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Chốt vòng</button>}
+              {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Kết thúc vòng</button>}
             </div>
+            {isOwner && (
+              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>
+                “Kết thúc vòng” = đóng vòng hiện tại, {isPrediction ? "lấy kết quả thật bạn nhập" : "lấy bên nhiều phiếu hơn"} làm người thắng và tạo các trận vòng sau.
+              </div>
+            )}
             {isPrediction && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontFamily: bodyFont, fontSize: 12 }}>
                 <span style={{ padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontWeight: 700 }}>🏆 Giải dự đoán</span>
@@ -11957,41 +11962,64 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           </div>
         )}
         <div style={{ ...cardSurface }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Sơ đồ phân nhánh</div>
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ display: "flex", gap: 16, minWidth: "min-content" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted }}>Sơ đồ phân nhánh</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>
+          </div>
+          <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+            <div style={{ display: "flex", gap: 24, minWidth: "min-content", alignItems: "stretch" }}>
               {rounds.map((round, r) => (
-                <div key={r} style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 12, minWidth: 148 }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.textFaint, textAlign: "center", fontWeight: 700 }}>{roundName(r)}</div>
+                <div key={r} style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 172 }}>
+                  <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, textAlign: "center", fontWeight: 700 }}>{roundName(r)}</div>
                   {round.map((m, i) => {
                     const p = paOf(m);
+                    const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef;
+                    const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
+                    const closed = m.closesAt && new Date(m.closesAt) <= new Date();
                     const slot = (ref, side) => {
                       const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
                       const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
                       const pv = side === "a" ? p : (100 - p);
+                      const cnt = side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0);
                       return (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", fontSize: 12, background: win ? "rgba(231,188,85,.10)" : "transparent" }}>
-                          <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: win ? C.gold : lose ? C.textFaint : ref ? C.text : C.textFaint, fontWeight: win ? 700 : 400, fontStyle: ref ? "normal" : "italic" }}>{nm(ref)}</span>
-                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>{pv}%</span>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 9px", fontSize: 12, background: win ? "rgba(231,188,85,.14)" : "transparent" }}>
+                          {win && <span style={{ fontSize: 11, flexShrink: 0 }}>🏆</span>}
+                          <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: win ? C.gold : lose ? C.textFaint : ref ? C.text : C.textFaint, fontWeight: win ? 700 : 500, fontStyle: ref ? "normal" : "italic" }}>{nm(ref)}</span>
+                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 10, color: C.textFaint, flexShrink: 0 }}>{fmt(cnt)}·{pv}%</span>}
                         </div>
                       );
                     };
+                    const schedText = notYetOpen ? `🕒 mở ${fmtWhen(m.opensAt)}` : closed ? "⏰ đã đóng" : m.closesAt ? `⏰ đóng ${fmtWhen(m.closesAt)}` : null;
                     return (
-                      <div key={i} style={{ background: C.bg, border: `1px solid ${r === ar && !m.winnerRef && m.aRef && m.bRef ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden" }}>
-                        {slot(m.aRef, "a")}<div style={{ height: 1, background: C.border }} />{slot(m.bRef, "b")}
+                      <div key={i} style={{ position: "relative" }}>
+                        <div
+                          onClick={() => m.rankiePostId && !notYetOpen && onOpenRankie?.(m.rankiePostId)}
+                          style={{ background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: m.rankiePostId && !notYetOpen ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}
+                        >
+                          {isLive && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", background: C.goldSoft, borderBottom: `1px solid ${C.border}` }}>
+                              <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal }} />
+                              <span style={{ fontFamily: bodyFont, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.5, color: C.gold }}>ĐANG BÌNH CHỌN</span>
+                            </div>
+                          )}
+                          {slot(m.aRef, "a")}<div style={{ height: 1, background: C.border }} />{slot(m.bRef, "b")}
+                          {schedText && <div style={{ padding: "3px 9px", borderTop: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 9.5, color: closed || notYetOpen ? C.coral : C.textFaint }}>{schedText}</div>}
+                        </div>
+                        {/* Nhánh chảy sang vòng sau: đường ngang, tô vàng nếu đã có người thắng. */}
+                        <div style={{ position: "absolute", right: -24, top: "50%", width: 24, height: 2, background: m.winnerRef ? C.gold : C.border, transform: "translateY(-50%)" }} />
                       </div>
                     );
                   })}
                 </div>
               ))}
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 108 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.textFaint, textAlign: "center", fontWeight: 700, marginBottom: 8 }}>Vô địch</div>
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 120 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold, textAlign: "center", fontWeight: 700, marginBottom: 8 }}>Vô địch</div>
                 {champ ? (
-                  <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 26 }}>{champ.emoji || "🏆"}</div>
+                  <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "14px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: 30 }}>{champ.emoji || "🏆"}</div>
                     <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3 }}>{champ.name}</div>
                   </div>
-                ) : <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 9, padding: 8, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
+                ) : <div style={{ background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: 14, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
               </div>
             </div>
           </div>
@@ -13837,7 +13865,7 @@ export default function RankevApp() {
   // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
   const tournamentItems = tournamentFeed.map((t) => ({
     id: t.id, type: "tournament", title: t.title, category: t.category || "Khác",
-    author: apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
+    author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
     status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
     participants: t.totalVotes || 0, // để xếp trending hợp lý
   }));
@@ -14083,7 +14111,7 @@ export default function RankevApp() {
     const realId = aid === "me" ? currentUser.apiId : aid;
     return tournamentFeed
       .filter((t) => t.author?.id === realId)
-      .map((t) => ({ id: t.id, title: t.title, category: t.category, author: apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes }));
+      .map((t) => ({ id: t.id, title: t.title, category: t.category, author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes }));
   }, [tournamentFeed]);
 
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef, openTournament }), [saveToRankie, rankieBasket, openRef, openTournament]);
