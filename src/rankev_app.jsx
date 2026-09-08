@@ -1406,6 +1406,21 @@ function Pill({ children, tone = "muted" }) {
   );
 }
 
+// Hiển thị hashtag (#tag) của một bài. Nếu chưa có tag thì fallback về danh mục cũ.
+// onTag(tag): tuỳ chọn — bấm vào hashtag để lọc feed.
+function TagPills({ tags, category, onTag, max = 3 }) {
+  const list = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  if (!list.length) return category ? <Pill tone="muted">{category}</Pill> : null;
+  return (
+    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+      {list.slice(0, max).map((t, i) => (
+        <span key={i} onClick={onTag ? (e) => { e.stopPropagation(); onTag(t); } : undefined}
+          style={{ background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, cursor: onTag ? "pointer" : "default" }}>#{t}</span>
+      ))}
+    </span>
+  );
+}
+
 // Pill dạng icon gọn; chạm để hiện nhãn chữ rồi tự ẩn (mobile không có hover).
 function TapHintPill({ children, hint, tone = "muted" }) {
   const [show, setShow] = useState(false);
@@ -4336,7 +4351,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
       })()}
       {!hideCategory && (
         <div style={{ marginBottom: 10 }}>
-          <Pill tone="muted">{rankie.category}</Pill>
+          <TagPills tags={rankie.tags} category={rankie.category} />
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>
@@ -4523,6 +4538,14 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
 function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
+  const [trendingTags, setTrendingTags] = useState([]); // hashtag thịnh hành cho thanh lọc
+  useEffect(() => {
+    let alive = true;
+    api.tags.trending(20).then((r) => { if (alive) setTrendingTags((r.items || []).map((t) => t.tag)); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  // Danh sách hashtag hiển thị: trending (thật) trước, bù thêm gợi ý mặc định cho đủ.
+  const tagBar = [...new Set([...(trendingTags || []), ...DEFAULT_HASHTAGS])].slice(0, 16);
   const typeOptions = [
     { id: "all", label: "Tất cả" },
     { id: "rankie", label: "📊 Rankie" },
@@ -4642,6 +4665,17 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
             <Search size={18} color={C.textMuted} />
           </button>
         </div>
+      </div>
+
+      {/* Thanh hashtag (thay danh mục): cuộn ngang, chọn để lọc feed theo tag. */}
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "6px 16px 10px", scrollbarWidth: "none" }}>
+        <button onClick={() => setActiveCategory("Đang thịnh hành")} style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, border: `1px solid ${activeCategory === "Đang thịnh hành" ? C.gold : C.border}`, background: activeCategory === "Đang thịnh hành" ? C.goldSoft : C.surface, color: activeCategory === "Đang thịnh hành" ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🔥 Thịnh hành</button>
+        {tagBar.map((t) => {
+          const active = String(activeCategory).toLowerCase() === String(t).toLowerCase();
+          return (
+            <button key={t} onClick={() => setActiveCategory(active ? "Đang thịnh hành" : t)} style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>#{t}</button>
+          );
+        })}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
@@ -5983,7 +6017,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           {rankie.title}
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <Pill tone="muted">{rankie.category}</Pill>
+          <TagPills tags={rankie.tags} category={rankie.category} max={5} />
           {isClosed ? (
             <Pill tone="muted">
               <Lock size={11} /> Đã kết thúc
@@ -10132,6 +10166,49 @@ const CATEGORIES = [
 ];
 // Canonical category names used as item.category values — the short names only
 // (without emoji), matching what CreateView stores and what the feed filters on.
+// Hashtag gợi ý mặc định (thay danh mục cố định) — người dùng vẫn tự gõ tag riêng.
+const DEFAULT_HASHTAGS = ["thethao", "amnhac", "amthuc", "congnghe", "phim", "game", "dulich", "thoitrang", "suckhoe", "congdong"];
+
+// Ô nhập hashtag tự do (chip). Enter/space/phẩy để thêm; Backspace xoá tag cuối.
+function HashtagInput({ tags = [], onChange, suggestions = DEFAULT_HASHTAGS, placeholder = "Thêm hashtag…" }) {
+  const [text, setText] = useState("");
+  const norm = (s) => s.trim().replace(/^#+/, "").replace(/\s+/g, "");
+  const add = (raw) => {
+    const t = norm(raw);
+    setText("");
+    if (!t || tags.length >= 10) return;
+    if (tags.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+    onChange([...tags, t]);
+  };
+  const remove = (i) => onChange(tags.filter((_, idx) => idx !== i));
+  const onKey = (e) => {
+    if (e.key === "Enter" || e.key === "," || e.key === " ") { e.preventDefault(); add(text); }
+    else if (e.key === "Backspace" && !text && tags.length) remove(tags.length - 1);
+  };
+  const sugg = suggestions.filter((s) => !tags.some((t) => t.toLowerCase() === String(s).toLowerCase())).slice(0, 8);
+  return (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 10px", minHeight: 42 }}>
+        {tags.map((t, i) => (
+          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700 }}>
+            #{t}
+            <button onClick={() => remove(i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.gold, display: "grid", placeItems: "center", padding: 0, lineHeight: 1 }}><X size={12} /></button>
+          </span>
+        ))}
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onBlur={() => add(text)} placeholder={tags.length ? "" : placeholder}
+          style={{ flex: 1, minWidth: 90, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+      </div>
+      {sugg.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {sugg.map((s) => (
+            <button key={s} onClick={() => add(s)} style={{ padding: "5px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>#{s}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CATEGORY_NAMES = {
   sport:     "Thể thao",
   music:     "Âm nhạc",
@@ -10209,7 +10286,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     { label: "", emoji: "🎨", image: null },
   ]);
   const [votingType, setVotingType] = useState("single");
-  const [category, setCategory] = useState(editItem?.category || Object.values(CATEGORY_NAMES)[0]); // defaults to first category
+  const [category, setCategory] = useState(editItem?.category || Object.values(CATEGORY_NAMES)[0]); // giữ tương thích ngược
+  const [tags, setTags] = useState(editItem?.tags || []); // hashtag tự do (thay danh mục)
   const [audience, setAudience] = useState("public");
   const [allowGuestPresent, setAllowGuestPresent] = useState(false); // cho phép người khác trình chiếu bài này
   // Series (Chapter) — bài này thuộc bộ nào. seriesId = id của series, seriesName = tên
@@ -10569,7 +10647,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           : votingType === "rating"
           ? "Đánh giá"
           : "Chọn 1 phương án",
-      category,
+      category: tags[0] || category,
+      tags,
       live: true,
       mine: true,
       author: currentUser,
@@ -10858,32 +10937,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         </div>
 
         <div style={field}>
-          <span style={label}>Danh mục</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {CATEGORIES.filter((c) => c.id !== "trending").map((cat) => {
-              const val = CATEGORY_NAMES[cat.id];
-              const active = category === val;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategory(val)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: `1px solid ${active ? C.gold : C.border}`,
-                    background: active ? C.goldSoft : C.surface,
-                    color: active ? C.gold : C.textMuted,
-                    fontFamily: bodyFont,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {cat.label}
-                </button>
-              );
-            })}
-          </div>
+          <span style={label}>Hashtag</span>
+          <HashtagInput tags={tags} onChange={setTags} placeholder="Ví dụ: thethao, amnhac…" />
         </div>
 
         <div style={field}>
@@ -12308,6 +12363,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState(Object.values(CATEGORY_NAMES)[0]);
+  const [tags, setTags] = useState([]); // hashtag tự do
   const [closingTime, setClosingTime] = useState(null); // null = vô hạn | số giờ | { custom }
   const [allowGuestPresent, setAllowGuestPresent] = useState(false);
   const [advanceMode, setAdvanceMode] = useState("vote"); // 'vote' | 'result' (giải dự đoán)
@@ -12352,7 +12408,8 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
     const coverUrl = media && urlOK(media.url);
     api.tournaments.create({
       title: title.trim(),
-      category,
+      category: tags[0] || category,
+      tags,
       caption: caption.trim() || undefined,
       media: coverUrl ? { type: "image", url: coverUrl } : undefined,
       closesInHours,
@@ -12469,12 +12526,8 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
         </div>
 
         <div>
-          <div style={label}>Danh mục</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {Object.values(CATEGORY_NAMES).map((cat) => (
-              <button key={cat} onClick={() => setCategory(cat)} style={{ padding: "7px 12px", borderRadius: 999, border: `1px solid ${category === cat ? C.gold : C.border}`, background: category === cat ? C.goldSoft : C.surface, color: category === cat ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{cat}</button>
-            ))}
-          </div>
+          <div style={label}>Hashtag</div>
+          <HashtagInput tags={tags} onChange={setTags} placeholder="Ví dụ: thethao, esports…" />
         </div>
 
         <div>
@@ -13219,7 +13272,7 @@ function apiSummaryToProto(s) {
     id: s.id,
     title: s.title,
     subtitle: s.subtitle || "",
-    category: s.category || "Khác",
+    category: s.category || "Khác", tags: s.tags || [],
     author: apiAuthorToProto(s.author),
     createdAt: Date.parse(s.createdAt) || Date.now(),
     media: s.media || null,
@@ -13258,7 +13311,7 @@ function apiRankieToProto(r) {
   return {
     id: r.id, type: "rankie", chartType: r.chartType || (opts.length === 2 ? "head_to_head" : "bar"),
     votingType: r.votingType || "single", title: r.title, subtitle: r.subtitle || "",
-    category: r.category || "Khác", live: !!r.live, mine: false, seriesId: r.seriesId || null, seriesName: r.seriesName || null, author: apiAuthorToProto(r.author),
+    category: r.category || "Khác", tags: r.tags || [], live: !!r.live, mine: false, seriesId: r.seriesId || null, seriesName: r.seriesName || null, author: apiAuthorToProto(r.author),
     createdAt: Date.parse(r.createdAt) || Date.now(), closesAt: r.closesAt ? Date.parse(r.closesAt) : null,
     opensAt: r.opensAt ? Date.parse(r.opensAt) : null, notYetOpen: !!r.notYetOpen,
     caption: r.caption || "", media: r.media || null, participants: r.totalVotes || 0,
@@ -13300,7 +13353,7 @@ function apiPathToProto(p) {
   return {
     id: p.id, type: "path", title: p.title,
     subtitle: `${(p.questions || []).length} câu hỏi · ${(p.endings || []).length} kết quả`,
-    category: p.category || "Khác", mine: false, seriesId: p.seriesId || null, seriesName: p.seriesName || null, author: apiAuthorToProto(p.author),
+    category: p.category || "Khác", tags: p.tags || [], mine: false, seriesId: p.seriesId || null, seriesName: p.seriesName || null, author: apiAuthorToProto(p.author),
     createdAt: Date.parse(p.createdAt) || Date.now(), caption: p.caption || "", media: p.media || null,
     participants: 0, comments: 0, questions, results, _api: true,
   };
@@ -13310,7 +13363,7 @@ function apiPathToProto(p) {
 function apiDeckToProto(d) {
   return {
     id: d.id, type: "deck", deckMode: d.deckMode, title: d.title, subtitle: d.subtitle || "",
-    category: d.category || "Khác", mine: !!d.mine, allowGuestPresent: !!d.allowGuestPresent, seriesId: d.seriesId || null, seriesName: d.seriesName || null, author: apiAuthorToProto(d.author),
+    category: d.category || "Khác", tags: d.tags || [], mine: !!d.mine, allowGuestPresent: !!d.allowGuestPresent, seriesId: d.seriesId || null, seriesName: d.seriesName || null, author: apiAuthorToProto(d.author),
     createdAt: Date.parse(d.createdAt) || Date.now(), caption: d.caption || "", media: d.media || null,
     participants: 0, comments: 0, answerMode: "step", graded: d.deckMode === "exam",
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
@@ -13367,6 +13420,7 @@ function protoToCreatePayload(item) {
     subtitle: item.subtitle || undefined,
     caption: item.caption || undefined,
     category: item.category || undefined,
+    tags: Array.isArray(item.tags) && item.tags.length ? item.tags : undefined,
     media,
   };
 
@@ -14168,7 +14222,7 @@ export default function RankevApp() {
   // any other category just uses newest-first so fresh content surfaces immediately.
   // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
   const tournamentItems = tournamentFeed.map((t) => ({
-    id: t.id, type: "tournament", title: t.title, category: t.category || "Khác",
+    id: t.id, type: "tournament", title: t.title, category: t.category || "Khác", tags: t.tags || [],
     author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
     status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
     media: t.media || null, commentCount: t.commentCount || 0,
@@ -14192,7 +14246,12 @@ export default function RankevApp() {
   // Apply the category filter and the content-type filter.
   // "Đang thịnh hành" (trending tab) shows everything — the sort already handles ranking.
   const feedItems = feedItemsAll
-    .filter((item) => activeCategory === "Đang thịnh hành" || item.category === activeCategory)
+    .filter((item) => {
+      if (activeCategory === "Đang thịnh hành") return true;
+      const k = String(activeCategory).toLowerCase();
+      // Khớp theo hashtag (ưu tiên) hoặc danh mục cũ (tương thích ngược).
+      return (Array.isArray(item.tags) && item.tags.some((t) => String(t).toLowerCase() === k)) || item.category === activeCategory;
+    })
     .filter((item) => {
       if (typeFilter === "all") return true;
       if (typeFilter === "deck") return item.type === "deck" && item.deckMode !== "exam";
@@ -14417,7 +14476,7 @@ export default function RankevApp() {
     const realId = aid === "me" ? currentUser.apiId : aid;
     return tournamentFeed
       .filter((t) => t.author?.id === realId)
-      .map((t) => ({ id: t.id, title: t.title, category: t.category, author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes, media: t.media || null, commentCount: t.commentCount || 0 }));
+      .map((t) => ({ id: t.id, title: t.title, category: t.category, tags: t.tags || [], author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes, media: t.media || null, commentCount: t.commentCount || 0 }));
   }, [tournamentFeed]);
 
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef, openTournament }), [saveToRankie, rankieBasket, openRef, openTournament]);

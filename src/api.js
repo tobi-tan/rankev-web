@@ -186,6 +186,11 @@ export const tournaments = {
   createComment(id, body) { return apiFetch(`/tournaments/${id}/comments`, { method: 'POST', body }); },
 };
 
+// ---------------- Hashtag ----------------
+export const tags = {
+  trending(limit = 20) { return apiFetch(`/tags/trending?limit=${limit}`); },
+};
+
 // ---------------- Messaging (chat) ----------------
 export const messaging = {
   conversations() { return apiFetch('/conversations'); },
@@ -409,6 +414,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, social, series, sessions, live,
+  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, social, series, sessions, live, tags,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
