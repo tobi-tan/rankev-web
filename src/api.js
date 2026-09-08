@@ -174,6 +174,7 @@ export const tournaments = {
   setSchedule(id, round, position, sched) { return apiFetch(`/tournaments/${id}/matches/${round}/${position}/schedule`, { method: 'POST', body: sched }); },
   mine() { return apiFetch('/tournaments/mine'); },
   feed() { return apiFetch('/tournaments'); }, // danh sách giải cho feed (mỗi giải = 1 thẻ)
+  toggleBookmark(id) { return apiFetch(`/tournaments/${id}/bookmark`, { method: 'POST' }); }, // bật/tắt lưu giải
   // Bình luận trên thẻ đấu (dùng chung CommentsSection qua prop commentApi).
   listComments(id, opts = {}) {
     const q = new URLSearchParams();

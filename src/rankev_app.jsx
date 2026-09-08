@@ -4460,6 +4460,15 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
 // Các ván lẻ đã bị ẩn khỏi feed (backend) để không ngập feed.
 function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
   const champ = t.championRef;
+  const [bm, setBm] = useState(!!t.bookmarked);
+  useEffect(() => { setBm(!!t.bookmarked); }, [t.bookmarked]);
+  const toggleBm = (e) => {
+    e.stopPropagation();
+    setBm((v) => !v); // lạc quan
+    api.tournaments.toggleBookmark(t.id)
+      .then((r) => setBm(!!r.bookmarked))
+      .catch(() => setBm((v) => !v));
+  };
   const roundLabel = (() => {
     if (t.status === "done") return null;
     const teams = Math.pow(2, Math.max(1, (t.rounds || 1) - (t.currentRound || 0)));
@@ -4499,7 +4508,12 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
         <span style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>
           <MessageCircle size={14} /> {fmt(t.commentCount || 0)} thảo luận
         </span>
-        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal }}>Xem bảng đấu →</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={toggleBm} title={bm ? "Bỏ lưu" : "Lưu giải"} aria-label={bm ? "Bỏ lưu" : "Lưu giải"} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}>
+            <IconBookmark filled={bm} size={17} />
+          </button>
+          <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal }}>Xem bảng đấu →</span>
+        </div>
       </div>
     </div>
   );
@@ -11876,6 +11890,12 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const setSchedule = (m, sched) => {
     api.tournaments.setSchedule(tournamentId, m.round, m.position, sched).then(setData).catch((e) => showToast?.(e?.message || "Lỗi đặt lịch"));
   };
+  const toggleBookmark = () => {
+    setData((d) => (d ? { ...d, bookmarked: !d.bookmarked } : d)); // lạc quan
+    api.tournaments.toggleBookmark(tournamentId)
+      .then((r) => setData((d) => (d ? { ...d, bookmarked: !!r.bookmarked } : d)))
+      .catch((e) => { setData((d) => (d ? { ...d, bookmarked: !d.bookmarked } : d)); showToast?.(e?.message || "Lỗi lưu giải"); });
+  };
   // datetime-local dùng giờ local; chuyển qua lại ISO.
   const toLocalInput = (iso) => { if (!iso) return ""; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
   const fmtWhen = (iso) => { if (!iso) return null; const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
@@ -11898,9 +11918,14 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   return (
     <div>
       <TopBar title={data.title} onBack={onBack} right={
-        <button onClick={() => setShareOpen(true)} title="Chia sẻ" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
-          <Share2 size={19} color={C.teal} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <button onClick={toggleBookmark} title={data.bookmarked ? "Bỏ lưu" : "Lưu giải"} aria-label={data.bookmarked ? "Bỏ lưu" : "Lưu giải"} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
+            <IconBookmark filled={!!data.bookmarked} />
+          </button>
+          <button onClick={() => setShareOpen(true)} title="Chia sẻ" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
+            <Share2 size={19} color={C.teal} />
+          </button>
+        </div>
       } />
       {shareOpen && (
         <ShareModal item={{ id: data.id, title: data.title, type: "tournament", category: data.category }} onClose={() => setShareOpen(false)} onShareToProfile={onShareToProfile || (() => {})} contacts={contacts ?? []} />
