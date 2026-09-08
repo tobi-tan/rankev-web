@@ -5740,6 +5740,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
   const isClosed = isRankieClosed(rankie);
+  const notYetOpen = !!(rankie.opensAt && rankie.opensAt > Date.now()); // đã hẹn giờ nhưng chưa lên sóng
   const [shareOpen, setShareOpen] = useState(false);
   // Any rankie with exactly two options reads best as a head-to-head comparison —
   // default to that chart on open even if chartType wasn't explicitly set to it
@@ -5832,7 +5833,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   const clickableChart = inlineChart && rankie.votingType !== "multiple" && rankie.votingType !== "rating";
 
   const castVote = (optId, e) => {
-    if (isClosed) return;
+    if (isClosed || notYetOpen) return;
     if (voted === optId) {
       // Tapping the option you already picked again undoes the vote.
       setVoted(null);
@@ -5857,7 +5858,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
     setMultiSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const submitMulti = (e) => {
-    if (multiSelected.length === 0 || isClosed) return;
+    if (multiSelected.length === 0 || isClosed || notYetOpen) return;
     setVoted(multiSelected);
     setOptions((prev) => prev.map((o) => (multiSelected.includes(o.id) ? { ...o, votes: o.votes + 1 } : o)));
     multiSelected.forEach((id) => spawnBubble(options.find((o) => o.id === id), e?.currentTarget));
@@ -6082,7 +6083,28 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           <RankieCountdownBox closesAt={rankie.closesAt} />
         </div>
 
-        {isClosed ? (
+        {notYetOpen ? (
+          <div
+            style={{
+              padding: "14px 16px",
+              borderRadius: 12,
+              background: C.goldSoft,
+              border: `1px solid ${C.gold}`,
+              color: C.gold,
+              fontFamily: bodyFont,
+              fontSize: 13,
+              marginBottom: 20,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <Clock size={16} color={C.gold} />
+            <span>
+              🔴 Sắp lên sóng — mở bình chọn lúc {new Date(rankie.opensAt).toLocaleString("vi-VN")}. Bạn có thể xem trước các lựa chọn.
+            </span>
+          </div>
+        ) : isClosed ? (
           <div
             style={{
               padding: "14px 16px",
@@ -10195,6 +10217,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const [seriesInput, setSeriesInput] = useState(""); // text người dùng đang gõ
   const [selectedSeriesId, setSelectedSeriesId] = useState(null); // id series đã chọn (existing) hoặc null = tạo mới
   const [closingTime, setClosingTime] = useState(null); // null = vô hạn; number = giờ tính từ lúc đăng; { custom } = mốc giờ cụ thể
+  const [openAtLocal, setOpenAtLocal] = useState(""); // "" = lên sóng ngay; giá trị datetime-local = hẹn giờ
   const [chartType, setChartType] = useState("bar");
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   // Custom "voted" marker — replaces the default "VOTED" label next to whichever
@@ -10518,6 +10541,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       const t = new Date(closingTime.custom).getTime();
       closesAt = Number.isNaN(t) ? null : t;
     }
+    // Hẹn giờ lên sóng: "" = mở ngay; ngược lại là mốc giờ cụ thể.
+    let opensAt = null;
+    if (openAtLocal) { const ot = new Date(openAtLocal).getTime(); opensAt = Number.isNaN(ot) ? null : ot; }
     const finalOptions = opts.filter((o) => o.label.trim() || o.refId).map((o, i) => ({
       id: "o" + i,
       label: o.label,
@@ -10548,6 +10574,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       mine: true,
       author: currentUser,
       createdAt: Date.now(),
+      opensAt,
+      notYetOpen: !!(opensAt && opensAt > Date.now()),
       closesAt,
       allowGuestPresent,
       seriesId: seriesInput.trim() ? (selectedSeriesId || ("s_" + Date.now())) : null,
@@ -10992,6 +11020,20 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
           <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
             Sau mốc này, Rankie tự động khóa — không nhận thêm bình chọn nhưng vẫn xem được kết quả. Chọn "Vô hạn" nếu muốn Rankie chạy mãi.
+          </div>
+        </div>
+
+        <div style={field}>
+          <span style={label}>🔴 Hẹn giờ lên sóng</span>
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <button onClick={() => setOpenAtLocal("")} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${!openAtLocal ? C.gold : C.border}`, background: !openAtLocal ? C.goldSoft : C.surface, color: !openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Lên sóng ngay</button>
+            <button onClick={() => { if (!openAtLocal) { const d = new Date(Date.now() + 3600_000); const p = (n) => String(n).padStart(2, "0"); setOpenAtLocal(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`); } }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${openAtLocal ? C.gold : C.border}`, background: openAtLocal ? C.goldSoft : C.surface, color: openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hẹn giờ</button>
+          </div>
+          {openAtLocal && (
+            <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ marginTop: 8, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", colorScheme: "dark" }} />
+          )}
+          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
+            Trước giờ lên sóng, Rankie hiện dạng "sắp diễn ra" và chưa ai bình chọn được. Để trống = mở ngay khi đăng.
           </div>
         </div>
 
@@ -13205,6 +13247,7 @@ function apiRankieToProto(r) {
     votingType: r.votingType || "single", title: r.title, subtitle: r.subtitle || "",
     category: r.category || "Khác", live: !!r.live, mine: false, seriesId: r.seriesId || null, seriesName: r.seriesName || null, author: apiAuthorToProto(r.author),
     createdAt: Date.parse(r.createdAt) || Date.now(), closesAt: r.closesAt ? Date.parse(r.closesAt) : null,
+    opensAt: r.opensAt ? Date.parse(r.opensAt) : null, notYetOpen: !!r.notYetOpen,
     caption: r.caption || "", media: r.media || null, participants: r.totalVotes || 0,
     voteMarker: r.voteMarker || null, allowGuestPresent: !!r.allowGuestPresent,
     tournamentId: r.tournamentId || null, tournamentTitle: r.tournamentTitle || null,
@@ -13372,6 +13415,7 @@ function protoToCreatePayload(item) {
     chartType: item.chartType || "bar",
     voteMarker,
     live: !!item.live,
+    opensAt: item.opensAt ? new Date(item.opensAt).toISOString() : undefined,
     closesAt: item.closesAt ? new Date(item.closesAt).toISOString() : undefined,
     options: (item.options || []).map((o) => ({
       label: o.label || undefined,
