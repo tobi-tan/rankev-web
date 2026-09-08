@@ -12082,9 +12082,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
 
                   {/* Hộp trận */}
                   {rounds.map((round, r) => round.map((m, i) => {
-                    const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef;
                     const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
                     const closed = m.closesAt && new Date(m.closesAt) <= new Date();
+                    const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef && !notYetOpen && !closed;
                     const open = m.rankiePostId && !notYetOpen;
                     const onBox = () => {
                       if (open) onOpenRankie?.(m.rankiePostId);
