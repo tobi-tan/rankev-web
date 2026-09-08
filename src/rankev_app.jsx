@@ -3599,15 +3599,16 @@ function DetailHeaderActions({ item, onPresent, isOwner = false, participated = 
 function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, onShareToChat }) {
   const [caption, setCaption] = useState("");
   const [visibility, setVisibility] = useState("public");
-  const [destination, setDestination] = useState("profile");
+  const isTournament = item.type === "tournament";
+  const [destination, setDestination] = useState(isTournament ? "message" : "profile");
   const [posted, setPosted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [selectedContact, setSelectedContact] = useState(null); // for "message" destination
   const [msgSent, setMsgSent] = useState(false);
 
-  const link = `https://rankev.app/vote/${item.id}`;
-  const typeLabel = { rankie: "Rankie", path: "Path", deck: "Deck" }[item.type] || "";
+  const link = isTournament ? `https://rankev.app/tournament/${item.id}` : `https://rankev.app/vote/${item.id}`;
+  const typeLabel = { rankie: "Rankie", path: "Path", deck: "Deck", tournament: "Giải đấu" }[item.type] || "";
 
   const visibilityOptions = [
     { id: "public", label: "Công khai", icon: Globe },
@@ -3615,10 +3616,13 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
     { id: "private", label: "Chỉ mình tôi", icon: Lock },
   ];
 
-  const destinations = [
-    { id: "profile", label: "Hồ sơ cá nhân", icon: User },
-    { id: "message", label: "Tin nhắn", icon: MessageCircle },
-  ];
+  // Giải đấu chưa hỗ trợ chia sẻ vào hồ sơ → chỉ nhắn tin + sao chép link.
+  const destinations = isTournament
+    ? [{ id: "message", label: "Tin nhắn", icon: MessageCircle }]
+    : [
+        { id: "profile", label: "Hồ sơ cá nhân", icon: User },
+        { id: "message", label: "Tin nhắn", icon: MessageCircle },
+      ];
 
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(link); } catch {}
@@ -11621,10 +11625,10 @@ function ChatShareCard({ msg, onOpenShare }) {
     <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ display: "block", textAlign: "left", width: "100%", marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 10, cursor: "pointer" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ width: 34, height: 34, borderRadius: 8, background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
-          {msg.refType === "path" ? "🌿" : msg.refType === "deck" ? "📋" : "📊"}
+          {msg.refType === "tournament" ? "🏆" : msg.refType === "path" ? "🌿" : msg.refType === "deck" ? "📋" : "📊"}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{msg.refType === "path" ? "Path" : msg.refType === "deck" ? "Bộ câu hỏi" : "Rankie"} được chia sẻ</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{msg.refType === "tournament" ? "Giải đấu" : msg.refType === "path" ? "Path" : msg.refType === "deck" ? "Bộ câu hỏi" : "Rankie"} được chia sẻ</div>
           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal, marginTop: 1 }}>Chạm để mở →</div>
         </div>
       </div>
@@ -11855,9 +11859,10 @@ function BottomNav({ active, setView, chatUnread = 0 }) {
 // ---------- Giải đấu (đấu loại) ----------
 // Xem một giải: vòng đang bình chọn (mỗi ván là Rankie thật, mở ra để vote) + sơ đồ
 // phân nhánh (phiếu/%), tự làm mới ~4s. Chủ giải có nút "Chốt vòng".
-function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, showToast }) {
+function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, showToast, contacts, onShareToProfile }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [schedEdit, setSchedEdit] = useState(null); // "round-position" ván đang sửa giờ
   const load = useCallback(() => { api.tournaments.get(tournamentId).then(setData).catch(() => {}); }, [tournamentId]);
   useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
@@ -11892,7 +11897,14 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
 
   return (
     <div>
-      <TopBar title={data.title} onBack={onBack} />
+      <TopBar title={data.title} onBack={onBack} right={
+        <button onClick={() => setShareOpen(true)} title="Chia sẻ" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
+          <Share2 size={19} color={C.teal} />
+        </button>
+      } />
+      {shareOpen && (
+        <ShareModal item={{ id: data.id, title: data.title, type: "tournament", category: data.category }} onClose={() => setShareOpen(false)} onShareToProfile={onShareToProfile || (() => {})} contacts={contacts ?? []} />
+      )}
       <div style={{ padding: 16 }}>
         {data.media?.url && (
           <img src={data.media.url} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 14 }} />
@@ -14169,7 +14181,8 @@ export default function RankevApp() {
     const id = opt.refType === "comment" ? opt.preview?.postId : opt.refId;
     if (!id) return;
     const t = opt.preview?.postType;
-    if (t === "path") openPathFromProfile(id);
+    if (t === "tournament") openTournament(id);
+    else if (t === "path") openPathFromProfile(id);
     else if (t === "deck") openDeckFromProfile(id);
     else openRankie(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -14949,6 +14962,8 @@ export default function RankevApp() {
               onOpenRankie={openRankie}
               onBack={() => setView("feed")}
               showToast={showToast}
+              contacts={contacts}
+              onShareToProfile={shareToProfile}
             />
           )}
           {view === "createTournament" && (
