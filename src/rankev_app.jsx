@@ -12037,99 +12037,104 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Bảng nhánh đấu</div>
             <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>
           </div>
-          <div style={{ overflowX: "auto", paddingBottom: 6 }}>
-            <div style={{ display: "flex", minWidth: "min-content", alignItems: "stretch" }}>
-              {rounds.map((round, r) => {
-                const GAP = 30, HG = 15;
-                return (
-                  <div key={r} style={{ display: "flex", flexDirection: "column", minWidth: 208 }}>
-                    <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, textAlign: "center", fontWeight: 700, padding: "0 0 10px" }}>{roundName(r)}</div>
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                      {round.map((m, i) => {
-                        const p = paOf(m);
-                        const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef;
-                        const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
-                        const closed = m.closesAt && new Date(m.closesAt) <= new Date();
-                        const open = m.rankiePostId && !notYetOpen;
-                        const single = round.length === 1;
-                        const sib = single ? null : round[i % 2 === 0 ? i + 1 : i - 1];
-                        const selfCol = m.winnerRef ? C.gold : C.border;
-                        const joinCol = (m.winnerRef || (sib && sib.winnerRef)) ? C.gold : C.border;
-                        const onBox = () => {
-                          if (open) onOpenRankie?.(m.rankiePostId);
-                          else if (isOwner) setSheetKey(`${m.round}-${m.position}`);
-                          else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId);
-                        };
-                        const av = (ref, size) => ref
-                          ? (ref.imageUrl
-                              ? <img src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
-                              : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || "•"}</div>)
-                          : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
-                        const slot = (ref, side) => {
-                          const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
-                          const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
-                          const cnt = side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0);
-                          return (
-                            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", background: win ? "rgba(231,188,85,.14)" : "transparent", opacity: lose ? 0.55 : 1 }}>
-                              {av(ref, 22)}
-                              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: bodyFont, fontSize: 12.5, fontWeight: win ? 800 : 600, color: win ? C.gold : ref ? C.text : C.textFaint, fontStyle: ref ? "normal" : "italic" }}>{ref ? ref.name : "— chờ —"}</span>
-                              {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: win ? C.gold : C.textFaint, flexShrink: 0 }}>{fmt(cnt)}</span>}
-                              {win && <span style={{ fontSize: 11, flexShrink: 0 }}>🏆</span>}
-                            </div>
-                          );
-                        };
-                        const schedText = notYetOpen ? `🕒 lên sóng ${fmtWhen(m.opensAt)}` : closed ? "⏰ đã đóng" : isLive ? null : m.closesAt ? `⏰ đóng ${fmtWhen(m.closesAt)}` : null;
-                        return (
-                          <div key={i} style={{ flex: "1 1 0", display: "flex", alignItems: "center", position: "relative", paddingRight: GAP, minHeight: 66 }}>
-                            <div onClick={onBox} style={{ flex: 1, minWidth: 0, position: "relative", background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 10, overflow: "hidden", cursor: (m.rankiePostId || isOwner) ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}>
-                              {isLive && (
-                                <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", background: C.goldSoft, borderBottom: `1px solid ${C.border}` }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal }} />
-                                  <span style={{ fontFamily: bodyFont, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: C.gold }}>ĐANG BÌNH CHỌN</span>
-                                </div>
-                              )}
-                              {slot(m.aRef, "a")}
-                              <div style={{ height: 1, background: C.border }} />
-                              {slot(m.bRef, "b")}
-                              {schedText && <div style={{ padding: "2px 8px", borderTop: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 9, color: closed || notYetOpen ? C.coral : C.textFaint }}>{schedText}</div>}
-                              {isOwner && (
-                                <button onClick={(e) => { e.stopPropagation(); setSheetKey(`${m.round}-${m.position}`); }} title="Tuỳ chỉnh trận" style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20, borderRadius: 6, border: "none", background: "rgba(0,0,0,.35)", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}>
-                                  <Settings size={12} />
-                                </button>
-                              )}
-                            </div>
-                            {/* Nhánh nối sang vòng sau (kiểu liquipedia): ngang từ hộp → dọc gộp cặp → ngang vào vòng kế. */}
-                            <div style={{ position: "absolute", right: HG, top: "50%", width: HG, height: 2, background: selfCol, transform: "translateY(-1px)" }} />
-                            {single ? (
-                              <div style={{ position: "absolute", right: 0, top: "50%", width: HG, height: 2, background: selfCol, transform: "translateY(-1px)" }} />
-                            ) : i % 2 === 0 ? (
-                              <>
-                                <div style={{ position: "absolute", right: HG, top: "50%", width: 2, height: "50%", background: joinCol }} />
-                                <div style={{ position: "absolute", right: 0, top: "100%", width: HG, height: 2, background: joinCol, transform: "translateY(-1px)" }} />
-                              </>
-                            ) : (
-                              <div style={{ position: "absolute", right: HG, top: 0, width: 2, height: "50%", background: joinCol }} />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+          {(() => {
+            // Bố cục toạ độ CỐ ĐỊNH (không dùng flex co giãn) để các hộp không bao giờ chồng lên nhau.
+            const ROW = 92, COLW = 168, GAP = 38, HEADER = 26, CHAMPW = 128, HG = GAP / 2;
+            const n0 = rounds[0]?.length || 1;
+            const H = n0 * ROW;
+            const colX = (r) => r * (COLW + GAP);
+            const centerY = (r, i) => HEADER + (i + 0.5) * (ROW * Math.pow(2, r));
+            const champX = rounds.length * (COLW + GAP);
+            const champCY = HEADER + H / 2;
+            const totalW = champX + CHAMPW + 4;
+            const av = (ref, size) => ref
+              ? (ref.imageUrl
+                  ? <img src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
+                  : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || "•"}</div>)
+              : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
+            return (
+              <div style={{ overflowX: "auto", paddingBottom: 6 }}>
+                <div style={{ position: "relative", width: totalW, height: HEADER + H, minWidth: totalW }}>
+                  {/* Tiêu đề vòng */}
+                  {rounds.map((round, r) => (
+                    <div key={`h${r}`} style={{ position: "absolute", left: colX(r), top: 0, width: COLW, textAlign: "center", fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, fontWeight: 700 }}>{roundName(r)}</div>
+                  ))}
+                  <div style={{ position: "absolute", left: champX, top: 0, width: CHAMPW, textAlign: "center", fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold, fontWeight: 700 }}>Vô địch</div>
+
+                  {/* Nhánh nối (vẽ trước, nằm dưới hộp) */}
+                  {rounds.map((round, r) => round.map((m, i) => {
+                    const single = round.length === 1;
+                    const sib = single ? null : round[i % 2 === 0 ? i + 1 : i - 1];
+                    const selfCol = m.winnerRef ? C.gold : C.border;
+                    const joinCol = (m.winnerRef || (sib && sib.winnerRef)) ? C.gold : C.border;
+                    const cy = centerY(r, i);
+                    const x0 = colX(r) + COLW;
+                    const nextCY = single ? champCY : centerY(r + 1, Math.floor(i / 2));
+                    const drawInto = single || i % 2 === 0; // ngang vào vòng kế: vẽ 1 lần/cặp
+                    return (
+                      <React.Fragment key={`c${r}-${i}`}>
+                        <div style={{ position: "absolute", left: x0, top: cy - 1, width: HG, height: 2, background: selfCol }} />
+                        <div style={{ position: "absolute", left: x0 + HG - 1, top: Math.min(cy, nextCY), width: 2, height: Math.abs(cy - nextCY) || 2, background: joinCol }} />
+                        {drawInto && <div style={{ position: "absolute", left: x0 + HG, top: nextCY - 1, width: HG, height: 2, background: joinCol }} />}
+                      </React.Fragment>
+                    );
+                  }))}
+
+                  {/* Hộp trận */}
+                  {rounds.map((round, r) => round.map((m, i) => {
+                    const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef;
+                    const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
+                    const closed = m.closesAt && new Date(m.closesAt) <= new Date();
+                    const open = m.rankiePostId && !notYetOpen;
+                    const onBox = () => {
+                      if (open) onOpenRankie?.(m.rankiePostId);
+                      else if (isOwner) setSheetKey(`${m.round}-${m.position}`);
+                      else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId);
+                    };
+                    const slot = (ref, side) => {
+                      const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
+                      const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
+                      const cnt = side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0);
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", background: win ? "rgba(231,188,85,.14)" : "transparent", opacity: lose ? 0.55 : 1 }}>
+                          {av(ref, 20)}
+                          <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: bodyFont, fontSize: 12, fontWeight: win ? 800 : 600, color: win ? C.gold : ref ? C.text : C.textFaint, fontStyle: ref ? "normal" : "italic" }}>{ref ? ref.name : "— chờ —"}</span>
+                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: win ? C.gold : C.textFaint, flexShrink: 0 }}>{fmt(cnt)}</span>}
+                          {win && <span style={{ fontSize: 11, flexShrink: 0 }}>🏆</span>}
+                        </div>
+                      );
+                    };
+                    const badge = isLive ? { t: "● LIVE", c: C.teal } : notYetOpen ? { t: `🕒 ${fmtWhen(m.opensAt)}`, c: C.gold } : closed ? { t: "đã đóng", c: C.coral } : null;
+                    return (
+                      <div key={`m${r}-${i}`} style={{ position: "absolute", left: colX(r), top: centerY(r, i), width: COLW, transform: "translateY(-50%)" }}>
+                        <div onClick={onBox} style={{ position: "relative", background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: (m.rankiePostId || isOwner) ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}>
+                          {slot(m.aRef, "a")}
+                          <div style={{ height: 1, background: C.border }} />
+                          {slot(m.bRef, "b")}
+                          {isOwner && (
+                            <button onClick={(e) => { e.stopPropagation(); setSheetKey(`${m.round}-${m.position}`); }} title="Tuỳ chỉnh trận" style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 5, border: "none", background: "rgba(0,0,0,.4)", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}>
+                              <Settings size={11} />
+                            </button>
+                          )}
+                        </div>
+                        {badge && <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 2, fontFamily: bodyFont, fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: badge.c, whiteSpace: "nowrap" }}>{badge.t}</div>}
+                      </div>
+                    );
+                  }))}
+
+                  {/* Nhà vô địch */}
+                  <div style={{ position: "absolute", left: champX, top: champCY, width: CHAMPW, transform: "translateY(-50%)" }}>
+                    {champ ? (
+                      <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
+                        <div style={{ fontSize: 28 }}>{champ.emoji || "🏆"}</div>
+                        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{champ.name}</div>
+                      </div>
+                    ) : <div style={{ background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: 12, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
                   </div>
-                );
-              })}
-              <div style={{ display: "flex", flexDirection: "column", minWidth: 128 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold, textAlign: "center", fontWeight: 700, padding: "0 0 10px" }}>Vô địch</div>
-                <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
-                  {champ ? (
-                    <div style={{ flex: 1, background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "14px 8px", textAlign: "center" }}>
-                      <div style={{ fontSize: 30 }}>{champ.emoji || "🏆"}</div>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3 }}>{champ.name}</div>
-                    </div>
-                  ) : <div style={{ flex: 1, background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: 14, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
                 </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* Bình luận trên thẻ đấu — như một bài rankie. */}
