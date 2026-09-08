@@ -9,7 +9,7 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut, RefreshCw,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -86,6 +86,7 @@ const FONT_IMPORT = (
     .chSwitchCard { display: flex; flex-direction: column; }
     .chSwitchCard > div { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes slideUp { 0% { transform: translateY(24px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
     @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(212,169,74,0.35); } 50% { box-shadow: 0 0 0 6px rgba(212,169,74,0); } }
     @keyframes bubbleFloat {
       0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
@@ -11877,7 +11878,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [schedEdit, setSchedEdit] = useState(null); // "round-position" ván đang sửa giờ
+  const [sheetKey, setSheetKey] = useState(null); // "round-position" trận đang mở bảng chi tiết
   const load = useCallback(() => { api.tournaments.get(tournamentId).then(setData).catch(() => {}); }, [tournamentId]);
   useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
   const advance = () => {
@@ -11888,7 +11889,10 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
     api.tournaments.setResult(tournamentId, m.round, m.position, winner).then(setData).catch((e) => showToast?.(e?.message || "Lỗi nhập kết quả"));
   };
   const setSchedule = (m, sched) => {
-    api.tournaments.setSchedule(tournamentId, m.round, m.position, sched).then(setData).catch((e) => showToast?.(e?.message || "Lỗi đặt lịch"));
+    return api.tournaments.setSchedule(tournamentId, m.round, m.position, sched).then(setData).catch((e) => { showToast?.(e?.message || "Lỗi đặt lịch"); throw e; });
+  };
+  const customize = (m, patch) => {
+    return api.tournaments.customizeMatch(tournamentId, m.round, m.position, patch).then(setData).catch((e) => { showToast?.(e?.message || "Lỗi tuỳ chỉnh"); throw e; });
   };
   const toggleBookmark = () => {
     setData((d) => (d ? { ...d, bookmarked: !d.bookmarked } : d)); // lạc quan
@@ -11930,6 +11934,27 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
       {shareOpen && (
         <ShareModal item={{ id: data.id, title: data.title, type: "tournament", category: data.category }} onClose={() => setShareOpen(false)} onShareToProfile={onShareToProfile || (() => {})} contacts={contacts ?? []} />
       )}
+      {sheetKey && (() => {
+        const sm = data.matches.find((m) => `${m.round}-${m.position}` === sheetKey);
+        if (!sm) return null;
+        return (
+          <MatchSheet
+            match={sm}
+            roundName={roundName(sm.round)}
+            p={paOf(sm)}
+            isOwner={isOwner}
+            isPrediction={isPrediction}
+            onClose={() => setSheetKey(null)}
+            onOpenRankie={(id) => { setSheetKey(null); onOpenRankie?.(id); }}
+            onCustomize={(patch) => customize(sm, patch)}
+            onSchedule={(sched) => setSchedule(sm, sched)}
+            onSetResult={(w) => setResult(sm, w)}
+            fmtWhen={fmtWhen}
+            toLocalInput={toLocalInput}
+            showToast={showToast}
+          />
+        );
+      })()}
       <div style={{ padding: 16 }}>
         {data.media?.url && (
           <img src={data.media.url} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 14 }} />
@@ -11937,162 +11962,129 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         {data.caption && (
           <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
         )}
-        {champ ? (
+        {champ && (
           <div style={{ ...cardSurface, textAlign: "center", padding: "22px 16px", marginBottom: 16 }}>
             <div style={{ fontSize: 46 }}>{champ.emoji || "🏆"}</div>
             <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 24, color: C.text, marginTop: 6 }}>{champ.name}</div>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 1, color: C.gold, textTransform: "uppercase", marginTop: 2 }}>🏆 Vô địch</div>
           </div>
-        ) : (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang bình chọn</div>
+        )}
+        {!champ && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>{roundName(ar)} · đang diễn ra</div>
               {isOwner && <button onClick={advance} disabled={busy} style={{ padding: "8px 13px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer", opacity: busy ? 0.6 : 1, flexShrink: 0 }}>🔒 Kết thúc vòng</button>}
             </div>
             {isOwner && (
-              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>
-                “Kết thúc vòng” = đóng vòng hiện tại, {isPrediction ? "lấy kết quả thật bạn nhập" : "lấy bên nhiều phiếu hơn"} làm người thắng và tạo các trận vòng sau.
+              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 6, lineHeight: 1.4 }}>
+                “Kết thúc vòng” = đóng vòng hiện tại, {isPrediction ? "lấy kết quả thật bạn nhập" : "lấy bên nhiều phiếu hơn"} làm người thắng và tạo các trận vòng sau. Chạm một trận trong bảng nhánh để mở chi tiết{isOwner ? ", tuỳ chỉnh đấu thủ hay hẹn giờ lên sóng" : ""}.
               </div>
             )}
             {isPrediction && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontFamily: bodyFont, fontSize: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontFamily: bodyFont, fontSize: 12 }}>
                 <span style={{ padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontWeight: 700 }}>🏆 Giải dự đoán</span>
                 {decided.length > 0 && <span style={{ color: C.textMuted }}>Bạn đoán đúng <b style={{ color: C.teal }}>{myCorrect}/{decided.length}</b> trận</span>}
               </div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(rounds[ar] || []).filter((m) => m.rankiePostId).map((m, i) => {
-                const p = paOf(m), pb = 100 - p;
-                const ws = winnerSide(m);
-                const myOk = m.winnerRef && m.myPick ? (m.myPick === ws) : null; // đoán đúng?
-                const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date(); // chưa tới giờ mở
+          </div>
+        )}
+
+        {/* BẢNG NHÁNH ĐẤU (kiểu liquipedia) — nội dung chính. Chạm một trận để mở chi tiết. */}
+        <div style={{ ...cardSurface, paddingBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Bảng nhánh đấu</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>
+          </div>
+          <div style={{ overflowX: "auto", paddingBottom: 6 }}>
+            <div style={{ display: "flex", minWidth: "min-content", alignItems: "stretch" }}>
+              {rounds.map((round, r) => {
+                const GAP = 30, HG = 15;
                 return (
-                  <div key={i} style={{ ...cardSurface, padding: 12 }}>
-                    <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ cursor: "pointer" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, marginBottom: 6, gap: 8 }}>
-                        <span style={{ color: ws === "a" ? C.gold : (m.aRef?.color || C.teal), minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ws === "a" && "🏆 "}{nm(m.aRef)}</span>
-                        <span style={{ color: ws === "b" ? C.gold : (m.bRef?.color || C.coral), minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm(m.bRef)}{ws === "b" && " 🏆"}</span>
-                      </div>
-                      <div style={{ height: 12, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${C.border}`, background: "#0a120d" }}>
-                        <div style={{ width: `${p}%`, background: m.aRef?.color || C.teal }} />
-                        <div style={{ width: `${pb}%`, background: m.bRef?.color || C.coral }} />
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 4 }}>
-                        <span>{p}% · {fmt(m.votes?.a || 0)}</span>
-                        <span>{fmt(m.votes?.b || 0)} · {pb}%</span>
-                      </div>
-                    </div>
-                    {(m.opensAt || m.closesAt || isOwner) && (() => {
-                      const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
-                      const closed = m.closesAt && new Date(m.closesAt) <= new Date();
-                      return (
-                        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: closed || notYetOpen ? C.coral : C.textFaint }}>
-                            {notYetOpen ? `🕒 Bắt đầu lúc ${fmtWhen(m.opensAt)} · chưa mở` : m.closesAt ? (closed ? "⏰ Đã đóng bình chọn" : `⏰ Đóng bình chọn: ${fmtWhen(m.closesAt)}`) : (m.opensAt ? `🕒 Mở lúc ${fmtWhen(m.opensAt)}` : "⏰ Chưa hẹn giờ")}
-                          </div>
-                          {isOwner && (schedEdit === `${m.round}-${m.position}` ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10 }} onClick={(e) => e.stopPropagation()}>
-                              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
-                                <span>🕒 Bắt đầu bình chọn</span>
-                                <input type="datetime-local" value={toLocalInput(m.opensAt)} onChange={(e) => setSchedule(m, { opensAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.text, fontFamily: bodyFont, fontSize: 11.5, outline: "none", colorScheme: "dark" }} />
-                              </label>
-                              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
-                                <span>⏰ Kết thúc bình chọn</span>
-                                <input type="datetime-local" value={toLocalInput(m.closesAt)} onChange={(e) => setSchedule(m, { closesAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.text, fontFamily: bodyFont, fontSize: 11.5, outline: "none", colorScheme: "dark" }} />
-                              </label>
-                              <button onClick={() => setSchedEdit(null)} style={{ alignSelf: "flex-end", padding: "5px 12px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Xong</button>
+                  <div key={r} style={{ display: "flex", flexDirection: "column", minWidth: 208 }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, textAlign: "center", fontWeight: 700, padding: "0 0 10px" }}>{roundName(r)}</div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                      {round.map((m, i) => {
+                        const p = paOf(m);
+                        const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef;
+                        const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
+                        const closed = m.closesAt && new Date(m.closesAt) <= new Date();
+                        const open = m.rankiePostId && !notYetOpen;
+                        const single = round.length === 1;
+                        const sib = single ? null : round[i % 2 === 0 ? i + 1 : i - 1];
+                        const selfCol = m.winnerRef ? C.gold : C.border;
+                        const joinCol = (m.winnerRef || (sib && sib.winnerRef)) ? C.gold : C.border;
+                        const onBox = () => {
+                          if (open) onOpenRankie?.(m.rankiePostId);
+                          else if (isOwner) setSheetKey(`${m.round}-${m.position}`);
+                          else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId);
+                        };
+                        const av = (ref, size) => ref
+                          ? (ref.imageUrl
+                              ? <img src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
+                              : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || "•"}</div>)
+                          : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
+                        const slot = (ref, side) => {
+                          const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
+                          const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
+                          const cnt = side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0);
+                          return (
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", background: win ? "rgba(231,188,85,.14)" : "transparent", opacity: lose ? 0.55 : 1 }}>
+                              {av(ref, 22)}
+                              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: bodyFont, fontSize: 12.5, fontWeight: win ? 800 : 600, color: win ? C.gold : ref ? C.text : C.textFaint, fontStyle: ref ? "normal" : "italic" }}>{ref ? ref.name : "— chờ —"}</span>
+                              {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: win ? C.gold : C.textFaint, flexShrink: 0 }}>{fmt(cnt)}</span>}
+                              {win && <span style={{ fontSize: 11, flexShrink: 0 }}>🏆</span>}
                             </div>
-                          ) : (
-                            <button onClick={(e) => { e.stopPropagation(); setSchedEdit(`${m.round}-${m.position}`); }} style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
-                              <Clock size={12} /> {m.opensAt || m.closesAt ? "Sửa giờ" : "Đặt giờ"}
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                    {isPrediction && m.winnerRef && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 12 }}>
-                        <span style={{ color: C.gold, fontWeight: 700 }}>Kết quả thật: {m.winnerRef.name}</span>
-                        {m.myPick && (myOk
-                          ? <span style={{ color: C.teal, fontWeight: 700 }}>· Bạn đoán ĐÚNG ✓</span>
-                          : <span style={{ color: C.coral, fontWeight: 700 }}>· Bạn đoán sai ✗</span>)}
-                      </div>
-                    )}
-                    {isPrediction && isOwner && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                        <span style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint }}>Kết quả thật:</span>
-                        <button onClick={(e) => { e.stopPropagation(); setResult(m, "a"); }} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${ws === "a" ? C.gold : C.border}`, background: ws === "a" ? C.goldSoft : C.surfaceRaised, color: ws === "a" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{m.aRef?.name}</button>
-                        <button onClick={(e) => { e.stopPropagation(); setResult(m, "b"); }} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${ws === "b" ? C.gold : C.border}`, background: ws === "b" ? C.goldSoft : C.surfaceRaised, color: ws === "b" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{m.bRef?.name}</button>
-                      </div>
-                    )}
-                    {notYetOpen
-                      ? <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8, fontWeight: 600 }}>🕒 Chưa tới giờ mở</div>
-                      : <div onClick={() => onOpenRankie?.(m.rankiePostId)} style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, marginTop: 8, fontWeight: 600, cursor: "pointer" }}>{isPrediction ? "Mở để dự đoán →" : "Mở để bình chọn →"}</div>}
+                          );
+                        };
+                        const schedText = notYetOpen ? `🕒 lên sóng ${fmtWhen(m.opensAt)}` : closed ? "⏰ đã đóng" : isLive ? null : m.closesAt ? `⏰ đóng ${fmtWhen(m.closesAt)}` : null;
+                        return (
+                          <div key={i} style={{ flex: "1 1 0", display: "flex", alignItems: "center", position: "relative", paddingRight: GAP, minHeight: 66 }}>
+                            <div onClick={onBox} style={{ flex: 1, minWidth: 0, position: "relative", background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 10, overflow: "hidden", cursor: (m.rankiePostId || isOwner) ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}>
+                              {isLive && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", background: C.goldSoft, borderBottom: `1px solid ${C.border}` }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal }} />
+                                  <span style={{ fontFamily: bodyFont, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: C.gold }}>ĐANG BÌNH CHỌN</span>
+                                </div>
+                              )}
+                              {slot(m.aRef, "a")}
+                              <div style={{ height: 1, background: C.border }} />
+                              {slot(m.bRef, "b")}
+                              {schedText && <div style={{ padding: "2px 8px", borderTop: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 9, color: closed || notYetOpen ? C.coral : C.textFaint }}>{schedText}</div>}
+                              {isOwner && (
+                                <button onClick={(e) => { e.stopPropagation(); setSheetKey(`${m.round}-${m.position}`); }} title="Tuỳ chỉnh trận" style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20, borderRadius: 6, border: "none", background: "rgba(0,0,0,.35)", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}>
+                                  <Settings size={12} />
+                                </button>
+                              )}
+                            </div>
+                            {/* Nhánh nối sang vòng sau (kiểu liquipedia): ngang từ hộp → dọc gộp cặp → ngang vào vòng kế. */}
+                            <div style={{ position: "absolute", right: HG, top: "50%", width: HG, height: 2, background: selfCol, transform: "translateY(-1px)" }} />
+                            {single ? (
+                              <div style={{ position: "absolute", right: 0, top: "50%", width: HG, height: 2, background: selfCol, transform: "translateY(-1px)" }} />
+                            ) : i % 2 === 0 ? (
+                              <>
+                                <div style={{ position: "absolute", right: HG, top: "50%", width: 2, height: "50%", background: joinCol }} />
+                                <div style={{ position: "absolute", right: 0, top: "100%", width: HG, height: 2, background: joinCol, transform: "translateY(-1px)" }} />
+                              </>
+                            ) : (
+                              <div style={{ position: "absolute", right: HG, top: 0, width: 2, height: "50%", background: joinCol }} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-        <div style={{ ...cardSurface }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted }}>Sơ đồ phân nhánh</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>
-          </div>
-          <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-            <div style={{ display: "flex", gap: 24, minWidth: "min-content", alignItems: "stretch" }}>
-              {rounds.map((round, r) => (
-                <div key={r} style={{ display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 172 }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, textAlign: "center", fontWeight: 700 }}>{roundName(r)}</div>
-                  {round.map((m, i) => {
-                    const p = paOf(m);
-                    const isLive = r === ar && !m.winnerRef && m.aRef && m.bRef;
-                    const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
-                    const closed = m.closesAt && new Date(m.closesAt) <= new Date();
-                    const slot = (ref, side) => {
-                      const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
-                      const lose = m.winnerRef && ref && m.winnerRef.name !== ref.name;
-                      const pv = side === "a" ? p : (100 - p);
-                      const cnt = side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0);
-                      return (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 9px", fontSize: 12, background: win ? "rgba(231,188,85,.14)" : "transparent" }}>
-                          {win && <span style={{ fontSize: 11, flexShrink: 0 }}>🏆</span>}
-                          <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: win ? C.gold : lose ? C.textFaint : ref ? C.text : C.textFaint, fontWeight: win ? 700 : 500, fontStyle: ref ? "normal" : "italic" }}>{nm(ref)}</span>
-                          {m.aRef && m.bRef && <span style={{ fontFamily: monoFont, fontSize: 10, color: C.textFaint, flexShrink: 0 }}>{fmt(cnt)}·{pv}%</span>}
-                        </div>
-                      );
-                    };
-                    const schedText = notYetOpen ? `🕒 mở ${fmtWhen(m.opensAt)}` : closed ? "⏰ đã đóng" : m.closesAt ? `⏰ đóng ${fmtWhen(m.closesAt)}` : null;
-                    return (
-                      <div key={i} style={{ position: "relative" }}>
-                        <div
-                          onClick={() => m.rankiePostId && !notYetOpen && onOpenRankie?.(m.rankiePostId)}
-                          style={{ background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: m.rankiePostId && !notYetOpen ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}
-                        >
-                          {isLive && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", background: C.goldSoft, borderBottom: `1px solid ${C.border}` }}>
-                              <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal }} />
-                              <span style={{ fontFamily: bodyFont, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.5, color: C.gold }}>ĐANG BÌNH CHỌN</span>
-                            </div>
-                          )}
-                          {slot(m.aRef, "a")}<div style={{ height: 1, background: C.border }} />{slot(m.bRef, "b")}
-                          {schedText && <div style={{ padding: "3px 9px", borderTop: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 9.5, color: closed || notYetOpen ? C.coral : C.textFaint }}>{schedText}</div>}
-                        </div>
-                        {/* Nhánh chảy sang vòng sau: đường ngang, tô vàng nếu đã có người thắng. */}
-                        <div style={{ position: "absolute", right: -24, top: "50%", width: 24, height: 2, background: m.winnerRef ? C.gold : C.border, transform: "translateY(-50%)" }} />
-                      </div>
-                    );
-                  })}
+              <div style={{ display: "flex", flexDirection: "column", minWidth: 128 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold, textAlign: "center", fontWeight: 700, padding: "0 0 10px" }}>Vô địch</div>
+                <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+                  {champ ? (
+                    <div style={{ flex: 1, background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "14px 8px", textAlign: "center" }}>
+                      <div style={{ fontSize: 30 }}>{champ.emoji || "🏆"}</div>
+                      <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3 }}>{champ.name}</div>
+                    </div>
+                  ) : <div style={{ flex: 1, background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: 14, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
                 </div>
-              ))}
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 120 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold, textAlign: "center", fontWeight: 700, marginBottom: 8 }}>Vô địch</div>
-                {champ ? (
-                  <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "14px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 30 }}>{champ.emoji || "🏆"}</div>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3 }}>{champ.name}</div>
-                  </div>
-                ) : <div style={{ background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: 14, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
               </div>
             </div>
           </div>
@@ -12108,6 +12100,142 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             placeholder="Thảo luận, dự đoán về giải đấu…"
             commentApi={{ list: (id, opts) => api.tournaments.listComments(id, opts), create: (id, body) => api.tournaments.createComment(id, body) }}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bảng chi tiết một trận (mở khi chạm trận trong bảng nhánh). Là "chương" của trận:
+// xem đối đầu + phiếu; với trận CHƯA lên sóng, chủ giải tuỳ chỉnh tên/ảnh đấu thủ và
+// hẹn GIỜ LÊN SÓNG (opensAt) như một rankie đang được dựng.
+function MatchSheet({ match: m, roundName, p, isOwner, isPrediction, onClose, onOpenRankie, onCustomize, onSchedule, onSetResult, fmtWhen, toLocalInput, showToast }) {
+  const [aName, setAName] = useState(m.aRef?.name || "");
+  const [bName, setBName] = useState(m.bRef?.name || "");
+  const [aImg, setAImg] = useState(m.aRef?.imageUrl || null);
+  const [bImg, setBImg] = useState(m.bRef?.imageUrl || null);
+  const [saving, setSaving] = useState(false);
+  const notYetOpen = m.opensAt && new Date(m.opensAt) > new Date();
+  const closed = m.closesAt && new Date(m.closesAt) <= new Date();
+  const ws = m.winnerRef ? (m.aRef && m.winnerRef.name === m.aRef.name ? "a" : "b") : null;
+  const pb = 100 - p;
+  const dirty = aName !== (m.aRef?.name || "") || bName !== (m.bRef?.name || "") || aImg !== (m.aRef?.imageUrl || null) || bImg !== (m.bRef?.imageUrl || null);
+
+  const av = (ref, img, size) => (img
+    ? <img src={img} alt="" style={{ width: size, height: size, borderRadius: 10, objectFit: "cover", background: C.surfaceRaised, flexShrink: 0 }} />
+    : <div style={{ width: size, height: size, borderRadius: 10, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.5), background: ref?.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref?.color || C.border}` }}>{ref?.emoji || "•"}</div>);
+
+  const saveCustom = () => {
+    if (!dirty) return;
+    setSaving(true);
+    const patch = {};
+    if (m.aRef) patch.a = { name: aName.trim() || m.aRef.name, imageUrl: aImg || null };
+    if (m.bRef) patch.b = { name: bName.trim() || m.bRef.name, imageUrl: bImg || null };
+    Promise.resolve(onCustomize(patch)).then(() => showToast?.("Đã lưu tuỳ chỉnh trận")).catch(() => {}).finally(() => setSaving(false));
+  };
+  const uploadFor = (setter, ref) => {
+    const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%232E5D4E'/><text x='40' y='50' font-size='30' text-anchor='middle' fill='white'>${ref?.emoji || "🏳️"}</text></svg>`;
+    pickImageUpload((url) => setter(url), "image", svg);
+  };
+  const inp = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", width: "100%" };
+  const dtInp = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 8px", color: C.text, fontFamily: bodyFont, fontSize: 12, outline: "none", colorScheme: "dark" };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "90vh", overflowY: "auto", borderTop: `1px solid ${C.border}`, animation: "slideUp 0.25s ease" }}>
+        <div style={{ position: "sticky", top: 0, background: C.surface, padding: "14px 16px 10px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 1 }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold }}>{roundName} · Trận đấu</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, display: "grid", placeItems: "center", width: 30, height: 30 }}><X size={20} /></button>
+        </div>
+
+        <div style={{ padding: 16 }}>
+          {/* Đối đầu + phiếu */}
+          <div style={{ display: "flex", alignItems: "stretch", gap: 10, marginBottom: 12 }}>
+            {[["a", m.aRef, aImg, p], ["b", m.bRef, bImg, pb]].map(([side, ref, img, pv]) => {
+              const win = ws === side;
+              return (
+                <div key={side} style={{ flex: 1, background: win ? C.goldSoft : C.bg, border: `1px solid ${win ? C.gold : C.border}`, borderRadius: 12, padding: "14px 10px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  {av(ref, img, 52)}
+                  <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: win ? C.gold : C.text, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{win && "🏆 "}{ref?.name || "— chờ —"}</div>
+                  {m.aRef && m.bRef && <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textMuted }}>{fmt(side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0))} phiếu · {pv}%</div>}
+                </div>
+              );
+            })}
+          </div>
+          {m.aRef && m.bRef && (
+            <div style={{ height: 10, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${C.border}`, background: "#0a120d", marginBottom: 10 }}>
+              <div style={{ width: `${p}%`, background: m.aRef?.color || C.teal }} />
+              <div style={{ width: `${pb}%`, background: m.bRef?.color || C.coral }} />
+            </div>
+          )}
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: notYetOpen || closed ? C.coral : C.teal, fontWeight: 600, marginBottom: 14 }}>
+            {notYetOpen ? `🕒 Lên sóng lúc ${fmtWhen(m.opensAt)} — chưa mở bình chọn` : closed ? "⏰ Đã đóng bình chọn" : m.rankiePostId ? "🟢 Đang mở bình chọn" : "⏳ Chưa có đấu thủ"}
+          </div>
+
+          {/* Vào trận (chapter) */}
+          {m.rankiePostId && (
+            <button onClick={() => onOpenRankie(m.rankiePostId)} style={{ width: "100%", padding: "12px", borderRadius: 12, background: C.teal, border: "none", color: "#08130d", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: isOwner ? 16 : 4 }}>
+              {notYetOpen ? "Xem trận (chưa mở bình chọn) →" : isPrediction ? "Vào trận để dự đoán →" : "Vào trận để bình chọn →"}
+            </button>
+          )}
+
+          {/* Kết quả dự đoán cho người xem */}
+          {isPrediction && m.winnerRef && m.myPick && !isOwner && (
+            <div style={{ fontFamily: bodyFont, fontSize: 13, marginBottom: 8 }}>
+              <span style={{ color: C.gold, fontWeight: 700 }}>Kết quả thật: {m.winnerRef.name}</span>{" "}
+              {m.myPick === ws ? <span style={{ color: C.teal, fontWeight: 700 }}>· Bạn đoán ĐÚNG ✓</span> : <span style={{ color: C.coral, fontWeight: 700 }}>· Bạn đoán sai ✗</span>}
+            </div>
+          )}
+
+          {isOwner && (
+            <>
+              {/* Tuỳ chỉnh đấu thủ */}
+              {(m.aRef || m.bRef) && (
+                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 4 }}>Tuỳ chỉnh đấu thủ</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>Đổi tên & ảnh đại diện của mỗi đấu thủ cho trận này. Áp dụng ngay vào bảng nhánh và bài bình chọn của trận.</div>
+                  {[["a", m.aRef, aName, setAName, aImg, setAImg], ["b", m.bRef, bName, setBName, bImg, setBImg]].filter(([, ref]) => ref).map(([side, ref, name, setName, img, setImg]) => (
+                    <div key={side} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <button onClick={() => uploadFor(setImg, ref)} title="Đổi ảnh" style={{ border: "none", background: "none", cursor: "pointer", padding: 0, position: "relative" }}>
+                        {av(ref, img, 44)}
+                        <span style={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center" }}><ImagePlus size={11} color="#231a05" /></span>
+                      </button>
+                      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Tên đấu thủ ${side.toUpperCase()}`} style={{ ...inp, flex: 1 }} />
+                    </div>
+                  ))}
+                  <button onClick={saveCustom} disabled={!dirty || saving} style={{ width: "100%", padding: "9px", borderRadius: 9, background: dirty ? C.gold : C.surfaceRaised, border: "none", color: dirty ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: dirty ? "pointer" : "default", opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu tuỳ chỉnh"}</button>
+                </div>
+              )}
+
+              {/* Hẹn giờ lên sóng */}
+              {m.rankiePostId && (
+                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 4 }}>🔴 Hẹn giờ lên sóng</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>Đặt lúc trận MỞ bình chọn (trước giờ này không ai bình chọn được) và lúc ĐÓNG.</div>
+                  <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>
+                    <span>🕒 Giờ lên sóng</span>
+                    <input type="datetime-local" value={toLocalInput(m.opensAt)} onChange={(e) => onSchedule({ opensAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={dtInp} />
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
+                    <span>⏰ Giờ đóng</span>
+                    <input type="datetime-local" value={toLocalInput(m.closesAt)} onChange={(e) => onSchedule({ closesAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={dtInp} />
+                  </label>
+                </div>
+              )}
+
+              {/* Nhập kết quả thật (giải dự đoán) */}
+              {isPrediction && m.aRef && m.bRef && (
+                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 8 }}>🏆 Kết quả thật</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[["a", m.aRef], ["b", m.bRef]].map(([side, ref]) => (
+                      <button key={side} onClick={() => onSetResult(side)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${ws === side ? C.gold : C.border}`, background: ws === side ? C.goldSoft : C.surfaceRaised, color: ws === side ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{ref?.name}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

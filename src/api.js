@@ -172,6 +172,7 @@ export const tournaments = {
   advance(id) { return apiFetch(`/tournaments/${id}/advance`, { method: 'POST' }); },
   setResult(id, round, position, winner) { return apiFetch(`/tournaments/${id}/matches/${round}/${position}/result`, { method: 'POST', body: { winner } }); },
   setSchedule(id, round, position, sched) { return apiFetch(`/tournaments/${id}/matches/${round}/${position}/schedule`, { method: 'POST', body: sched }); },
+  customizeMatch(id, round, position, patch) { return apiFetch(`/tournaments/${id}/matches/${round}/${position}/customize`, { method: 'POST', body: patch }); },
   mine() { return apiFetch('/tournaments/mine'); },
   feed() { return apiFetch('/tournaments'); }, // danh sách giải cho feed (mỗi giải = 1 thẻ)
   toggleBookmark(id) { return apiFetch(`/tournaments/${id}/bookmark`, { method: 'POST' }); }, // bật/tắt lưu giải
