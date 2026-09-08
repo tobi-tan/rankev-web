@@ -4467,6 +4467,9 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
         <AuthorRow author={t.author} onOpenAuthor={onOpenAuthor} rightSlot={<Pill tone="gold"><Trophy size={11} /> GIẢI ĐẤU</Pill>} />
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
+      {t.media?.url && (
+        <img src={t.media.url} alt="" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 10 }} />
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 12, background: champ ? C.goldSoft : C.surfaceRaised, border: `1px solid ${champ ? C.gold : C.border}`, marginBottom: 10 }}>
         <div style={{ width: 42, height: 42, borderRadius: 11, background: champ ? "transparent" : C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0, fontSize: champ ? 30 : 20 }}>
           {champ ? (champ.emoji || "🏆") : <Trophy size={20} color={C.gold} />}
@@ -4488,7 +4491,12 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={12} /> {fmt(t.totalVotes || 0)}</div>
         </div>
       </div>
-      <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal, textAlign: "center" }}>Xem bảng đấu →</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>
+          <MessageCircle size={14} /> {fmt(t.commentCount || 0)} thảo luận
+        </span>
+        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal }}>Xem bảng đấu →</span>
+      </div>
     </div>
   );
 }
@@ -11850,6 +11858,7 @@ function BottomNav({ active, setView, chatUnread = 0 }) {
 function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, showToast }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [schedEdit, setSchedEdit] = useState(null); // "round-position" ván đang sửa giờ
   const load = useCallback(() => { api.tournaments.get(tournamentId).then(setData).catch(() => {}); }, [tournamentId]);
   useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
   const advance = () => {
@@ -11885,6 +11894,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
     <div>
       <TopBar title={data.title} onBack={onBack} />
       <div style={{ padding: 16 }}>
+        {data.media?.url && (
+          <img src={data.media.url} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 14 }} />
+        )}
         {data.caption && (
           <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
         )}
@@ -11941,14 +11953,23 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                           <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: closed || notYetOpen ? C.coral : C.textFaint }}>
                             {notYetOpen ? `🕒 Bắt đầu lúc ${fmtWhen(m.opensAt)} · chưa mở` : m.closesAt ? (closed ? "⏰ Đã đóng bình chọn" : `⏰ Đóng bình chọn: ${fmtWhen(m.closesAt)}`) : (m.opensAt ? `🕒 Mở lúc ${fmtWhen(m.opensAt)}` : "⏰ Chưa hẹn giờ")}
                           </div>
-                          {isOwner && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
-                              <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Mở</span>
-                              <input type="datetime-local" value={toLocalInput(m.opensAt)} onChange={(e) => setSchedule(m, { opensAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "3px 7px", color: C.text, fontFamily: bodyFont, fontSize: 11, outline: "none", colorScheme: "dark" }} />
-                              <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Đóng</span>
-                              <input type="datetime-local" value={toLocalInput(m.closesAt)} onChange={(e) => setSchedule(m, { closesAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "3px 7px", color: C.text, fontFamily: bodyFont, fontSize: 11, outline: "none", colorScheme: "dark" }} />
+                          {isOwner && (schedEdit === `${m.round}-${m.position}` ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10 }} onClick={(e) => e.stopPropagation()}>
+                              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
+                                <span>🕒 Bắt đầu bình chọn</span>
+                                <input type="datetime-local" value={toLocalInput(m.opensAt)} onChange={(e) => setSchedule(m, { opensAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.text, fontFamily: bodyFont, fontSize: 11.5, outline: "none", colorScheme: "dark" }} />
+                              </label>
+                              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
+                                <span>⏰ Kết thúc bình chọn</span>
+                                <input type="datetime-local" value={toLocalInput(m.closesAt)} onChange={(e) => setSchedule(m, { closesAt: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.text, fontFamily: bodyFont, fontSize: 11.5, outline: "none", colorScheme: "dark" }} />
+                              </label>
+                              <button onClick={() => setSchedEdit(null)} style={{ alignSelf: "flex-end", padding: "5px 12px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Xong</button>
                             </div>
-                          )}
+                          ) : (
+                            <button onClick={(e) => { e.stopPropagation(); setSchedEdit(`${m.round}-${m.position}`); }} style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
+                              <Clock size={12} /> {m.opensAt || m.closesAt ? "Sửa giờ" : "Đặt giờ"}
+                            </button>
+                          ))}
                         </div>
                       );
                     })()}
@@ -12042,7 +12063,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
 
         {/* Bình luận trên thẻ đấu — như một bài rankie. */}
         <div style={{ marginTop: 20 }}>
-          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 10 }}>Thảo luận</div>
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 10 }}>Thảo luận{data.commentCount ? ` (${data.commentCount})` : ""}</div>
           <CommentsSection
             postId={data.id}
             initialComments={[]}
@@ -12078,6 +12099,11 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   const [closingTime, setClosingTime] = useState(null); // null = vô hạn | số giờ | { custom }
   const [allowGuestPresent, setAllowGuestPresent] = useState(false);
   const [advanceMode, setAdvanceMode] = useState("vote"); // 'vote' | 'result' (giải dự đoán)
+  const [media, setMedia] = useState(null); // ảnh mô tả (bìa) giải: { type:'image', url }
+  const addCover = () => {
+    const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='200'><rect width='400' height='200' fill='%232E5D4E'/><text x='200' y='115' font-size='56' text-anchor='middle'>🏆</text></svg>`;
+    pickImageUpload((url) => setMedia({ type: "image", url }), "image", svg);
+  };
   const [contestants, setContestants] = useState(initialContestants);
   const [nameInput, setNameInput] = useState("");
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
@@ -12111,10 +12137,12 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
       if (ms > 0) closesInHours = Math.max(1, Math.ceil(ms / 3600000));
     }
     const urlOK = (u) => (typeof u === "string" && /^https?:/.test(u) ? u : undefined);
+    const coverUrl = media && urlOK(media.url);
     api.tournaments.create({
       title: title.trim(),
       category,
       caption: caption.trim() || undefined,
+      media: coverUrl ? { type: "image", url: coverUrl } : undefined,
       closesInHours,
       allowGuestPresent,
       advanceMode,
@@ -12134,6 +12162,20 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
         <div>
           <div style={label}>Mô tả (không bắt buộc)</div>
           <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Giới thiệu thể lệ, bối cảnh…" rows={2} style={{ ...field, width: "100%", resize: "vertical" }} />
+        </div>
+
+        <div>
+          <div style={label}>Ảnh bìa (không bắt buộc)</div>
+          {media?.url ? (
+            <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}>
+              <img src={media.url} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "cover", display: "block" }} />
+              <button onClick={() => setMedia(null)} style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={16} /></button>
+            </div>
+          ) : (
+            <button onClick={addCover} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px dashed ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}>
+              <ImagePlus size={16} /> Thêm ảnh bìa cho giải
+            </button>
+          )}
         </div>
 
         <div>
@@ -13907,6 +13949,7 @@ export default function RankevApp() {
     id: t.id, type: "tournament", title: t.title, category: t.category || "Khác",
     author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
     status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
+    media: t.media || null, commentCount: t.commentCount || 0,
     participants: t.totalVotes || 0, // để xếp trending hợp lý
   }));
   const feedDedup = new Map();
@@ -14151,7 +14194,7 @@ export default function RankevApp() {
     const realId = aid === "me" ? currentUser.apiId : aid;
     return tournamentFeed
       .filter((t) => t.author?.id === realId)
-      .map((t) => ({ id: t.id, title: t.title, category: t.category, author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes }));
+      .map((t) => ({ id: t.id, title: t.title, category: t.category, author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes, media: t.media || null, commentCount: t.commentCount || 0 }));
   }, [tournamentFeed]);
 
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef, openTournament }), [saveToRankie, rankieBasket, openRef, openTournament]);
