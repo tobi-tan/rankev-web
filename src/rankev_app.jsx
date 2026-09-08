@@ -4545,7 +4545,17 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
     return () => { alive = false; };
   }, []);
   // Danh sách hashtag hiển thị: trending (thật) trước, bù thêm gợi ý mặc định cho đủ.
-  const tagBar = [...new Set([...(trendingTags || []), ...DEFAULT_HASHTAGS])].slice(0, 16);
+  // Khử trùng không phân biệt dấu để không hiện cả #âmnhạc lẫn #amnhac.
+  const tagBar = (() => {
+    const seen = new Set(); const out = [];
+    for (const t of [...(trendingTags || []), ...DEFAULT_HASHTAGS]) {
+      const k = normalizeVi(t);
+      if (!k || seen.has(k)) continue;
+      seen.add(k); out.push(t);
+      if (out.length >= 16) break;
+    }
+    return out;
+  })();
   const typeOptions = [
     { id: "all", label: "Tất cả" },
     { id: "rankie", label: "📊 Rankie" },
@@ -4671,7 +4681,7 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
       <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "6px 16px 10px", scrollbarWidth: "none" }}>
         <button onClick={() => setActiveCategory("Đang thịnh hành")} style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, border: `1px solid ${activeCategory === "Đang thịnh hành" ? C.gold : C.border}`, background: activeCategory === "Đang thịnh hành" ? C.goldSoft : C.surface, color: activeCategory === "Đang thịnh hành" ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🔥 Thịnh hành</button>
         {tagBar.map((t) => {
-          const active = String(activeCategory).toLowerCase() === String(t).toLowerCase();
+          const active = normalizeVi(activeCategory) === normalizeVi(t);
           return (
             <button key={t} onClick={() => setActiveCategory(active ? "Đang thịnh hành" : t)} style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>#{t}</button>
           );
@@ -10169,6 +10179,7 @@ const CATEGORIES = [
 // Hashtag gợi ý mặc định (thay danh mục cố định) — người dùng vẫn tự gõ tag riêng.
 const DEFAULT_HASHTAGS = ["thethao", "amnhac", "amthuc", "congnghe", "phim", "game", "dulich", "thoitrang", "suckhoe", "congdong"];
 
+
 // Ô nhập hashtag tự do (chip). Enter/space/phẩy để thêm; Backspace xoá tag cuối.
 function HashtagInput({ tags = [], onChange, suggestions = DEFAULT_HASHTAGS, placeholder = "Thêm hashtag…" }) {
   const [text, setText] = useState("");
@@ -10177,7 +10188,7 @@ function HashtagInput({ tags = [], onChange, suggestions = DEFAULT_HASHTAGS, pla
     const t = norm(raw);
     setText("");
     if (!t || tags.length >= 10) return;
-    if (tags.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+    if (tags.some((x) => normalizeVi(x) === normalizeVi(t))) return;
     onChange([...tags, t]);
   };
   const remove = (i) => onChange(tags.filter((_, idx) => idx !== i));
@@ -12058,6 +12069,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         )}
         {data.caption && (
           <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
+        )}
+        {(data.tags?.length || data.category) && (
+          <div style={{ marginBottom: 14 }}><TagPills tags={data.tags} category={data.category} max={6} /></div>
         )}
         {champ && (
           <div style={{ ...cardSurface, textAlign: "center", padding: "22px 16px", marginBottom: 16 }}>
@@ -14248,9 +14262,9 @@ export default function RankevApp() {
   const feedItems = feedItemsAll
     .filter((item) => {
       if (activeCategory === "Đang thịnh hành") return true;
-      const k = String(activeCategory).toLowerCase();
-      // Khớp theo hashtag (ưu tiên) hoặc danh mục cũ (tương thích ngược).
-      return (Array.isArray(item.tags) && item.tags.some((t) => String(t).toLowerCase() === k)) || item.category === activeCategory;
+      const k = normalizeVi(activeCategory);
+      // Khớp theo hashtag (ưu tiên, không phân biệt dấu) hoặc danh mục cũ (tương thích ngược).
+      return (Array.isArray(item.tags) && item.tags.some((t) => normalizeVi(t) === k)) || item.category === activeCategory;
     })
     .filter((item) => {
       if (typeFilter === "all") return true;
