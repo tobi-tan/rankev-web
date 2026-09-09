@@ -12588,12 +12588,12 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
   const ringPts = (f) => axes.map((a) => pt(a.ang, R * f).join(",")).join(" ");
   const vpts = axes.map((a) => pt(a.ang, rr(a.v)));
   const poly = vpts.map((p) => p.join(",")).join(" ");
-  // Tâm cụm nhãn mỗi trục — SỐ + ICON nằm ngang (kiểu engagement bar), căn giữa, không chồng.
+  // Tâm cụm nhãn mỗi trục — SỐ nằm TRÊN, ICON nằm DƯỚI (dọc), căn giữa.
   const labelPos = {
-    "-90": { x: cx, y: cy - R - 14 },
-    "0": { x: cx + R + 26, y: cy },
-    "90": { x: cx, y: cy + R + 16 },
-    "180": { x: cx - R - 26, y: cy },
+    "-90": { x: cx, y: cy - R - 22 },
+    "0": { x: cx + R + 24, y: cy - 8 },
+    "90": { x: cx, y: cy + R + 8 },
+    "180": { x: cx - R - 24, y: cy - 8 },
   };
   const rc = rankCounts || { tier1: 0, tier2: 0, tier3: 0 };
   const tiers = [
@@ -12602,13 +12602,15 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
     { level: 3, label: "Fan cuồng", color: C.coral, count: rc.tier3 || 0 },
   ];
   return (
-    <div style={{ position: "relative" }}>
-      {/* Lượt xem — góc trên bên phải */}
-      <div style={{ position: "absolute", top: 2, right: 6, display: "flex", alignItems: "center", gap: 4, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 13 }} title="Tổng lượt tương tác">
-        <Eye size={14} /> {fmtCompact(views)}
+    <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
+      {/* Lượt xem — góc trên bên phải: SỐ trên, ICON dưới */}
+      <div style={{ position: "absolute", top: 0, right: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 1, color: C.gold }} title="Tổng lượt tương tác">
+        <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, lineHeight: 1 }}>{fmtCompact(views)}</span>
+        <Eye size={13} />
+        {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>Lượt xem</span>}
       </div>
 
-      <svg viewBox="0 0 300 200" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
+      <svg viewBox="0 0 300 210" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
         {[0.34, 0.67, 1].map((f) => (
           <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
         ))}
@@ -12617,36 +12619,33 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
         {vpts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={axes[i].color} />)}
         {axes.map((a, i) => {
           const lp = labelPos[String(a.ang)];
-          const n = fmt(a.v);
-          const nw = String(n).length * 9;         // ước lượng bề rộng số (mono)
-          const W = nw + 4 + 16;                    // số + khoảng cách + icon
-          const sx = lp.x - W / 2;
           return (
             <g key={"l" + i}>
-              {/* SỐ rồi ICON, nằm ngang, căn giữa quanh điểm trục */}
-              <text x={sx} y={lp.y + 5} textAnchor="start" fontFamily={monoFont} fontWeight="800" fontSize="15" fill={a.color}>{n}</text>
-              <a.Icon x={sx + nw + 4} y={lp.y - 7} size={15} color={a.color} strokeWidth={2.4} />
-              {showLabels && <text x={lp.x} y={lp.y + 17} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.5" fill={C.textFaint}>{a.label}</text>}
+              {/* SỐ nằm trên, ICON nằm dưới — căn giữa quanh điểm trục */}
+              <text x={lp.x} y={lp.y} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="15" fill={a.color}>{fmt(a.v)}</text>
+              <a.Icon x={lp.x - 8} y={lp.y + 3} size={16} color={a.color} strokeWidth={2.4} />
+              {showLabels && <text x={lp.x} y={lp.y + 30} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.4" fill={C.textFaint}>{a.label}</text>}
             </g>
           );
         })}
-        {/* Trung tâm: ICON tổng (Grid3x3) + tổng số bài đăng */}
+        {/* Trung tâm: SỐ tổng nằm trên, ICON tổng (Grid3x3) nằm dưới */}
         <circle cx={cx} cy={cy} r="30" fill={C.surface} stroke={C.gold} strokeWidth="1.5" />
-        <Grid3x3 x={cx - 8} y={cy - 20} size={16} color={C.gold} strokeWidth={2.2} />
-        <text x={cx} y={cy + 10} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="21" fill={C.text}>{fmt(posts)}</text>
-        {showLabels && <text x={cx} y={cy + 23} textAnchor="middle" fontFamily={bodyFont} fontSize="8" letterSpacing="1" fill={C.textFaint}>BÀI ĐĂNG</text>}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
+        <Grid3x3 x={cx - 8} y={cy + 3} size={16} color={C.gold} strokeWidth={2.2} />
+        {showLabels && <text x={cx} y={cy + 26} textAnchor="middle" fontFamily={bodyFont} fontSize="7.5" fontWeight="700" letterSpacing="0.5" fill={C.textFaint}>BÀI ĐĂNG</text>}
       </svg>
 
-      {/* Ba tầng RankUp: số người quan tâm / yêu thích / fan cuồng */}
+      {/* Ba tầng RankUp: SỐ nằm trên, ICON nằm dưới (đồng nhất với trên) */}
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         {tiers.map((ti) => (
           <div key={ti.level} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "9px 4px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 11 }}>
+            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: ti.color, lineHeight: 1 }}>{fmt(ti.count)}</div>
             <RankChevrons level={ti.level} color={ti.color} size={18} />
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: ti.color }}>{fmt(ti.count)}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 10, color: C.textFaint, fontWeight: 700, letterSpacing: 0.2 }}>{ti.label}</div>
+            {showLabels && <div style={{ fontFamily: bodyFont, fontSize: 10, color: C.textFaint, fontWeight: 700, letterSpacing: 0.2 }}>{ti.label}</div>}
           </div>
         ))}
       </div>
+      <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 8.5, color: C.textFaint, marginTop: 5 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
     </div>
   );
 }
