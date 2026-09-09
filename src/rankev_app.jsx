@@ -12589,14 +12589,22 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
   const vpts = axes.map((a) => pt(a.ang, rr(a.v)));
   const poly = vpts.map((p) => p.join(",")).join(" ");
   const labelPos = {
-    "-90": { x: cx, y: cy - R - 22 },
-    "0": { x: cx + R + 24, y: cy - 8 },
-    "90": { x: cx, y: cy + R + 8 },
-    "180": { x: cx - R - 24, y: cy - 8 },
+    "-90": { x: cx, y: cy - R - 12 },
+    "0": { x: cx + R + 30, y: cy + 2 },
+    "90": { x: cx, y: cy + R + 20 },
+    "180": { x: cx - R - 30, y: cy + 2 },
   };
   const rc = rankCounts || { tier1: 0, tier2: 0, tier3: 0 };
-  // Chỉ số phụ (độ nổi tiếng) — hàng ngang gọn ở góc trên bên phải, kiểu engagement bar.
-  const summary = [
+  // Mọi chip đều: SỐ bên trái, ICON bên phải (một hàng ngang) — quy tắc UI chung.
+  const Chip = ({ count, icon, label, color }) => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, color, fontFamily: monoFont, fontWeight: 800, fontSize: 13 }}>
+        <span>{count}</span>{icon}
+      </div>
+      {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>{label}</span>}
+    </div>
+  );
+  const popularity = [
     { key: "t1", color: C.teal, count: fmt(rc.tier1 || 0), label: "Quan tâm", icon: <RankChevrons level={1} color={C.teal} size={15} /> },
     { key: "t2", color: C.gold, count: fmt(rc.tier2 || 0), label: "Yêu thích", icon: <RankChevrons level={2} color={C.gold} size={15} /> },
     { key: "t3", color: C.coral, count: fmt(rc.tier3 || 0), label: "Fan cuồng", icon: <RankChevrons level={3} color={C.coral} size={15} /> },
@@ -12604,41 +12612,37 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
   ];
   return (
     <div style={{ cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
-      {/* Hàng chỉ số phụ: quan tâm / yêu thích / fan cuồng / lượt xem — icon + số, căn phải */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", flexWrap: "wrap", gap: 14, padding: "0 4px 2px" }}>
-        {summary.map((s) => (
-          <div key={s.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, color: s.color, fontFamily: monoFont, fontWeight: 800, fontSize: 13 }}>
-              {s.icon}<span>{s.count}</span>
-            </div>
-            {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>{s.label}</span>}
-          </div>
-        ))}
+      {/* Hàng chỉ số: TỔNG bài đăng bên trái; độ nổi tiếng + lượt xem bên phải. Đều SỐ-trái-ICON-phải. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "0 4px 2px", flexWrap: "wrap" }}>
+        <Chip count={fmt(posts)} icon={<Grid3x3 size={15} color={C.text} />} label="Bài đăng" color={C.text} />
+        <div style={{ display: "flex", gap: 13, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {popularity.map((s) => <Chip key={s.key} count={s.count} icon={s.icon} label={s.label} color={s.color} />)}
+        </div>
       </div>
 
-      <svg viewBox="0 0 300 206" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
+      <svg viewBox="0 0 300 200" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
         {[0.34, 0.67, 1].map((f) => (
           <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
         ))}
-        {/* Nan hoa bắt đầu cách tâm 18px để chừa chỗ cho số tổng ở giữa (không cần vòng tròn che) */}
-        {axes.map((a, i) => { const [x1, y1] = pt(a.ang, 18); const [x2, y2] = pt(a.ang, R); return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={C.border} strokeWidth="1" />; })}
+        {axes.map((a, i) => { const [x, y] = pt(a.ang, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={C.border} strokeWidth="1" />; })}
         <polygon points={poly} fill={C.gold + "2b"} stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
         {vpts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={axes[i].color} />)}
         {axes.map((a, i) => {
           const lp = labelPos[String(a.ang)];
+          const n = fmt(a.v);
+          const nw = String(n).length * 9;        // ước lượng bề rộng số (mono)
+          const W = nw + 4 + 16;                   // SỐ + khoảng cách + ICON
+          const sx = lp.x - W / 2;
           return (
             <g key={"l" + i}>
-              {/* SỐ nằm trên, ICON nằm dưới — căn giữa quanh điểm trục */}
-              <text x={lp.x} y={lp.y} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="15" fill={a.color}>{fmt(a.v)}</text>
-              <a.Icon x={lp.x - 8} y={lp.y + 3} size={16} color={a.color} strokeWidth={2.4} />
-              {showLabels && <text x={lp.x} y={lp.y + 30} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.4" fill={C.textFaint}>{a.label}</text>}
+              {/* SỐ bên trái, ICON bên phải — nằm ngang, căn giữa quanh điểm trục */}
+              <text x={sx} y={lp.y + 5} textAnchor="start" fontFamily={monoFont} fontWeight="800" fontSize="15" fill={a.color}>{n}</text>
+              <a.Icon x={sx + nw + 4} y={lp.y - 8} size={16} color={a.color} strokeWidth={2.4} />
+              {showLabels && <text x={lp.x} y={lp.y + 20} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.4" fill={C.textFaint}>{a.label}</text>}
             </g>
           );
         })}
-        {/* Trung tâm: chỉ SỐ tổng + ICON (Grid3x3), KHÔNG vòng tròn che sơ đồ nhện */}
-        <text x={cx} y={cy - 1} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
-        <Grid3x3 x={cx - 8} y={cy + 4} size={16} color={C.gold} strokeWidth={2.2} />
-        {showLabels && <text x={cx} y={cy + 27} textAnchor="middle" fontFamily={bodyFont} fontSize="7.5" fontWeight="700" letterSpacing="0.5" fill={C.textFaint}>BÀI ĐĂNG</text>}
+        {/* Trung tâm để TRỐNG — không che sơ đồ nhện (tổng bài đăng đã ở hàng chỉ số trên) */}
       </svg>
 
       <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 8.5, color: C.textFaint, marginTop: 2 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
