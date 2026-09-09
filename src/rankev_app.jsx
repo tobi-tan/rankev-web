@@ -4556,12 +4556,13 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
     }
     return out;
   })();
+  // Bộ icon lucide dùng CHUNG toàn hệ thống (khớp bộ lọc hồ sơ).
   const typeOptions = [
-    { id: "all", label: "Tất cả" },
-    { id: "rankie", label: "📊 Rankie" },
-    { id: "path", label: "🌿 Path" },
-    { id: "deck", label: "📋 Survey" },
-    { id: "exam", label: "📝 Exam" },
+    { id: "all", label: "Tất cả", icon: Grid3x3 },
+    { id: "rankie", label: "Rankie", icon: BarChart3 },
+    { id: "path", label: "Path", icon: GitBranch },
+    { id: "deck", label: "Survey", icon: Layers },
+    { id: "exam", label: "Exam", icon: Edit3 },
   ];
   const currentLabel = typeOptions.find((t) => t.id === typeFilter)?.label || "Tất cả";
 
@@ -4656,7 +4657,9 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
                           textAlign: "left",
                         }}
                       >
-                        {t.label}
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <t.icon size={15} color={selected ? C.gold : C.textMuted} /> {t.label}
+                        </span>
                         {selected && <Check size={13} />}
                       </button>
                     );
@@ -12573,24 +12576,27 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
   const cx = 150, cy = 116, R = 62;
   const max = Math.max(1, rankie, path, exam, survey);
   const rr = (v) => (v <= 0 ? 7 : Math.max(9, R * (v / max)));
+  // Dùng CHUNG bộ icon lucide với bộ lọc hồ sơ (Rankie=BarChart3, Path=GitBranch,
+  // Exam=Edit3, Survey=Layers) để thống nhất toàn hệ thống — không tạo emoji riêng.
   const axes = [
-    { v: rankie, color: C.teal,    label: "Rankie", icon: "📊", ang: -90 },
-    { v: path,   color: C.gold,    label: "Path",   icon: "🌿", ang: 0 },
-    { v: exam,   color: C.coral,   label: "Exam",   icon: "📝", ang: 90 },
-    { v: survey, color: "#A594E0", label: "Survey", icon: "📋", ang: 180 },
+    { v: rankie, color: C.teal,    label: "Rankie", Icon: BarChart3, ang: -90 },
+    { v: path,   color: C.gold,    label: "Path",   Icon: GitBranch, ang: 0 },
+    { v: exam,   color: C.coral,   label: "Exam",   Icon: Edit3,     ang: 90 },
+    { v: survey, color: "#A594E0", label: "Survey", Icon: Layers,    ang: 180 },
   ];
   const pt = (ang, rad) => [cx + Math.cos((ang * Math.PI) / 180) * rad, cy + Math.sin((ang * Math.PI) / 180) * rad];
   const ringPts = (f) => axes.map((a) => pt(a.ang, R * f).join(",")).join(" ");
   const vpts = axes.map((a) => pt(a.ang, rr(a.v)));
   const poly = vpts.map((p) => p.join(",")).join(" ");
+  // Tâm cụm nhãn mỗi trục (icon xếp trên, số ở dưới, căn giữa).
   const labelPos = {
-    "-90": { x: cx, y: cy - R - 24, a: "middle" },
-    "0": { x: cx + R + 14, y: cy - 6, a: "start" },
-    "90": { x: cx, y: cy + R + 20, a: "middle" },
-    "180": { x: cx - R - 14, y: cy - 6, a: "end" },
+    "-90": { x: cx, y: cy - R - 18 },
+    "0": { x: cx + R + 22, y: cy - 2 },
+    "90": { x: cx, y: cy + R + 16 },
+    "180": { x: cx - R - 22, y: cy - 2 },
   };
   return (
-    <svg viewBox="0 0 300 250" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
+    <svg viewBox="0 0 300 252" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
       {[0.34, 0.67, 1].map((f) => (
         <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
       ))}
@@ -12601,21 +12607,21 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
         const lp = labelPos[String(a.ang)];
         return (
           <g key={"l" + i}>
-            {/* SỐ + BIỂU TƯỢNG trên một dòng (icon đứng trước số) */}
-            <text x={lp.x} y={lp.y} textAnchor={lp.a} fontFamily={monoFont} fontWeight="700" fontSize="17" fill={a.color}>
-              <tspan fontSize="14">{a.icon} </tspan>{fmt(a.v)}
-            </text>
+            {/* BIỂU TƯỢNG (icon lucide dùng chung) xếp trên SỐ */}
+            <a.Icon x={lp.x - 8} y={lp.y - 17} size={16} color={a.color} strokeWidth={2.4} />
+            <text x={lp.x} y={lp.y + 6} textAnchor="middle" fontFamily={monoFont} fontWeight="700" fontSize="16" fill={a.color}>{fmt(a.v)}</text>
             {/* Nhãn chữ chỉ hiện khi bật toggle */}
-            {showLabels && <text x={lp.x} y={lp.y + 12} textAnchor={lp.a} fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.5" fill={C.textFaint}>{a.label}</text>}
+            {showLabels && <text x={lp.x} y={lp.y + 18} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.5" fill={C.textFaint}>{a.label}</text>}
           </g>
         );
       })}
       <circle cx={cx} cy={cy} r="31" fill={C.surface} stroke={C.gold} strokeWidth="1.5" />
       <text x={cx} y={showLabels ? cy - 4 : cy + 1} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
       {showLabels && <text x={cx} y={cy + 8} textAnchor="middle" fontFamily={bodyFont} fontSize="8" letterSpacing="1" fill={C.textFaint}>BÀI ĐĂNG</text>}
-      <text x={cx} y={cy + 21} textAnchor="middle" fontFamily={monoFont} fontWeight="700" fontSize="10.5" fill={C.gold}>👁 {fmtCompact(views)}</text>
+      <Eye x={cx - 24} y={cy + 13} size={11} color={C.gold} strokeWidth={2.4} />
+      <text x={cx + 3} y={cy + 22} textAnchor="middle" fontFamily={monoFont} fontWeight="700" fontSize="10.5" fill={C.gold}>{fmtCompact(views)}</text>
       {/* Gợi ý nhỏ để người dùng biết chạm được */}
-      <text x={cx} y={246} textAnchor="middle" fontFamily={bodyFont} fontSize="8.5" letterSpacing="0.5" fill={C.textFaint}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</text>
+      <text x={cx} y={248} textAnchor="middle" fontFamily={bodyFont} fontSize="8.5" letterSpacing="0.5" fill={C.textFaint}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</text>
     </svg>
   );
 }
