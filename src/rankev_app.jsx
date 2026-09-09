@@ -12570,14 +12570,14 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
 
 // Biểu đồ thống kê hồ sơ kiểu "chỉ số game": 4 góc = rankie/path/exam/survey (diện
 // tích radar theo số bài mỗi loại), huy hiệu trung tâm = tổng bài đăng + lượt.
-function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
-  // Mặc định hiện SỐ + BIỂU TƯỢNG; chạm vào biểu đồ để bật/tắt nhãn chữ (Rankie, Path…).
+function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts }) {
+  // Chạm biểu đồ để bật/tắt nhãn chữ (Rankie, Path…).
   const [showLabels, setShowLabels] = useState(false);
-  const cx = 150, cy = 116, R = 62;
+  const cx = 150, cy = 108, R = 60;
   const max = Math.max(1, rankie, path, exam, survey);
   const rr = (v) => (v <= 0 ? 7 : Math.max(9, R * (v / max)));
   // Dùng CHUNG bộ icon lucide với bộ lọc hồ sơ (Rankie=BarChart3, Path=GitBranch,
-  // Exam=Edit3, Survey=Layers) để thống nhất toàn hệ thống — không tạo emoji riêng.
+  // Exam=Edit3, Survey=Layers) — không tạo emoji riêng.
   const axes = [
     { v: rankie, color: C.teal,    label: "Rankie", Icon: BarChart3, ang: -90 },
     { v: path,   color: C.gold,    label: "Path",   Icon: GitBranch, ang: 0 },
@@ -12588,41 +12588,66 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
   const ringPts = (f) => axes.map((a) => pt(a.ang, R * f).join(",")).join(" ");
   const vpts = axes.map((a) => pt(a.ang, rr(a.v)));
   const poly = vpts.map((p) => p.join(",")).join(" ");
-  // Tâm cụm nhãn mỗi trục (icon xếp trên, số ở dưới, căn giữa).
+  // Tâm cụm nhãn mỗi trục — SỐ + ICON nằm ngang (kiểu engagement bar), căn giữa, không chồng.
   const labelPos = {
-    "-90": { x: cx, y: cy - R - 18 },
-    "0": { x: cx + R + 22, y: cy - 2 },
+    "-90": { x: cx, y: cy - R - 14 },
+    "0": { x: cx + R + 26, y: cy },
     "90": { x: cx, y: cy + R + 16 },
-    "180": { x: cx - R - 22, y: cy - 2 },
+    "180": { x: cx - R - 26, y: cy },
   };
+  const rc = rankCounts || { tier1: 0, tier2: 0, tier3: 0 };
+  const tiers = [
+    { level: 1, label: "Quan tâm", color: C.teal, count: rc.tier1 || 0 },
+    { level: 2, label: "Yêu thích", color: C.gold, count: rc.tier2 || 0 },
+    { level: 3, label: "Fan cuồng", color: C.coral, count: rc.tier3 || 0 },
+  ];
   return (
-    <svg viewBox="0 0 300 252" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
-      {[0.34, 0.67, 1].map((f) => (
-        <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
-      ))}
-      {axes.map((a, i) => { const [x, y] = pt(a.ang, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={C.border} strokeWidth="1" />; })}
-      <polygon points={poly} fill={C.gold + "2b"} stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
-      {vpts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={axes[i].color} />)}
-      {axes.map((a, i) => {
-        const lp = labelPos[String(a.ang)];
-        return (
-          <g key={"l" + i}>
-            {/* BIỂU TƯỢNG (icon lucide dùng chung) xếp trên SỐ */}
-            <a.Icon x={lp.x - 8} y={lp.y - 17} size={16} color={a.color} strokeWidth={2.4} />
-            <text x={lp.x} y={lp.y + 6} textAnchor="middle" fontFamily={monoFont} fontWeight="700" fontSize="16" fill={a.color}>{fmt(a.v)}</text>
-            {/* Nhãn chữ chỉ hiện khi bật toggle */}
-            {showLabels && <text x={lp.x} y={lp.y + 18} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.5" fill={C.textFaint}>{a.label}</text>}
-          </g>
-        );
-      })}
-      <circle cx={cx} cy={cy} r="31" fill={C.surface} stroke={C.gold} strokeWidth="1.5" />
-      <text x={cx} y={showLabels ? cy - 4 : cy + 1} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
-      {showLabels && <text x={cx} y={cy + 8} textAnchor="middle" fontFamily={bodyFont} fontSize="8" letterSpacing="1" fill={C.textFaint}>BÀI ĐĂNG</text>}
-      <Eye x={cx - 24} y={cy + 13} size={11} color={C.gold} strokeWidth={2.4} />
-      <text x={cx + 3} y={cy + 22} textAnchor="middle" fontFamily={monoFont} fontWeight="700" fontSize="10.5" fill={C.gold}>{fmtCompact(views)}</text>
-      {/* Gợi ý nhỏ để người dùng biết chạm được */}
-      <text x={cx} y={248} textAnchor="middle" fontFamily={bodyFont} fontSize="8.5" letterSpacing="0.5" fill={C.textFaint}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</text>
-    </svg>
+    <div style={{ position: "relative" }}>
+      {/* Lượt xem — góc trên bên phải */}
+      <div style={{ position: "absolute", top: 2, right: 6, display: "flex", alignItems: "center", gap: 4, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 13 }} title="Tổng lượt tương tác">
+        <Eye size={14} /> {fmtCompact(views)}
+      </div>
+
+      <svg viewBox="0 0 300 200" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
+        {[0.34, 0.67, 1].map((f) => (
+          <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
+        ))}
+        {axes.map((a, i) => { const [x, y] = pt(a.ang, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={C.border} strokeWidth="1" />; })}
+        <polygon points={poly} fill={C.gold + "2b"} stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
+        {vpts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={axes[i].color} />)}
+        {axes.map((a, i) => {
+          const lp = labelPos[String(a.ang)];
+          const n = fmt(a.v);
+          const nw = String(n).length * 9;         // ước lượng bề rộng số (mono)
+          const W = nw + 4 + 16;                    // số + khoảng cách + icon
+          const sx = lp.x - W / 2;
+          return (
+            <g key={"l" + i}>
+              {/* SỐ rồi ICON, nằm ngang, căn giữa quanh điểm trục */}
+              <text x={sx} y={lp.y + 5} textAnchor="start" fontFamily={monoFont} fontWeight="800" fontSize="15" fill={a.color}>{n}</text>
+              <a.Icon x={sx + nw + 4} y={lp.y - 7} size={15} color={a.color} strokeWidth={2.4} />
+              {showLabels && <text x={lp.x} y={lp.y + 17} textAnchor="middle" fontFamily={bodyFont} fontWeight="700" fontSize="9.5" letterSpacing="0.5" fill={C.textFaint}>{a.label}</text>}
+            </g>
+          );
+        })}
+        {/* Trung tâm: ICON tổng (Grid3x3) + tổng số bài đăng */}
+        <circle cx={cx} cy={cy} r="30" fill={C.surface} stroke={C.gold} strokeWidth="1.5" />
+        <Grid3x3 x={cx - 8} y={cy - 20} size={16} color={C.gold} strokeWidth={2.2} />
+        <text x={cx} y={cy + 10} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="21" fill={C.text}>{fmt(posts)}</text>
+        {showLabels && <text x={cx} y={cy + 23} textAnchor="middle" fontFamily={bodyFont} fontSize="8" letterSpacing="1" fill={C.textFaint}>BÀI ĐĂNG</text>}
+      </svg>
+
+      {/* Ba tầng RankUp: số người quan tâm / yêu thích / fan cuồng */}
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        {tiers.map((ti) => (
+          <div key={ti.level} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "9px 4px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 11 }}>
+            <RankChevrons level={ti.level} color={ti.color} size={18} />
+            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: ti.color }}>{fmt(ti.count)}</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 10, color: C.textFaint, fontWeight: 700, letterSpacing: 0.2 }}>{ti.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -12690,6 +12715,16 @@ function ProfileView({
   const isMe = targetId === "me";
   const canManage = isMe && !!onPin; // management actions are only wired up for "my profile"
   const author = AUTHORS[targetId] || currentUser;
+
+  // Số người đã RankUp hồ sơ này ở mỗi tầng (quan tâm/yêu thích/fan cuồng) — từ backend.
+  const [rankCounts, setRankCounts] = useState({ tier1: 0, tier2: 0, tier3: 0, total: 0 });
+  const profileUserId = isMe ? (currentUser.apiId || null) : (/^[0-9a-f-]{36}$/i.test(targetId) ? targetId : null);
+  useEffect(() => {
+    if (!profileUserId) { setRankCounts({ tier1: 0, tier2: 0, tier3: 0, total: 0 }); return; }
+    let alive = true;
+    api.social.profile(profileUserId).then((r) => { if (alive && r?.rankCounts) setRankCounts(r.rankCounts); }).catch(() => {});
+    return () => { alive = false; };
+  }, [profileUserId]);
 
   const theirPostsAll = posts
     .filter((p) => (p.author ? p.author.id === targetId : isMe && p.mine))
@@ -12869,6 +12904,7 @@ function ProfileView({
             survey={theirDecks.length}
             posts={theirPostsAll.length}
             views={totalReach}
+            rankCounts={rankCounts}
           />
         </div>
 

@@ -251,6 +251,7 @@ export const bookmarks = {
 export const social = {
   rankUp(authorId, tier) { return apiFetch(`/users/${authorId}/rankup`, { method: 'POST', body: { tier } }); },
   history() { return apiFetch('/users/me/history'); },
+  profile(userId) { return apiFetch(`/users/${userId}`); }, // → { user, rankCounts: {tier1,tier2,tier3,total} }
 };
 
 export const series = {
