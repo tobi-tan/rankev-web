@@ -12573,7 +12573,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
 function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts }) {
   // Chạm biểu đồ để bật/tắt nhãn chữ (Rankie, Path…).
   const [showLabels, setShowLabels] = useState(false);
-  const cx = 150, cy = 108, R = 60;
+  const cx = 150, cy = 102, R = 60;
   const max = Math.max(1, rankie, path, exam, survey);
   const rr = (v) => (v <= 0 ? 7 : Math.max(9, R * (v / max)));
   // Dùng CHUNG bộ icon lucide với bộ lọc hồ sơ (Rankie=BarChart3, Path=GitBranch,
@@ -12588,7 +12588,6 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
   const ringPts = (f) => axes.map((a) => pt(a.ang, R * f).join(",")).join(" ");
   const vpts = axes.map((a) => pt(a.ang, rr(a.v)));
   const poly = vpts.map((p) => p.join(",")).join(" ");
-  // Tâm cụm nhãn mỗi trục — SỐ nằm TRÊN, ICON nằm DƯỚI (dọc), căn giữa.
   const labelPos = {
     "-90": { x: cx, y: cy - R - 22 },
     "0": { x: cx + R + 24, y: cy - 8 },
@@ -12596,25 +12595,33 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
     "180": { x: cx - R - 24, y: cy - 8 },
   };
   const rc = rankCounts || { tier1: 0, tier2: 0, tier3: 0 };
-  const tiers = [
-    { level: 1, label: "Quan tâm", color: C.teal, count: rc.tier1 || 0 },
-    { level: 2, label: "Yêu thích", color: C.gold, count: rc.tier2 || 0 },
-    { level: 3, label: "Fan cuồng", color: C.coral, count: rc.tier3 || 0 },
+  // Chỉ số phụ (độ nổi tiếng) — hàng ngang gọn ở góc trên bên phải, kiểu engagement bar.
+  const summary = [
+    { key: "t1", color: C.teal, count: fmt(rc.tier1 || 0), label: "Quan tâm", icon: <RankChevrons level={1} color={C.teal} size={15} /> },
+    { key: "t2", color: C.gold, count: fmt(rc.tier2 || 0), label: "Yêu thích", icon: <RankChevrons level={2} color={C.gold} size={15} /> },
+    { key: "t3", color: C.coral, count: fmt(rc.tier3 || 0), label: "Fan cuồng", icon: <RankChevrons level={3} color={C.coral} size={15} /> },
+    { key: "v", color: C.gold, count: fmtCompact(views), label: "Lượt xem", icon: <Eye size={15} color={C.gold} /> },
   ];
   return (
-    <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
-      {/* Lượt xem — góc trên bên phải: SỐ trên, ICON dưới */}
-      <div style={{ position: "absolute", top: 0, right: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 1, color: C.gold }} title="Tổng lượt tương tác">
-        <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, lineHeight: 1 }}>{fmtCompact(views)}</span>
-        <Eye size={13} />
-        {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>Lượt xem</span>}
+    <div style={{ cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
+      {/* Hàng chỉ số phụ: quan tâm / yêu thích / fan cuồng / lượt xem — icon + số, căn phải */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", flexWrap: "wrap", gap: 14, padding: "0 4px 2px" }}>
+        {summary.map((s) => (
+          <div key={s.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, color: s.color, fontFamily: monoFont, fontWeight: 800, fontSize: 13 }}>
+              {s.icon}<span>{s.count}</span>
+            </div>
+            {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>{s.label}</span>}
+          </div>
+        ))}
       </div>
 
-      <svg viewBox="0 0 300 210" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
+      <svg viewBox="0 0 300 206" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
         {[0.34, 0.67, 1].map((f) => (
           <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
         ))}
-        {axes.map((a, i) => { const [x, y] = pt(a.ang, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={C.border} strokeWidth="1" />; })}
+        {/* Nan hoa bắt đầu cách tâm 18px để chừa chỗ cho số tổng ở giữa (không cần vòng tròn che) */}
+        {axes.map((a, i) => { const [x1, y1] = pt(a.ang, 18); const [x2, y2] = pt(a.ang, R); return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={C.border} strokeWidth="1" />; })}
         <polygon points={poly} fill={C.gold + "2b"} stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
         {vpts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.6" fill={axes[i].color} />)}
         {axes.map((a, i) => {
@@ -12628,24 +12635,13 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
             </g>
           );
         })}
-        {/* Trung tâm: SỐ tổng nằm trên, ICON tổng (Grid3x3) nằm dưới */}
-        <circle cx={cx} cy={cy} r="30" fill={C.surface} stroke={C.gold} strokeWidth="1.5" />
-        <text x={cx} y={cy - 2} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
-        <Grid3x3 x={cx - 8} y={cy + 3} size={16} color={C.gold} strokeWidth={2.2} />
-        {showLabels && <text x={cx} y={cy + 26} textAnchor="middle" fontFamily={bodyFont} fontSize="7.5" fontWeight="700" letterSpacing="0.5" fill={C.textFaint}>BÀI ĐĂNG</text>}
+        {/* Trung tâm: chỉ SỐ tổng + ICON (Grid3x3), KHÔNG vòng tròn che sơ đồ nhện */}
+        <text x={cx} y={cy - 1} textAnchor="middle" fontFamily={monoFont} fontWeight="800" fontSize="20" fill={C.text}>{fmt(posts)}</text>
+        <Grid3x3 x={cx - 8} y={cy + 4} size={16} color={C.gold} strokeWidth={2.2} />
+        {showLabels && <text x={cx} y={cy + 27} textAnchor="middle" fontFamily={bodyFont} fontSize="7.5" fontWeight="700" letterSpacing="0.5" fill={C.textFaint}>BÀI ĐĂNG</text>}
       </svg>
 
-      {/* Ba tầng RankUp: SỐ nằm trên, ICON nằm dưới (đồng nhất với trên) */}
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-        {tiers.map((ti) => (
-          <div key={ti.level} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "9px 4px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 11 }}>
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: ti.color, lineHeight: 1 }}>{fmt(ti.count)}</div>
-            <RankChevrons level={ti.level} color={ti.color} size={18} />
-            {showLabels && <div style={{ fontFamily: bodyFont, fontSize: 10, color: C.textFaint, fontWeight: 700, letterSpacing: 0.2 }}>{ti.label}</div>}
-          </div>
-        ))}
-      </div>
-      <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 8.5, color: C.textFaint, marginTop: 5 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
+      <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 8.5, color: C.textFaint, marginTop: 2 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
     </div>
   );
 }
@@ -12799,14 +12795,14 @@ function ProfileView({
               onClick={isMe && onChangeAvatar ? onChangeAvatar : undefined}
               title={isMe && onChangeAvatar ? "Đổi ảnh đại diện" : undefined}
               style={{
-                width: 64,
-                height: 64,
+                width: 76,
+                height: 76,
                 borderRadius: 99,
                 background: author.avatarColor || C.surfaceRaised,
                 border: `1px solid ${C.border}`,
                 display: "grid",
                 placeItems: "center",
-                fontSize: 26,
+                fontSize: 34,
                 flexShrink: 0,
                 overflow: "hidden",
                 position: "relative",
@@ -12824,9 +12820,9 @@ function ProfileView({
                 </div>
               )}
             </div>
-            <div style={{ minWidth: 0, paddingTop: 2 }}>
+            <div style={{ minWidth: 0, paddingTop: 4 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 21, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {isMe ? currentUser.name : author.name}
                 </div>
                 {SHOW_VERIFIED && author.verified && (
@@ -12834,12 +12830,9 @@ function ProfileView({
                     <Check size={9} color={C.bg} strokeWidth={3} />
                   </span>
                 )}
-                {!isMe && onSetRank && (
-                  <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
-                )}
               </div>
-              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{author.handle}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ fontFamily: monoFont, fontSize: 13, color: C.textFaint, marginTop: 3 }}>{author.handle}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
                 <Star size={12} color={C.gold} fill={C.gold} /> {fmtCompact(author.followers)} RP
               </div>
             </div>
@@ -12876,20 +12869,29 @@ function ProfileView({
                 <LogOut size={16} />
               </button>
             ) : null}
-            {!isMe && onMessage && (
-              <button
-                onClick={() => onMessage(author.id)}
-                style={{ display: "flex", alignItems: "center", gap: 6, height: 34, padding: "0 14px", borderRadius: 99, flexShrink: 0, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-              >
-                <MessageCircle size={15} /> Nhắn tin
-              </button>
-            )}
           </div>
         </div>
 
         {author.bio && (
           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10, lineHeight: 1.4 }}>
             {author.bio}
+          </div>
+        )}
+
+        {/* Hàng hành động (hồ sơ người khác): RankUp + Nhắn tin — tách khỏi tên để không che. */}
+        {!isMe && (onSetRank || onMessage) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+            {onSetRank && (
+              <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
+            )}
+            {onMessage && (
+              <button
+                onClick={() => onMessage(author.id)}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
+              >
+                <MessageCircle size={16} /> Nhắn tin
+              </button>
+            )}
           </div>
         )}
 
