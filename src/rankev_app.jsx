@@ -1699,6 +1699,9 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
                 <Check size={9} color={C.bg} strokeWidth={3} />
               </span>
             )}
+            {!isMe && author.id && (
+              <SaveFlagButton size={13} item={{ refType: "user", refId: author.id, label: author.name || "Người dùng", preview: { name: author.name, handle: author.handle, avatarUrl: author.avatarUrl, avatarEmoji: author.avatarEmoji, avatarColor: author.avatarColor } }} />
+            )}
           </div>
           <div style={{ ...captionText, display: "flex", alignItems: "center", gap: 4 }}>
             <Star size={11} color={C.gold} fill={C.gold} /> {fmtCompact((author.followers || 0) + (rankTier || 0))} RP
@@ -5253,6 +5256,9 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                 <div style={{ marginTop: 6, display: "flex", gap: 14, alignItems: "center" }}>
                   <button onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(""); setReplyImage(null); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: replyTo === c.id ? C.gold : C.textMuted }}>Trả lời</button>
                   <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{fmt(c.rankUp)} rank up · {fmt(c.rankDown)} rank down</span>
+                  <span style={{ marginLeft: "auto" }}>
+                    <SaveFlagButton size={13} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, user: c.user, postId } }} />
+                  </span>
                 </div>
 
                 {/* Replies */}
@@ -13744,6 +13750,24 @@ function SaveWrap({ item, style, children }) {
   return <div {...lp} style={style}>{children}</div>;
 }
 
+// Nút cờ "Đã lưu" (bookmark) đặt ở cuối comment / tên user — bấm để lưu/bỏ lưu ngay.
+function SaveFlagButton({ item, size = 14 }) {
+  const rk = useRankieSave();
+  if (!rk?.toggle || !item?.refId) return null;
+  const key = rankieRefKey(item);
+  const saved = (rk.basket || []).some((x) => rankieRefKey(x) === key);
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); rk.toggle(item); }}
+      title={saved ? "Bỏ lưu" : "Lưu lại"}
+      aria-label={saved ? "Bỏ lưu" : "Lưu lại"}
+      style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "inline-grid", placeItems: "center", verticalAlign: "middle", flexShrink: 0 }}
+    >
+      <Bookmark size={size} color={saved ? C.gold : C.textFaint} fill={saved ? C.gold : "none"} />
+    </button>
+  );
+}
+
 // Preview cho một đối tượng "Lưu vào Rankie" — hiển thị theo loại (bài/user/comment).
 function RankieRefPreview({ item }) {
   const p = item.preview || {};
@@ -14271,6 +14295,19 @@ export default function RankevApp() {
     if (target && api.isLoggedIn()) api.saves.remove(target.refType, target.refId).catch(() => {});
     return prev.filter((x) => rankieRefKey(x) !== key);
   }), []);
+  // Bật/tắt lưu NGAY (cho nút cờ ở comment/tên user) — không qua hộp xác nhận.
+  const toggleSave = useCallback((item) => setRankieBasket((prev) => {
+    const key = rankieRefKey(item);
+    if (prev.some((x) => rankieRefKey(x) === key)) {
+      if (api.isLoggedIn()) api.saves.remove(item.refType, item.refId).catch(() => {});
+      showToast("Đã bỏ lưu");
+      return prev.filter((x) => rankieRefKey(x) !== key);
+    }
+    if (api.isLoggedIn()) api.saves.add(item.refType, item.refId, { ...(item.preview || {}), label: item.label }).catch(() => {});
+    setBasketHidden(false);
+    showToast("Đã lưu");
+    return [item, ...prev];
+  }), [showToast]);
 
   // Bài thật từ API có id dạng UUID; bài mock có id ngắn ("r1"…). Chỉ gọi API cho bài thật.
   const isApiId = (id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -14706,7 +14743,7 @@ export default function RankevApp() {
       .map((t) => ({ id: t.id, title: t.title, category: t.category, tags: t.tags || [], author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes, media: t.media || null, commentCount: t.commentCount || 0 }));
   }, [tournamentFeed]);
 
-  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, basket: rankieBasket, openRef, openTournament }), [saveToRankie, rankieBasket, openRef, openTournament]);
+  const rankieSaveValue = useMemo(() => ({ save: saveToRankie, toggle: toggleSave, basket: rankieBasket, openRef, openTournament }), [saveToRankie, toggleSave, rankieBasket, openRef, openTournament]);
 
   const handleCreate = (item) => {
     // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
