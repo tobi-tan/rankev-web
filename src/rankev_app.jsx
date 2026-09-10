@@ -1708,12 +1708,15 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
           </div>
         </div>
       </div>
-      {onSetRank && !isMe && (
-        <RankUpControl tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
-      )}
       {rightSlot && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
           {rightSlot}
+        </div>
+      )}
+      {/* RankUp LUÔN sát mép phải → vị trí cố định với mọi thẻ, không bị tên/pill đẩy */}
+      {onSetRank && !isMe && (
+        <div style={{ flexShrink: 0 }}>
+          <RankUpControl tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
         </div>
       )}
     </div>
@@ -10770,7 +10773,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           ))}
         </div>
 
-        {!editing && onStartTournament && (
+        {!editing && onStartTournament && contentType === "rankie" && (
           <button onClick={() => onStartTournament([])} style={{ width: "100%", marginBottom: 20, padding: "11px 12px", borderRadius: 12, background: C.surface, border: `1px dashed ${C.gold}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
             🏆 Tạo giải đấu (đấu loại nhiều vòng) →
           </button>
