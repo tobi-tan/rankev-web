@@ -4759,8 +4759,20 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
 // ---------- SEARCH ----------
 function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, searchHistory, onAddHistory, onRemoveHistory, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onShareToProfile, onBack, contacts }) {
   const [query, setQuery] = useState("");
-  const [browseCategory, setBrowseCategory] = useState(null);
+  const [browseCategory, setBrowseCategory] = useState(null); // giữ một HASHTAG để duyệt
   const [shareTarget, setShareTarget] = useState(null);
+  const [trendingTags, setTrendingTags] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    api.tags.trending(24).then((r) => { if (alive) setTrendingTags((r.items || []).map((t) => t.tag)); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  // Hashtag để khám phá: trending thật trước, bù gợi ý mặc định; khử trùng không phân biệt dấu.
+  const exploreTags = (() => {
+    const seen = new Set(); const out = [];
+    for (const t of [...(trendingTags || []), ...DEFAULT_HASHTAGS]) { const k = normalizeVi(t); if (!k || seen.has(k)) continue; seen.add(k); out.push(t); if (out.length >= 12) break; }
+    return out;
+  })();
 
   const q = normalizeVi(query.trim());
 
@@ -4769,16 +4781,21 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
     .sort((a, b) => trendingScore(b) - trendingScore(a))
     .slice(0, 10);
 
+  // browseCategory nay giữ một HASHTAG; lọc theo tags (không phân biệt dấu) hoặc danh mục cũ.
   const categoryPosts = browseCategory
     ? allPosts
-        .filter((p) => !p.hidden && !p.deletedAt && p.category === browseCategory)
+        .filter((p) => {
+          if (p.hidden || p.deletedAt) return false;
+          const k = normalizeVi(browseCategory);
+          return (Array.isArray(p.tags) && p.tags.some((t) => normalizeVi(t) === k)) || normalizeVi(p.category) === k;
+        })
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     : [];
 
   const results = q.length > 0
     ? allPosts.filter((item) => {
         const haystack = normalizeVi(
-          [item.title, item.subtitle, item.caption, item.category].filter(Boolean).join(" ")
+          [item.title, item.subtitle, item.caption, item.category, ...(Array.isArray(item.tags) ? item.tags : [])].filter(Boolean).join(" ")
         );
         return haystack.includes(q);
       })
@@ -4847,10 +4864,10 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
 
       <div style={{ padding: 16 }}>
 
-        {/* ── Browsing a category ── */}
+        {/* ── Đang duyệt một hashtag ── */}
         {browseCategory && q.length === 0 && (
           <div>
-            {sectionLabel(`${CATEGORIES.find((c) => CATEGORY_NAMES[c.id] === browseCategory)?.label || browseCategory}`)}
+            {sectionLabel(`#${String(browseCategory).replace(/^#+/, "")}`)}
             {categoryPosts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 0", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
                 Chưa có bài đăng nào trong danh mục này.
@@ -4971,32 +4988,27 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
               </div>
             )}
 
-            {/* Browse by category */}
+            {/* Khám phá theo hashtag (thay chủ đề cố định) */}
             <div>
-              {sectionLabel("📂 Khám phá theo chủ đề")}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {CATEGORIES.filter((c) => c.id !== "trending").map((cat) => (
+              {sectionLabel("# Khám phá theo hashtag")}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {exploreTags.map((t) => (
                   <button
-                    key={cat.id}
-                    onClick={() => setBrowseCategory(CATEGORY_NAMES[cat.id])}
+                    key={t}
+                    onClick={() => setBrowseCategory(t)}
                     style={{
-                      padding: "14px 12px",
-                      borderRadius: 12,
+                      padding: "9px 14px",
+                      borderRadius: 999,
                       border: `1px solid ${C.border}`,
                       background: C.surface,
                       color: C.text,
                       fontFamily: bodyFont,
-                      fontWeight: 600,
-                      fontSize: 14,
+                      fontWeight: 700,
+                      fontSize: 13.5,
                       cursor: "pointer",
-                      textAlign: "left",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
                     }}
                   >
-                    <span style={{ fontSize: 20 }}>{cat.label.split(" ")[0]}</span>
-                    {cat.label.split(" ").slice(1).join(" ")}
+                    #{t}
                   </button>
                 ))}
               </div>
