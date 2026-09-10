@@ -140,6 +140,13 @@ export const auth = {
     setTokens(data);
     return data.user;
   },
+  // Đăng nhập MXH: client lấy token từ provider (Google/Facebook/Apple) rồi gửi lên.
+  async social(provider, token) {
+    const data = await apiFetch('/auth/social', { auth: false, method: 'POST', body: { provider, token } });
+    setTokens(data);
+    return data.user;
+  },
+  providers() { return apiFetch('/auth/providers', { auth: false }); }, // → { google, facebook, apple }
   async logout() {
     const refreshToken = getRefreshToken();
     try { await apiFetch('/auth/logout', { auth: false, method: 'DELETE', body: { refreshToken } }); } catch { /* ignore */ }

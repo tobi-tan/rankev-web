@@ -13695,75 +13695,163 @@ function protoToCreatePayload(item) {
 }
 
 // ---------- AUTH GATE (Phần 1) ----------
-// Màn Đăng nhập / Đăng ký, dùng lại style có sẵn (cardSurface, primaryButton, C, fonts).
-// Chỉ hiển thị khi chưa đăng nhập; không đụng vào các component UI khác.
+// ---- Đăng nhập mạng xã hội (Google / Facebook / Apple) ----
+function loadScript(src, id) {
+  return new Promise((resolve, reject) => {
+    if (document.getElementById(id)) return resolve();
+    const s = document.createElement("script");
+    s.src = src; s.id = id; s.async = true; s.defer = true;
+    s.onload = () => resolve(); s.onerror = () => reject(new Error("Không tải được " + src));
+    document.head.appendChild(s);
+  });
+}
+const SOCIAL_ENV = {
+  google: (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || "",
+  facebook: (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_FACEBOOK_APP_ID) || "",
+  apple: (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_APPLE_CLIENT_ID) || "",
+};
+// Lấy token của provider (id_token cho Google/Apple, access_token cho Facebook).
+async function getSocialToken(provider) {
+  if (provider === "google") {
+    const clientId = SOCIAL_ENV.google;
+    if (!clientId) throw new Error("__notconfigured__");
+    await loadScript("https://accounts.google.com/gsi/client", "gsi-script");
+    return await new Promise((resolve, reject) => {
+      try {
+        window.google.accounts.id.initialize({ client_id: clientId, callback: (r) => (r && r.credential ? resolve(r.credential) : reject(new Error("Không lấy được token Google"))) });
+        window.google.accounts.id.prompt((n) => { if (n && ((n.isNotDisplayed && n.isNotDisplayed()) || (n.isSkippedMoment && n.isSkippedMoment()))) reject(new Error("Google One Tap bị chặn — cho phép rồi thử lại")); });
+      } catch (e) { reject(e); }
+    });
+  }
+  if (provider === "facebook") {
+    const appId = SOCIAL_ENV.facebook;
+    if (!appId) throw new Error("__notconfigured__");
+    await loadScript("https://connect.facebook.net/en_US/sdk.js", "fb-sdk");
+    if (!window.__fbInit) { window.FB.init({ appId, version: "v19.0", cookie: true, xfbml: false }); window.__fbInit = true; }
+    return await new Promise((resolve, reject) => {
+      window.FB.login((resp) => { const t = resp && resp.authResponse && resp.authResponse.accessToken; t ? resolve(t) : reject(new Error("Đã huỷ đăng nhập Facebook")); }, { scope: "public_profile,email" });
+    });
+  }
+  if (provider === "apple") {
+    const clientId = SOCIAL_ENV.apple;
+    if (!clientId) throw new Error("__notconfigured__");
+    await loadScript("https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js", "apple-js");
+    window.AppleID.auth.init({ clientId, scope: "name email", redirectURI: window.location.origin, usePopup: true });
+    const resp = await window.AppleID.auth.signIn();
+    const t = resp && resp.authorization && resp.authorization.id_token;
+    if (!t) throw new Error("Đã huỷ đăng nhập Apple");
+    return t;
+  }
+  throw new Error("Provider không hỗ trợ");
+}
+// Logo hãng (SVG đơn giản).
+function BrandIcon({ provider, size = 18 }) {
+  if (provider === "google") return (
+    <svg width={size} height={size} viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 18.9 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 5.1 29.3 3 24 3 16 3 9.1 7.6 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 36 26.7 37 24 37c-5.2 0-9.6-3.3-11.2-7.9l-6.5 5C9.1 40.4 16 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C39.8 36 44 30.6 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+  );
+  if (provider === "facebook") return (
+    <svg width={size} height={size} viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12c0-6.6-5.4-12-12-12S0 5.4 0 12c0 6 4.4 11 10.1 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2v2.9h-1.5c-1.5 0-2 .9-2 1.9V12h3.3l-.5 3.5h-2.8v8.4C19.6 23 24 18 24 12z"/></svg>
+  );
+  return ( // apple
+    <svg width={size} height={size} viewBox="0 0 24 24"><path fill="currentColor" d="M16.4 12.8c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.3-1.6 2.7-.4 6.8 1.1 9 .7 1.1 1.6 2.3 2.7 2.2 1.1 0 1.5-.7 2.8-.7 1.3 0 1.7.7 2.8.7 1.2 0 1.9-1.1 2.6-2.1.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.3-.9-2.4-3.6zM14.2 6c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.6.6-1.1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>
+  );
+}
+
+// Màn Đăng nhập / Đăng ký kiểu Facebook/Instagram: nút MXH nổi bật + form email.
 function AuthGate({ onAuthed }) {
-  const [tab, setTab] = useState("login");
+  const [mode, setMode] = useState("login"); // login | register
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [handle, setHandle] = useState("");
   const [name, setName] = useState("");
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [socialBusy, setSocialBusy] = useState(null); // provider đang xử lý
 
   const submit = async () => {
-    setErr(null);
-    setBusy(true);
+    setErr(null); setBusy(true);
     try {
-      if (tab === "login") {
-        await auth.login(email.trim(), password);
-      } else {
-        await auth.register(handle.trim().replace(/^@/, ""), name.trim(), email.trim(), password);
-      }
+      if (mode === "login") await auth.login(email.trim(), password);
+      else await auth.register(handle.trim().replace(/^@/, ""), name.trim(), email.trim(), password);
+      await onAuthed();
+    } catch (e) { setErr(e?.message || "Có lỗi xảy ra, thử lại."); }
+    finally { setBusy(false); }
+  };
+
+  const socialSignIn = async (provider) => {
+    setErr(null); setSocialBusy(provider);
+    try {
+      const token = await getSocialToken(provider);
+      await auth.social(provider, token);
       await onAuthed();
     } catch (e) {
-      setErr(e?.message || "Có lỗi xảy ra, thử lại.");
-    } finally {
-      setBusy(false);
-    }
+      const label = { google: "Google", facebook: "Facebook", apple: "Apple" }[provider];
+      if (e?.message === "__notconfigured__") setErr(`Đăng nhập ${label} chưa được bật. Cần cấu hình khoá ứng dụng (VITE_${provider.toUpperCase()}_...).`);
+      else setErr(e?.message || `Đăng nhập ${label} thất bại.`);
+    } finally { setSocialBusy(null); }
   };
 
   const inputStyle = {
-    width: "100%", padding: "12px 14px", marginBottom: 10, borderRadius: 12,
+    width: "100%", padding: "13px 14px", marginBottom: 10, borderRadius: 12,
     border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text,
     fontFamily: bodyFont, fontSize: 16, outline: "none", boxSizing: "border-box",
   };
+  const socialBtn = (provider, label, dark) => (
+    <button
+      onClick={() => socialSignIn(provider)}
+      disabled={!!socialBusy}
+      style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "12px", marginBottom: 10, borderRadius: 12, cursor: socialBusy ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14.5, border: dark ? "none" : `1px solid ${C.border}`, background: dark ? "#000" : "#fff", color: dark ? "#fff" : "#1A1305", opacity: socialBusy && socialBusy !== provider ? 0.5 : 1 }}
+    >
+      <BrandIcon provider={provider} /> {socialBusy === provider ? "Đang mở…" : label}
+    </button>
+  );
 
   return (
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
-      <div style={{ width: "100%", maxWidth: 420, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", justifyContent: "center", padding: 24, boxSizing: "border-box" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 44, color: C.gold, lineHeight: 1 }}>Rankev</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 6 }}>Bình chọn · Xếp hạng · Cùng cộng đồng</div>
+      <div style={{ width: "100%", maxWidth: 400, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", boxSizing: "border-box" }}>
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <div style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 700, fontSize: 46, color: C.gold, lineHeight: 1 }}>Rankev</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>
+            {mode === "login" ? "Đăng nhập để bình chọn & xếp hạng mọi thứ" : "Tạo tài khoản Rankev"}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[["login", "Đăng nhập"], ["register", "Đăng ký"]].map(([t, label]) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setErr(null); }}
-              style={{ flex: 1, padding: 11, borderRadius: 12, border: "none", cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, background: tab === t ? C.gold : C.surfaceRaised, color: tab === t ? "#1A1305" : C.textMuted }}
-            >
-              {label}
-            </button>
-          ))}
+
+        {/* Nút mạng xã hội */}
+        {socialBtn("google", "Tiếp tục với Google", false)}
+        {socialBtn("facebook", "Tiếp tục với Facebook", false)}
+        {socialBtn("apple", "Tiếp tục với Apple", true)}
+
+        {/* Ngăn cách */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "14px 0" }}>
+          <div style={{ flex: 1, height: 1, background: C.border }} />
+          <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontWeight: 600 }}>HOẶC</span>
+          <div style={{ flex: 1, height: 1, background: C.border }} />
         </div>
-        <div style={{ ...cardSurface }}>
-          {tab === "register" && (
-            <>
-              <input style={inputStyle} placeholder="Tên hiển thị" value={name} onChange={(e) => setName(e.target.value)} />
-              <input style={inputStyle} placeholder="Handle (vd: rankev_user)" value={handle} autoCapitalize="none" onChange={(e) => setHandle(e.target.value)} />
-            </>
-          )}
-          <input style={inputStyle} type="email" placeholder="Email" value={email} autoCapitalize="none" onChange={(e) => setEmail(e.target.value)} />
-          <input style={inputStyle} type="password" placeholder="Mật khẩu (tối thiểu 8 ký tự)" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
-          {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 13, marginBottom: 10 }}>{err}</div>}
-          <button onClick={submit} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1 }}>
-            {busy ? "Đang xử lý…" : tab === "login" ? "Đăng nhập" : "Đăng ký"}
+
+        {/* Form email */}
+        {mode === "register" && (
+          <>
+            <input style={inputStyle} placeholder="Tên hiển thị" value={name} onChange={(e) => setName(e.target.value)} />
+            <input style={inputStyle} placeholder="Tên người dùng (vd: rankev_user)" value={handle} autoCapitalize="none" onChange={(e) => setHandle(e.target.value)} />
+          </>
+        )}
+        <input style={inputStyle} type="email" placeholder="Email" value={email} autoCapitalize="none" onChange={(e) => setEmail(e.target.value)} />
+        <input style={inputStyle} type="password" placeholder="Mật khẩu" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 13, margin: "2px 0 10px", lineHeight: 1.4 }}>{err}</div>}
+        <button onClick={submit} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1, marginTop: 2 }}>
+          {busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Đăng ký"}
+        </button>
+
+        {/* Chuyển đăng nhập / đăng ký */}
+        <div style={{ textAlign: "center", marginTop: 18, fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted }}>
+          {mode === "login" ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
+          <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(null); }} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, cursor: "pointer", padding: 0 }}>
+            {mode === "login" ? "Đăng ký" : "Đăng nhập"}
           </button>
         </div>
-        <div style={{ textAlign: "center", marginTop: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
-          Kết nối tài khoản thật từ backend Rankev
+        <div style={{ textAlign: "center", marginTop: 16, fontFamily: bodyFont, fontSize: 11, color: C.textFaint, lineHeight: 1.5 }}>
+          Bằng việc tiếp tục, bạn đồng ý với Điều khoản & Chính sách bảo mật của Rankev.
         </div>
       </div>
     </div>
