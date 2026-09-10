@@ -9,7 +9,7 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -1417,6 +1417,17 @@ function TagPills({ tags, category, onTag, max = 3 }) {
         <span key={i} onClick={onTag ? (e) => { e.stopPropagation(); onTag(t); } : undefined}
           style={{ background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, cursor: onTag ? "pointer" : "default" }}>#{t}</span>
       ))}
+    </span>
+  );
+}
+
+// Nhãn "Series" trên thẻ feed/hồ sơ — cho biết bài thuộc một series (N phần) mà không cần mở.
+function SeriesBadge({ item, size = 11 }) {
+  if (!item?.seriesId) return null;
+  const n = item.seriesCount || 0;
+  return (
+    <span title={item.seriesName || "Series"} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}>
+      <Library size={size} /> Series{n > 1 ? ` · ${n} phần` : ""}
     </span>
   );
 }
@@ -4355,9 +4366,10 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
           </div>
         );
       })()}
-      {!hideCategory && (
-        <div style={{ marginBottom: 10 }}>
-          <TagPills tags={rankie.tags} category={rankie.category} />
+      {(!hideCategory || rankie.seriesId) && (
+        <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          {!hideCategory && <TagPills tags={rankie.tags} category={rankie.category} />}
+          <SeriesBadge item={rankie} />
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>
@@ -7068,9 +7080,10 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
           <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
         </div>
       )}
-      {!hideCategory && (
-        <div style={{ marginBottom: 10 }}>
-          <Pill tone="muted">{path.category}</Pill>
+      {(!hideCategory || path.seriesId) && (
+        <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          {!hideCategory && <TagPills tags={path.tags} category={path.category} />}
+          <SeriesBadge item={path} />
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 4 }}>
@@ -8387,9 +8400,10 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
           {badge}
         </div>
       )}
-      {!hideCategory && (
-        <div style={{ marginBottom: 10 }}>
-          <Pill tone="muted">{deck.category}</Pill>
+      {(!hideCategory || deck.seriesId) && (
+        <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          {!hideCategory && <TagPills tags={deck.tags} category={deck.category} />}
+          <SeriesBadge item={deck} />
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>{deck.title}</div>
@@ -12825,6 +12839,15 @@ function ProfileView({
   const visible =
     tab === "trash" ? trashedPosts : tab === "rankies" ? theirRankies : tab === "paths" ? theirPaths : tab === "decks" ? theirDecks : tab === "exams" ? theirExams : theirPosts;
 
+  // Gom chapter cùng series thành MỘT thẻ (đúng mục đích "làm gọn hồ sơ"): chỉ giữ
+  // chapter đầu (mới nhất) + nhãn "Series · N phần". Mở thẻ vẫn vào được toàn series.
+  const seriesAggProfile = {};
+  theirPostsAll.forEach((p) => { if (p.seriesId) { (seriesAggProfile[p.seriesId] ||= { count: 0, total: 0 }); seriesAggProfile[p.seriesId].count++; seriesAggProfile[p.seriesId].total += p.participants || 0; } });
+  const seenSeriesProfile = new Set();
+  const visibleGrouped = visible
+    .filter((p) => { if (!p.seriesId) return true; if (seenSeriesProfile.has(p.seriesId)) return false; seenSeriesProfile.add(p.seriesId); return true; })
+    .map((p) => (p.seriesId && seriesAggProfile[p.seriesId] ? { ...p, seriesCount: seriesAggProfile[p.seriesId].count, seriesTotal: seriesAggProfile[p.seriesId].total } : p));
+
   const [filterOpen, setFilterOpen] = useState(false);
   const filterOptions = [
     { id: "posts",   label: "Tất cả", icon: Grid3x3,   count: theirPosts.length },
@@ -13088,7 +13111,7 @@ function ProfileView({
         {tab === "posts" && !query.trim() && tournaments.map((t) => (
           <TournamentFeedCard key={t.id} t={t} onOpen={onOpenTournament} onOpenAuthor={onOpenAuthor} />
         ))}
-        {visible.length === 0 && !(tab === "posts" && tournaments.length > 0) && (
+        {visibleGrouped.length === 0 && !(tab === "posts" && tournaments.length > 0) && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             {tab === "trash" ? (
               "Thùng rác trống."
@@ -13105,7 +13128,7 @@ function ProfileView({
             )}
           </div>
         )}
-        {visible.map((item) =>
+        {visibleGrouped.map((item) =>
           tab === "trash" ? (
             // Trash rows are intentionally plain (no chart preview, no tap-to-open)
             // to make clear these posts are no longer live — only Khôi phục / Xóa apply.
@@ -14526,6 +14549,15 @@ export default function RankevApp() {
       return item.type === typeFilter;
     });
 
+  // Gom các chapter cùng series thành MỘT thẻ đại diện (chapter đứng đầu theo sort hiện
+  // tại — mới nhất/nổi nhất). Đính kèm số phần + tổng tương tác để hiện nhãn "Series".
+  const seriesAgg = {};
+  feedItemsAll.forEach((it) => { if (it.seriesId) { (seriesAgg[it.seriesId] ||= { count: 0, total: 0 }); seriesAgg[it.seriesId].count++; seriesAgg[it.seriesId].total += it.participants || 0; } });
+  const seenSeriesFeed = new Set();
+  const feedItemsGrouped = feedItems
+    .filter((it) => { if (!it.seriesId) return true; if (seenSeriesFeed.has(it.seriesId)) return false; seenSeriesFeed.add(it.seriesId); return true; })
+    .map((it) => (it.seriesId && seriesAgg[it.seriesId] ? { ...it, seriesCount: seriesAgg[it.seriesId].count, seriesTotal: seriesAgg[it.seriesId].total } : it));
+
   // All posts (rankies + paths + decks + shares) for the personal wall and lookups —
   // includes hidden/private/trashed posts too; ProfileView itself decides what to show
   // per tab, since the owner needs to see their own hidden/trashed content, unlike the
@@ -15179,7 +15211,7 @@ export default function RankevApp() {
           {view === "feed" && (
             <FeedView
               pathUnlocks={pathUnlocks}
-              feedItems={feedItems}
+              feedItems={feedItemsGrouped}
               votedMap={votedMap}
               participatedKeys={participatedKeys}
               participationByKey={participationByKey}
