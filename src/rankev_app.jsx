@@ -10311,6 +10311,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const [closingTime, setClosingTime] = useState(null); // null = vô hạn; number = giờ tính từ lúc đăng; { custom } = mốc giờ cụ thể
   const [openAtLocal, setOpenAtLocal] = useState(""); // "" = lên sóng ngay; giá trị datetime-local = hẹn giờ
   const [chartType, setChartType] = useState("bar");
+  const [advancedOpen, setAdvancedOpen] = useState(false); // thu gọn cài đặt nâng cao
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   // Custom "voted" marker — replaces the default "VOTED" label next to whichever
   // option the viewer picked, with a sticker/image the creator chose instead.
@@ -10789,6 +10790,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           />
         </div>
 
+        {/* Nội dung/Trình chiếu/Series: hiện cho path/deck/exam; với rankie chỉ hiện khi mở Nâng cao */}
+        {(contentType !== "rankie" || advancedOpen) && (<>
         {/* Shared post content: caption + media (all content types) */}
         <div style={field}>
           <span style={label}>Nội dung bài đăng (tùy chọn)</span>
@@ -10877,6 +10880,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             Gom bài vào một bộ (series). Người đọc sẽ vuốt trái/phải giữa các chapter. Chọn series có sẵn để thêm chapter mới, hoặc gõ tên mới.
           </div>
         </div>
+        </>)}
 
         {contentType === "rankie" && (
         <>
@@ -10998,6 +11002,19 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           );
         })()}
 
+        {/* Nút thu gọn: mặc định chỉ hiện Câu hỏi + Phương án + Preview; còn lại nằm trong Nâng cao */}
+        <button
+          onClick={() => setAdvancedOpen((v) => !v)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}`, cursor: "pointer", marginBottom: advancedOpen ? 4 : 20 }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>
+            <Settings size={16} color={C.gold} /> Nâng cao
+            <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 500, color: C.textFaint }}>hashtag · hẹn giờ · quyền xem…</span>
+          </span>
+          <ChevronDown size={18} color={C.textMuted} style={{ transform: advancedOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        </button>
+
+        {advancedOpen && (<>
         <div style={field}>
           <span style={label}>Hashtag</span>
           <HashtagInput tags={tags} onChange={setTags} placeholder="Ví dụ: thethao, amnhac…" />
@@ -11153,6 +11170,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             Trước giờ lên sóng, Rankie hiện dạng "sắp diễn ra" và chưa ai bình chọn được. Để trống = mở ngay khi đăng.
           </div>
         </div>
+        </>)}
 
         <button
           onClick={submit}
