@@ -9,7 +9,7 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -1805,7 +1805,7 @@ function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, o
             animation: "popIn 0.15s ease",
           }}
         >
-          {post.type !== "share" && item(Trophy, "Lưu vào Rankie", () => rk?.save && rk.save(postSaveItem(post)))}
+          {post.type !== "share" && item(Bookmark, "Lưu lại", () => rk?.save && rk.save(postSaveItem(post)))}
           {item(post.pinned ? PinOff : Pin, post.pinned ? "Bỏ ghim" : "Ghim lên đầu", onPin)}
           {post.type !== "share" && item(Edit3, "Chỉnh sửa", onEdit)}
           {post.type !== "share" && item(Copy, "Nhân bản", onDuplicate)}
@@ -10958,7 +10958,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 onClick={() => setBasketPickerOpen(true)}
                 style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
               >
-                🏆 Chọn từ giỏ Rankie ({rk.basket.length})
+                🔖 Chọn từ Đã lưu ({rk.basket.length})
               </button>
             )}
           </div>
@@ -13803,7 +13803,7 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
       {basket.length > 0 && !basketOpen && !pending && !basketHidden && (
         <div style={{ position: "fixed", right: 16, bottom: 150, zIndex: 9998, display: "flex", alignItems: "center", background: C.gold, borderRadius: 999, boxShadow: "0 6px 18px rgba(0,0,0,.4)" }}>
           <button onClick={() => setBasketOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 6px 8px 13px", borderRadius: "999px 0 0 999px", background: "none", color: "#231a05", border: "none", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-            🏆 Rankie · {basket.length}
+            🔖 Đã lưu · {basket.length}
           </button>
           <button onClick={() => setBasketHidden(true)} title="Ẩn" aria-label="Ẩn giỏ" style={{ display: "grid", placeItems: "center", width: 26, height: 34, padding: 0, borderRadius: "0 999px 999px 0", background: "none", color: "rgba(35,26,5,.7)", border: "none", borderLeft: "1px solid rgba(35,26,5,.25)", cursor: "pointer" }}>
             <X size={14} />
@@ -13813,13 +13813,13 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
       {pending && (
         <div onClick={onCancel} style={sheetWrap}>
           <div onClick={(e) => e.stopPropagation()} style={sheet}>
-            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 12 }}>Lưu vào Rankie?</div>
+            <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 12 }}>Lưu lại?</div>
             <div style={{ background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
               <RankieRefPreview item={pending} />
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={onCancel} style={{ flex: 1, padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Hủy</button>
-              <button onClick={onConfirm} style={{ flex: 2, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Lưu vào Rankie</button>
+              <button onClick={onConfirm} style={{ flex: 2, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🔖 Lưu</button>
             </div>
           </div>
         </div>
@@ -13828,7 +13828,7 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
         <div onClick={() => setBasketOpen(false)} style={sheetWrap}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...sheet, maxHeight: "82vh", overflowY: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text }}>Giỏ Rankie · {basket.length}</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text }}>🔖 Đã lưu · {basket.length}</div>
               <button onClick={() => setBasketOpen(false)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={18} /></button>
             </div>
             {basket.length === 0 ? (
@@ -13891,7 +13891,7 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "16px 16px 20px", maxHeight: "84vh", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text }}>Chọn từ giỏ Rankie</div>
+          <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, color: C.text }}>Chọn từ Đã lưu</div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={18} /></button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", marginBottom: 10 }}>
@@ -14260,12 +14260,17 @@ export default function RankevApp() {
       if (cur) {
         setRankieBasket((prev) => (prev.some((x) => rankieRefKey(x) === rankieRefKey(cur)) ? prev : [cur, ...prev]));
         setBasketHidden(false); // có mục mới → hiện lại pill
-        showToast("Đã lưu vào Rankie");
+        showToast("Đã lưu");
+        if (api.isLoggedIn()) api.saves.add(cur.refType, cur.refId, { ...(cur.preview || {}), label: cur.label }).catch(() => {});
       }
       return null;
     });
   }, [showToast]);
-  const removeFromBasket = useCallback((key) => setRankieBasket((prev) => prev.filter((x) => rankieRefKey(x) !== key)), []);
+  const removeFromBasket = useCallback((key) => setRankieBasket((prev) => {
+    const target = prev.find((x) => rankieRefKey(x) === key);
+    if (target && api.isLoggedIn()) api.saves.remove(target.refType, target.refId).catch(() => {});
+    return prev.filter((x) => rankieRefKey(x) !== key);
+  }), []);
 
   // Bài thật từ API có id dạng UUID; bài mock có id ngắn ("r1"…). Chỉ gọi API cho bài thật.
   const isApiId = (id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -14932,6 +14937,14 @@ export default function RankevApp() {
           });
           return next;
         });
+      } catch { /* bỏ qua */ }
+    })();
+    // Nạp kho "Đã lưu" thật (bài/user/comment) — gộp giỏ + bookmark.
+    (async () => {
+      try {
+        const res = await api.saves.list();
+        if (!alive) return;
+        setRankieBasket((res.items || []).map((s) => ({ refType: s.refType, refId: s.refId, label: s.preview?.label || "", preview: s.preview || {} })));
       } catch { /* bỏ qua */ }
     })();
     // Nạp BÀI CỦA MÌNH thật (để không mất sau reload). author=currentUser (id="me")

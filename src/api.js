@@ -248,6 +248,13 @@ export const bookmarks = {
   remove(postId) { return apiFetch(`/posts/${postId}/bookmark`, { method: 'DELETE' }); },
 };
 
+// Kho "Đã lưu" chung: bài/user/comment. refType ∈ 'post'|'user'|'comment'.
+export const saves = {
+  list() { return apiFetch('/saves'); }, // → { items: [{refType, refId, preview, createdAt}] }
+  add(refType, refId, preview) { return apiFetch('/saves', { method: 'POST', body: { refType, refId, preview } }); },
+  remove(refType, refId) { return apiFetch(`/saves/${refType}/${encodeURIComponent(refId)}`, { method: 'DELETE' }); },
+};
+
 export const social = {
   rankUp(authorId, tier) { return apiFetch(`/users/${authorId}/rankup`, { method: 'POST', body: { tier } }); },
   history() { return apiFetch('/users/me/history'); },
@@ -415,6 +422,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, social, series, sessions, live, tags,
+  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
