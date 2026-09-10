@@ -4556,24 +4556,6 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
 function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
-  const [trendingTags, setTrendingTags] = useState([]); // hashtag thịnh hành cho thanh lọc
-  useEffect(() => {
-    let alive = true;
-    api.tags.trending(20).then((r) => { if (alive) setTrendingTags((r.items || []).map((t) => t.tag)); }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-  // Danh sách hashtag hiển thị: trending (thật) trước, bù thêm gợi ý mặc định cho đủ.
-  // Khử trùng không phân biệt dấu để không hiện cả #âmnhạc lẫn #amnhac.
-  const tagBar = (() => {
-    const seen = new Set(); const out = [];
-    for (const t of [...(trendingTags || []), ...DEFAULT_HASHTAGS]) {
-      const k = normalizeVi(t);
-      if (!k || seen.has(k)) continue;
-      seen.add(k); out.push(t);
-      if (out.length >= 16) break;
-    }
-    return out;
-  })();
   // Bộ icon lucide dùng CHUNG toàn hệ thống (khớp bộ lọc hồ sơ).
   const typeOptions = [
     { id: "all", label: "Tất cả", icon: Grid3x3 },
@@ -4583,15 +4565,11 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
     { id: "exam", label: "Exam", icon: Edit3 },
   ];
   const currentLabel = typeOptions.find((t) => t.id === typeFilter)?.label || "Tất cả";
-
-  // When the user leaves the trending tab, reset the content-type filter and close
-  // the dropdown — the filter is irrelevant for specific-category browsing.
-  useEffect(() => {
-    if (activeCategory !== "Đang thịnh hành") {
-      setTypeFilter("all");
-      setFilterOpen(false);
-    }
-  }, [activeCategory, setTypeFilter]);
+  // Feed kiểu MXH: chỉ có 2 chế độ SẮP XẾP (không lọc theo danh mục nữa).
+  const sortModes = [
+    { id: "Đang thịnh hành", label: "🔥 Thịnh hành" },
+    { id: "Mới nhất", label: "🕘 Mới nhất" },
+  ];
 
   return (
     <div>
@@ -4606,8 +4584,8 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-          {/* Content-type filter — only relevant on the trending tab where all types mix */}
-          {activeCategory === "Đang thịnh hành" && (
+          {/* Content-type filter — lọc theo loại bài (Rankie/Path/…) */}
+          {true && (
           <div style={{ position: "relative" }}>
             <button
               onClick={() => setFilterOpen((o) => !o)}
@@ -4698,13 +4676,12 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
         </div>
       </div>
 
-      {/* Thanh hashtag (thay danh mục): cuộn ngang, chọn để lọc feed theo tag. */}
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "6px 16px 10px", scrollbarWidth: "none" }}>
-        <button onClick={() => setActiveCategory("Đang thịnh hành")} style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, border: `1px solid ${activeCategory === "Đang thịnh hành" ? C.gold : C.border}`, background: activeCategory === "Đang thịnh hành" ? C.goldSoft : C.surface, color: activeCategory === "Đang thịnh hành" ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🔥 Thịnh hành</button>
-        {tagBar.map((t) => {
-          const active = normalizeVi(activeCategory) === normalizeVi(t);
+      {/* Feed kiểu MXH: chỉ 2 chế độ sắp xếp Thịnh hành / Mới nhất (khám phá hashtag ở Tìm kiếm) */}
+      <div style={{ display: "flex", gap: 8, padding: "6px 16px 10px" }}>
+        {sortModes.map((m) => {
+          const active = activeCategory === m.id;
           return (
-            <button key={t} onClick={() => setActiveCategory(active ? "Đang thịnh hành" : t)} style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>#{t}</button>
+            <button key={m.id} onClick={() => setActiveCategory(m.id)} style={{ flex: 1, padding: "8px 13px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{m.label}</button>
           );
         })}
       </div>
@@ -4712,9 +4689,7 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
         {feedItems.length === 0 && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
-            Chưa có bài đăng nào phù hợp
-            {typeFilter !== "all" ? ` (${currentLabel})` : ""}
-            {activeCategory !== "Đang thịnh hành" ? ` trong "${activeCategory}"` : ""}.
+            Chưa có bài đăng nào{typeFilter !== "all" ? ` (${currentLabel})` : ""}.
           </div>
         )}
         {feedItems.map((item) => (
@@ -14545,15 +14520,8 @@ export default function RankevApp() {
         : (b.createdAt || 0) - (a.createdAt || 0);
     });
 
-  // Apply the category filter and the content-type filter.
-  // "Đang thịnh hành" (trending tab) shows everything — the sort already handles ranking.
+  // Feed kiểu MXH: chỉ lọc theo LOẠI bài (không lọc danh mục — sắp xếp đã xử lý ở trên).
   const feedItems = feedItemsAll
-    .filter((item) => {
-      if (activeCategory === "Đang thịnh hành") return true;
-      const k = normalizeVi(activeCategory);
-      // Khớp theo hashtag (ưu tiên, không phân biệt dấu) hoặc danh mục cũ (tương thích ngược).
-      return (Array.isArray(item.tags) && item.tags.some((t) => normalizeVi(t) === k)) || item.category === activeCategory;
-    })
     .filter((item) => {
       if (typeFilter === "all") return true;
       if (typeFilter === "deck") return item.type === "deck" && item.deckMode !== "exam";
