@@ -12919,6 +12919,7 @@ function ProfileView({
 
   // Số người đã RankUp hồ sơ này ở mỗi tầng (quan tâm/yêu thích/fan cuồng) — từ backend.
   const [rankCounts, setRankCounts] = useState({ tier1: 0, tier2: 0, tier3: 0, total: 0 });
+  const [demo, setDemo] = useState(null); // nhân khẩu học để hiện trên hồ sơ
   const profileUserId = isMe ? (currentUser.apiId || null) : (/^[0-9a-f-]{36}$/i.test(targetId) ? targetId : null);
   useEffect(() => {
     if (!profileUserId) { setRankCounts({ tier1: 0, tier2: 0, tier3: 0, total: 0 }); return; }
@@ -12926,6 +12927,16 @@ function ProfileView({
     api.social.profile(profileUserId).then((r) => { if (alive && r?.rankCounts) setRankCounts(r.rankCounts); }).catch(() => {});
     return () => { alive = false; };
   }, [profileUserId]);
+  // Nhân khẩu học: chính chủ dùng /users/me (thấy cả field ẩn); người khác chỉ nhận field công khai.
+  useEffect(() => {
+    let alive = true;
+    const load = isMe ? api.auth.me().then((r) => r?.user) : (profileUserId ? api.social.profile(profileUserId).then((r) => r?.user) : Promise.resolve(null));
+    load.then((u) => { if (alive) setDemo(u ? { ageRange: u.ageRange, gender: u.gender, occupation: u.occupation, pub: u.demographicsPublic || {} } : null); }).catch(() => { if (alive) setDemo(null); });
+    return () => { alive = false; };
+  }, [isMe, profileUserId]);
+  const demoChips = demo ? [
+    { key: "age", val: demo.ageRange }, { key: "gender", val: demo.gender }, { key: "occupation", val: demo.occupation },
+  ].filter((d) => d.val) : [];
 
   const theirPostsAll = posts
     .filter((p) => (p.author ? p.author.id === targetId : isMe && p.mine))
@@ -13063,6 +13074,18 @@ function ProfileView({
               <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
                 <Star size={12} color={C.gold} fill={C.gold} /> {fmtCompact(author.followers)} RP
               </div>
+              {demoChips.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {demoChips.map((d) => {
+                    const hidden = isMe && demo?.pub && demo.pub[d.key] === false; // field ẩn: chỉ chính chủ thấy
+                    return (
+                      <span key={d.key} title={hidden ? "Chỉ mình bạn thấy (đang ẩn)" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: hidden ? C.textFaint : C.textMuted }}>
+                        {hidden && <EyeOff size={11} />} {d.val}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -14241,97 +14264,233 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
   );
 }
 
-// Onboarding "rank everything": vài Rankie nhỏ để người mới VỪA học cách vote VỪA cá
-// nhân hoá (chọn theme, gu nội dung), kết bằng lời mời tạo Rankie đầu tiên.
+// Preview trực quan gọn cho từng dạng nội dung (ít chữ — cho người mới hình dung nhanh).
+function OnbTypePreview({ id }) {
+  const box = { width: 54, height: 42, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden" };
+  if (id === "rankie")
+    return <div style={box}><div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 26 }}>{[11, 20, 15, 24].map((h, i) => <div key={i} style={{ width: 6, height: h, borderRadius: 2, background: i % 2 ? C.teal : C.gold }} />)}</div></div>;
+  if (id === "path")
+    return <div style={box}><svg width="40" height="28" viewBox="0 0 40 28"><g stroke={C.gold} strokeWidth="2" fill="none"><path d="M7 14 H18 M18 14 L31 7 M18 14 L31 21" /></g><circle cx="7" cy="14" r="3" fill={C.gold} /><circle cx="32" cy="7" r="3" fill={C.teal} /><circle cx="32" cy="21" r="3" fill={C.coral} /></svg></div>;
+  if (id === "survey")
+    return <div style={box}><div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{[0, 1, 2].map((i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 9, height: 9, borderRadius: 3, border: `1.5px solid ${C.gold}`, background: i === 0 ? C.gold : "transparent" }} /><div style={{ width: 22, height: 4, borderRadius: 2, background: C.border }} /></div>)}</div></div>;
+  return <div style={box}><div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "center" }}><div style={{ width: 30, height: 4, borderRadius: 2, background: C.border }} /><div style={{ display: "flex", gap: 8 }}><Check size={14} color={C.teal} strokeWidth={3} /><X size={14} color={C.coral} strokeWidth={3} /></div></div></div>;
+}
+
+// Một hàng kết quả cộng đồng: nhãn + thanh % + số phiếu. Tô đậm lựa chọn của mình.
+function OnbResultRow({ label, count, total, mine }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div style={{ marginBottom: 9 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontFamily: bodyFont, fontSize: 13.5, marginBottom: 4 }}>
+        <span style={{ fontWeight: mine ? 800 : 600, color: mine ? C.gold : C.text }}>{label}{mine && " ✓"}</span>
+        <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums", fontSize: 12.5 }}>{pct}% · {count} người</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: pct + "%", borderRadius: 99, background: mine ? C.gold : "color-mix(in srgb, var(--teal) 65%, transparent)", transition: "width .5s cubic-bezier(.2,.7,.2,1)" }} />
+      </div>
+    </div>
+  );
+}
+
+// Onboarding "rank everything": mỗi lựa chọn của người mới VỪA cá nhân hoá VỪA là một
+// phiếu thật — chọn xong hiện ngay kết quả cả cộng đồng (ẩn trước khi chọn để không lộ).
+const ONB_TYPES = [
+  { id: "rankie", label: "Rankie", sub: "Biểu đồ cột / tròn" },
+  { id: "path", label: "Path", sub: "Chọn hướng → mở kết cục" },
+  { id: "survey", label: "Survey", sub: "Khảo sát nhiều câu" },
+  { id: "exam", label: "Exam", sub: "Đố vui có chấm điểm" },
+];
+const ONB_DEMO = [
+  { key: "age", label: "Độ tuổi", opts: ["<18", "18-24", "25-34", "35-44", "45+"] },
+  { key: "gender", label: "Giới tính", opts: ["Nam", "Nữ", "Khác"] },
+  { key: "occupation", label: "Nghề nghiệp", opts: ["Học sinh/Sinh viên", "Văn phòng", "Kinh doanh", "Kỹ thuật/IT", "Sáng tạo/Nghệ thuật", "Khác"] },
+];
+
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
-  const [choice, setChoice] = useState({}); // {theme, type, rating}
-  const steps = [
-    { key: "intro", kind: "intro" },
-    {
-      key: "theme", kind: "vote", q: "Bạn thích giao diện nào hơn?", hint: "Chọn thử — giao diện đổi ngay!",
-      opts: [{ id: "light", label: "Sáng", emoji: "☀️", color: C.gold }, { id: "dark", label: "Tối", emoji: "🌙", color: C.teal }],
-      onPick: (id) => setTheme(id),
-    },
-    {
-      key: "type", kind: "vote", q: "Bạn hứng thú với dạng nội dung nào nhất?", hint: "Rankev có nhiều kiểu để bạn xếp hạng mọi thứ.",
-      opts: [
-        { id: "rankie", label: "Rankie", sub: "Bình chọn nhanh", Icon: BarChart3, color: C.teal },
-        { id: "path", label: "Path", sub: "Câu chuyện rẽ nhánh", Icon: GitBranch, color: C.gold },
-        { id: "survey", label: "Survey", sub: "Khảo sát", Icon: Layers, color: "#A594E0" },
-        { id: "exam", label: "Exam", sub: "Đố / kiểm tra", Icon: Edit3, color: C.coral },
-      ],
-    },
-    { key: "rating", kind: "rating", q: "Giao diện Rankev hấp dẫn cỡ nào?", hint: "Cho tụi mình biết cảm nhận đầu tiên nhé." },
-    { key: "outro", kind: "outro" },
-  ];
+  const [choice, setChoice] = useState({ type: [] }); // {theme, type:[], rating, age, gender, occupation}
+  const [visible, setVisible] = useState({ age: true, gender: true, occupation: true }); // công khai?
+  const [stats, setStats] = useState({});   // {key: {counts, voters}}
+  const [revealed, setRevealed] = useState({}); // {key|'demo': true}
+  const [busy, setBusy] = useState(false);
+  const steps = ["intro", "theme", "type", "rating", "demo", "outro"];
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
 
-  const optCard = (o, selected, onClick) => (
-    <button key={o.id} onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 16px", borderRadius: 14, cursor: "pointer", textAlign: "left", border: `1.5px solid ${selected ? C.gold : C.border}`, background: selected ? C.goldSoft : C.surface, transition: "all .15s" }}>
-      <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", fontSize: 22, background: (o.color || C.gold) + "26", border: `1px solid ${o.color || C.gold}` }}>
-        {o.emoji ? o.emoji : o.Icon ? <o.Icon size={20} color={o.color} /> : null}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}>{o.label}</div>
-        {o.sub && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{o.sub}</div>}
-      </div>
-      {selected && <Check size={18} color={C.gold} strokeWidth={3} />}
-    </button>
-  );
+  const submitVote = async (key, choices) => {
+    setBusy(true);
+    try { const r = await api.onboarding.vote(key, choices); setStats((st) => ({ ...st, [key]: r })); }
+    catch { /* offline vẫn cho đi tiếp */ }
+    finally { setRevealed((r) => ({ ...r, [key]: true })); setBusy(false); }
+  };
+  const submitDemo = async () => {
+    setBusy(true);
+    try {
+      const r = await api.onboarding.demographics({ age: choice.age, gender: choice.gender, occupation: choice.occupation, visible });
+      const map = {}; (r.stats || []).forEach((x) => { map[x.key] = x; });
+      setStats((st) => ({ ...st, ...map }));
+    } catch { /* bỏ qua */ }
+    finally { setRevealed((r) => ({ ...r, demo: true })); setBusy(false); }
+  };
+
+  const ratingAvg = () => {
+    const c = stats.rating?.counts || {}; let n = 0, sum = 0;
+    for (let i = 1; i <= 5; i++) { const k = c[String(i)] || 0; n += k; sum += i * k; }
+    return n ? (sum / n).toFixed(1) : null;
+  };
+
+  const primaryFull = { ...primaryButton, width: "100%", marginTop: 22 };
 
   return (
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
-      <div style={{ width: "100%", maxWidth: 420, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", padding: "20px 22px 28px", boxSizing: "border-box" }}>
-        {/* Progress + Bỏ qua */}
+      <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", padding: "20px 22px 28px", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ flex: 1, display: "flex", gap: 5 }}>
-            {steps.map((_, i) => (
-              <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? C.gold : C.border, transition: "background .2s" }} />
-            ))}
+            {steps.map((_, i) => <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? C.gold : C.border, transition: "background .2s" }} />)}
           </div>
           <button onClick={() => onDone()} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Bỏ qua</button>
         </div>
 
-        <div key={s.key} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", animation: "popIn 0.25s ease" }}>
-          {s.kind === "intro" && (
+        <div key={s} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", animation: "popIn 0.25s ease" }}>
+          {s === "intro" && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
               <div style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 700, fontSize: 40, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Chào mừng tới Rankev — nơi bạn bình chọn & xếp hạng mọi thứ.<br />Bắt đầu bằng vài lựa chọn nhanh nhé!</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Mỗi lựa chọn của bạn là một lá phiếu — chọn xong sẽ thấy ngay cả cộng đồng đang nghĩ gì.</div>
               <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 26, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Bắt đầu <ChevronRight size={18} /></button>
             </div>
           )}
 
-          {s.kind === "vote" && (
+          {s === "theme" && (
             <div>
-              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>{s.q}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>{s.hint}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {s.opts.map((o) => optCard(o, choice[s.key] === o.id, () => { setChoice((c) => ({ ...c, [s.key]: o.id })); s.onPick && s.onPick(o.id); }))}
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Bạn thích giao diện nào hơn?</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Chọn thử — giao diện đổi ngay, rồi xem mọi người chọn gì.</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                {[{ id: "light", label: "Sáng", emoji: "☀️" }, { id: "dark", label: "Tối", emoji: "🌙" }].map((o) => {
+                  const on = choice.theme === o.id;
+                  return (
+                    <button key={o.id} disabled={busy} onClick={() => { setChoice((c) => ({ ...c, theme: o.id })); setTheme(o.id); submitVote("theme", [o.id]); }}
+                      style={{ flex: 1, padding: "22px 10px", borderRadius: 16, cursor: "pointer", border: `2px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, textAlign: "center" }}>
+                      <div style={{ fontSize: 34 }}>{o.emoji}</div>
+                      <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, marginTop: 6 }}>{o.label}</div>
+                    </button>
+                  );
+                })}
               </div>
-              <button onClick={next} disabled={!choice[s.key]} style={{ ...primaryButton, width: "100%", marginTop: 22, opacity: choice[s.key] ? 1 : 0.5, cursor: choice[s.key] ? "pointer" : "default" }}>Tiếp tục</button>
+              {revealed.theme && (
+                <div style={{ marginTop: 20, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, animation: "popIn .3s ease" }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cả cộng đồng chọn</div>
+                  {[{ id: "light", label: "☀️ Sáng" }, { id: "dark", label: "🌙 Tối" }].map((o) => (
+                    <OnbResultRow key={o.id} label={o.label} count={stats.theme?.counts?.[o.id] || 0} total={stats.theme?.voters || 0} mine={choice.theme === o.id} />
+                  ))}
+                </div>
+              )}
+              <button onClick={next} disabled={!revealed.theme} style={{ ...primaryFull, opacity: revealed.theme ? 1 : 0.5, cursor: revealed.theme ? "pointer" : "default" }}>Tiếp tục</button>
             </div>
           )}
 
-          {s.kind === "rating" && (
+          {s === "type" && (
+            <div>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Bạn thích dạng nội dung nào?</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 16 }}>Chọn nhiều cũng được — mỗi loại là một kiểu "rank everything".</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {ONB_TYPES.map((o) => {
+                  const on = (choice.type || []).includes(o.id);
+                  return (
+                    <button key={o.id} disabled={revealed.type} onClick={() => setChoice((c) => { const set = new Set(c.type || []); set.has(o.id) ? set.delete(o.id) : set.add(o.id); return { ...c, type: [...set] }; })}
+                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 14px", borderRadius: 14, cursor: revealed.type ? "default" : "pointer", textAlign: "left", border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface }}>
+                      <OnbTypePreview id={o.id} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}>{o.label}</div>
+                        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{o.sub}</div>
+                      </div>
+                      <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : "transparent", border: `1.5px solid ${on ? C.gold : C.border}` }}>{on && <Check size={14} color="#231a05" strokeWidth={3} />}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {revealed.type && (
+                <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, animation: "popIn .3s ease" }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng thích gì</div>
+                  {ONB_TYPES.map((o) => (
+                    <OnbResultRow key={o.id} label={o.label} count={stats.type?.counts?.[o.id] || 0} total={stats.type?.voters || 0} mine={(choice.type || []).includes(o.id)} />
+                  ))}
+                </div>
+              )}
+              {!revealed.type
+                ? <button onClick={() => submitVote("type", choice.type)} disabled={busy || !(choice.type || []).length} style={{ ...primaryFull, opacity: (choice.type || []).length ? 1 : 0.5, cursor: (choice.type || []).length ? "pointer" : "default" }}>Xem mọi người chọn gì →</button>
+                : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
+            </div>
+          )}
+
+          {s === "rating" && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>{s.q}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 22 }}>{s.hint}</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Giao diện Rankev hấp dẫn cỡ nào?</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 20 }}>Chấm sao — rồi xem mọi người chấm bao nhiêu.</div>
               <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} onClick={() => setChoice((c) => ({ ...c, rating: n }))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                  <button key={n} disabled={busy || revealed.rating} onClick={() => { setChoice((c) => ({ ...c, rating: n })); submitVote("rating", [String(n)]); }} style={{ background: "none", border: "none", cursor: revealed.rating ? "default" : "pointer", padding: 2 }}>
                     <Star size={38} color={C.gold} fill={(choice.rating || 0) >= n ? C.gold : "none"} />
                   </button>
                 ))}
               </div>
-              <button onClick={next} disabled={!choice.rating} style={{ ...primaryButton, width: "100%", marginTop: 26, opacity: choice.rating ? 1 : 0.5, cursor: choice.rating ? "pointer" : "default" }}>Tiếp tục</button>
+              {revealed.rating && (
+                <div style={{ marginTop: 20, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, textAlign: "left", animation: "popIn .3s ease" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4 }}>Điểm cộng đồng</span>
+                    {ratingAvg() && <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.gold }}>{ratingAvg()} ★</span>}
+                  </div>
+                  {[5, 4, 3, 2, 1].map((n) => (
+                    <OnbResultRow key={n} label={`${n} ★`} count={stats.rating?.counts?.[String(n)] || 0} total={stats.rating?.voters || 0} mine={choice.rating === n} />
+                  ))}
+                </div>
+              )}
+              <button onClick={next} disabled={!revealed.rating} style={{ ...primaryFull, opacity: revealed.rating ? 1 : 0.5, cursor: revealed.rating ? "pointer" : "default" }}>Tiếp tục</button>
             </div>
           )}
 
-          {s.kind === "outro" && (
+          {s === "demo" && (
+            <div>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Đôi nét về bạn (tuỳ chọn)</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 16 }}>Giúp so sánh xu hướng theo nhóm. Bật <b>Ẩn</b> để không hiện trên trang cá nhân (Rankev vẫn dùng cho thống kê ẩn danh).</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {ONB_DEMO.map((f) => (
+                  <div key={f.key}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{f.label}</span>
+                      <button onClick={() => setVisible((v) => ({ ...v, [f.key]: !v[f.key] }))} title={visible[f.key] ? "Đang công khai — bấm để ẩn" : "Đang ẩn — bấm để công khai"}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, border: `1px solid ${visible[f.key] ? C.border : C.gold}`, background: visible[f.key] ? "transparent" : C.goldSoft, color: visible[f.key] ? C.textFaint : C.gold }}>
+                        {visible[f.key] ? <><Eye size={12} /> Công khai</> : <><EyeOff size={12} /> Ẩn</>}
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                      {f.opts.map((op) => {
+                        const on = choice[f.key] === op;
+                        return (
+                          <button key={op} disabled={revealed.demo} onClick={() => setChoice((c) => ({ ...c, [f.key]: on ? undefined : op }))}
+                            style={{ padding: "7px 12px", borderRadius: 99, cursor: revealed.demo ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 600, fontSize: 13, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted }}>{op}</button>
+                        );
+                      })}
+                    </div>
+                    {revealed.demo && choice[f.key] && stats[f.key] && (
+                      <div style={{ marginTop: 12 }}>
+                        {f.opts.filter((op) => (stats[f.key]?.counts?.[op] || 0) > 0 || op === choice[f.key]).map((op) => (
+                          <OnbResultRow key={op} label={op} count={stats[f.key]?.counts?.[op] || 0} total={stats[f.key]?.voters || 0} mine={choice[f.key] === op} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {!revealed.demo
+                ? <button onClick={submitDemo} disabled={busy || !(choice.age || choice.gender || choice.occupation)} style={{ ...primaryFull, opacity: (choice.age || choice.gender || choice.occupation) ? 1 : 0.5, cursor: (choice.age || choice.gender || choice.occupation) ? "pointer" : "default" }}>Xem thống kê & tiếp →</button>
+                : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
+              {!revealed.demo && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua bước này</button>}
+            </div>
+          )}
+
+          {s === "outro" && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 54, marginBottom: 8 }}>🎉</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 30, color: C.text, lineHeight: 1.1 }}>Giờ tới lượt bạn!</div>

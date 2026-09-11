@@ -279,6 +279,13 @@ export const notifications = {
   read(id) { return apiFetch(`/notifications/${id}/read`, { method: 'POST' }); },
 };
 
+// Onboarding "rank everything": vote có hiện kết quả cộng đồng.
+export const onboarding = {
+  vote(key, choices) { return apiFetch('/onboarding/vote', { method: 'POST', body: { key, choices: [].concat(choices) } }); }, // → { key, counts, voters }
+  demographics(body) { return apiFetch('/onboarding/demographics', { method: 'POST', body }); }, // → { stats: [{key,counts,voters}] }
+  stats(keys) { return apiFetch('/onboarding/stats' + (keys ? `?keys=${encodeURIComponent(keys.join(','))}` : '')); },
+};
+
 export const series = {
   get(id) { return apiFetch(`/series/${id}`); },
   mine() { return apiFetch('/series/mine'); }, // → { items: [{ id, name, postCount }] }
@@ -440,6 +447,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications,
+  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
