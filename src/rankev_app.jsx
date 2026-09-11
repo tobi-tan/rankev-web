@@ -14276,6 +14276,61 @@ function OnbTypePreview({ id }) {
   return <div style={box}><div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "center" }}><div style={{ width: 30, height: 4, borderRadius: 2, background: C.border }} /><div style={{ display: "flex", gap: 8 }}><Check size={14} color={C.teal} strokeWidth={3} /><X size={14} color={C.coral} strokeWidth={3} /></div></div></div>;
 }
 
+// Preview bằng MỘT BÀI THẬT trên nền tảng (số liệu thật). Fallback về preview trừu tượng.
+function OnbExample({ type, data }) {
+  if (!data) return <OnbTypePreview id={type} />;
+  const card = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 11px" };
+  const titleStyle = { fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 7 };
+  if (type === "rankie") {
+    const opts = data.options || []; const total = data.total || opts.reduce((s, o) => s + (o.votes || 0), 0) || 1;
+    return (
+      <div style={card}>
+        <div style={titleStyle}>📊 {data.title}</div>
+        {opts.map((o, i) => { const pct = Math.round(((o.votes || 0) / total) * 100); return (
+          <div key={i} style={{ marginBottom: i < opts.length - 1 ? 6 : 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted, marginBottom: 2 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.emoji ? o.emoji + " " : ""}{o.label}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums", flexShrink: 0, marginLeft: 6, fontWeight: 700, color: i === 0 ? C.gold : C.textMuted }}>{pct}%</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden" }}><div style={{ height: "100%", width: pct + "%", borderRadius: 99, background: i === 0 ? C.gold : "color-mix(in srgb, var(--teal) 60%, transparent)" }} /></div>
+          </div>
+        ); })}
+        <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 7 }}>{fmtCompact(total)} lượt bình chọn</div>
+      </div>
+    );
+  }
+  if (type === "path") {
+    return (
+      <div style={card}>
+        <div style={titleStyle}>🧭 {data.title}</div>
+        {data.question && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{data.question}</div>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {(data.branches || []).map((b, i) => (
+            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "4px 9px", borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 11.5, color: C.text }}>{b.emoji ? b.emoji + " " : ""}{b.label} <ChevronRight size={11} color={C.gold} /></span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // survey / exam (deck)
+  return (
+    <div style={card}>
+      <div style={titleStyle}>{type === "exam" ? "📝" : "📋"} {data.title}{data.questionCount ? ` · ${data.questionCount} câu` : ""}</div>
+      {data.question && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{data.question}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {(data.options || []).slice(0, 3).map((o, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted }}>
+            {type === "exam"
+              ? (o.correct ? <Check size={13} color={C.teal} strokeWidth={3} /> : <X size={13} color={C.textFaint} strokeWidth={3} />)
+              : <span style={{ width: 10, height: 10, borderRadius: 3, border: `1.5px solid ${C.gold}`, flexShrink: 0 }} />}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Một hàng kết quả cộng đồng: nhãn + thanh % + số phiếu. Tô đậm lựa chọn của mình.
 function OnbResultRow({ label, count, total, mine }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -14400,6 +14455,8 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   const [busy, setBusy] = useState(false);
   const [occQuery, setOccQuery] = useState(""); // ô tìm nghề
   const [occOpen, setOccOpen] = useState(false);
+  const [examples, setExamples] = useState(null); // bài THẬT preview mỗi loại
+  useEffect(() => { api.onboarding.examples().then(setExamples).catch(() => {}); }, []);
   const steps = ["intro", "theme", "type", "rating", "age", "gender", "occupation", "outro"];
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
@@ -14521,15 +14578,19 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {ONB_TYPES.map((o) => {
                   const on = (choice.type || []).includes(o.id);
+                  const Icon = { rankie: BarChart3, path: GitBranch, survey: Layers, exam: Edit3 }[o.id];
                   return (
                     <button key={o.id} disabled={revealed.type} onClick={() => setChoice((c) => { const set = new Set(c.type || []); set.has(o.id) ? set.delete(o.id) : set.add(o.id); return { ...c, type: [...set] }; })}
-                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 14px", borderRadius: 14, cursor: revealed.type ? "default" : "pointer", textAlign: "left", border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface }}>
-                      <OnbTypePreview id={o.id} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}>{o.label}</div>
-                        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{o.sub}</div>
+                      style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 14, cursor: revealed.type ? "default" : "pointer", textAlign: "left", border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <Icon size={18} color={on ? C.gold : C.textMuted} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}>{o.label}</div>
+                          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{o.sub}</div>
+                        </div>
+                        <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : "transparent", border: `1.5px solid ${on ? C.gold : C.border}` }}>{on && <Check size={14} color="#231a05" strokeWidth={3} />}</span>
                       </div>
-                      <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : "transparent", border: `1.5px solid ${on ? C.gold : C.border}` }}>{on && <Check size={14} color="#231a05" strokeWidth={3} />}</span>
+                      <OnbExample type={o.id} data={examples?.[o.id]} />
                     </button>
                   );
                 })}

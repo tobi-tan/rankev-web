@@ -284,6 +284,7 @@ export const onboarding = {
   vote(key, choices) { return apiFetch('/onboarding/vote', { method: 'POST', body: { key, choices: [].concat(choices) } }); }, // → { key, counts, voters }
   demographics(body) { return apiFetch('/onboarding/demographics', { method: 'POST', body }); }, // → { stats: [{key,counts,voters}] }
   stats(keys) { return apiFetch('/onboarding/stats' + (keys ? `?keys=${encodeURIComponent(keys.join(','))}` : '')); },
+  examples() { return apiFetch('/onboarding/examples'); }, // → { rankie, path, survey, exam } (bài thật)
 };
 
 export const series = {
