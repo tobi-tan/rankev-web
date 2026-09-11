@@ -14487,7 +14487,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   const [busy, setBusy] = useState(false);
   const [occQuery, setOccQuery] = useState(""); // ô tìm nghề
   const [occOpen, setOccOpen] = useState(false);
-  const steps = ["intro", "theme", "type", "rating", "age", "gender", "occupation", "outro"];
+  const steps = ["intro", "theme", "type", "age", "gender", "occupation", "rating", "outro"];
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
   const back = () => setStep((i) => Math.max(i - 1, 0));
