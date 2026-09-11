@@ -14124,6 +14124,111 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
   );
 }
 
+// Onboarding "rank everything": vài Rankie nhỏ để người mới VỪA học cách vote VỪA cá
+// nhân hoá (chọn theme, gu nội dung), kết bằng lời mời tạo Rankie đầu tiên.
+function OnboardingFlow({ onDone, theme, setTheme }) {
+  const [step, setStep] = useState(0);
+  const [choice, setChoice] = useState({}); // {theme, type, rating}
+  const steps = [
+    { key: "intro", kind: "intro" },
+    {
+      key: "theme", kind: "vote", q: "Bạn thích giao diện nào hơn?", hint: "Chọn thử — giao diện đổi ngay!",
+      opts: [{ id: "light", label: "Sáng", emoji: "☀️", color: C.gold }, { id: "dark", label: "Tối", emoji: "🌙", color: C.teal }],
+      onPick: (id) => setTheme(id),
+    },
+    {
+      key: "type", kind: "vote", q: "Bạn hứng thú với dạng nội dung nào nhất?", hint: "Rankev có nhiều kiểu để bạn xếp hạng mọi thứ.",
+      opts: [
+        { id: "rankie", label: "Rankie", sub: "Bình chọn nhanh", Icon: BarChart3, color: C.teal },
+        { id: "path", label: "Path", sub: "Câu chuyện rẽ nhánh", Icon: GitBranch, color: C.gold },
+        { id: "survey", label: "Survey", sub: "Khảo sát", Icon: Layers, color: "#A594E0" },
+        { id: "exam", label: "Exam", sub: "Đố / kiểm tra", Icon: Edit3, color: C.coral },
+      ],
+    },
+    { key: "rating", kind: "rating", q: "Giao diện Rankev hấp dẫn cỡ nào?", hint: "Cho tụi mình biết cảm nhận đầu tiên nhé." },
+    { key: "outro", kind: "outro" },
+  ];
+  const s = steps[step];
+  const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
+
+  const optCard = (o, selected, onClick) => (
+    <button key={o.id} onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 16px", borderRadius: 14, cursor: "pointer", textAlign: "left", border: `1.5px solid ${selected ? C.gold : C.border}`, background: selected ? C.goldSoft : C.surface, transition: "all .15s" }}>
+      <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", fontSize: 22, background: (o.color || C.gold) + "26", border: `1px solid ${o.color || C.gold}` }}>
+        {o.emoji ? o.emoji : o.Icon ? <o.Icon size={20} color={o.color} /> : null}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}>{o.label}</div>
+        {o.sub && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{o.sub}</div>}
+      </div>
+      {selected && <Check size={18} color={C.gold} strokeWidth={3} />}
+    </button>
+  );
+
+  return (
+    <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
+      {FONT_IMPORT}
+      <div style={{ width: "100%", maxWidth: 420, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", padding: "20px 22px 28px", boxSizing: "border-box" }}>
+        {/* Progress + Bỏ qua */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div style={{ flex: 1, display: "flex", gap: 5 }}>
+            {steps.map((_, i) => (
+              <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? C.gold : C.border, transition: "background .2s" }} />
+            ))}
+          </div>
+          <button onClick={() => onDone()} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Bỏ qua</button>
+        </div>
+
+        <div key={s.key} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", animation: "popIn 0.25s ease" }}>
+          {s.kind === "intro" && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
+              <div style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 700, fontSize: 40, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Chào mừng tới Rankev — nơi bạn bình chọn & xếp hạng mọi thứ.<br />Bắt đầu bằng vài lựa chọn nhanh nhé!</div>
+              <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 26, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Bắt đầu <ChevronRight size={18} /></button>
+            </div>
+          )}
+
+          {s.kind === "vote" && (
+            <div>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>{s.q}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>{s.hint}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {s.opts.map((o) => optCard(o, choice[s.key] === o.id, () => { setChoice((c) => ({ ...c, [s.key]: o.id })); s.onPick && s.onPick(o.id); }))}
+              </div>
+              <button onClick={next} disabled={!choice[s.key]} style={{ ...primaryButton, width: "100%", marginTop: 22, opacity: choice[s.key] ? 1 : 0.5, cursor: choice[s.key] ? "pointer" : "default" }}>Tiếp tục</button>
+            </div>
+          )}
+
+          {s.kind === "rating" && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>{s.q}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 22 }}>{s.hint}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} onClick={() => setChoice((c) => ({ ...c, rating: n }))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                    <Star size={38} color={C.gold} fill={(choice.rating || 0) >= n ? C.gold : "none"} />
+                  </button>
+                ))}
+              </div>
+              <button onClick={next} disabled={!choice.rating} style={{ ...primaryButton, width: "100%", marginTop: 26, opacity: choice.rating ? 1 : 0.5, cursor: choice.rating ? "pointer" : "default" }}>Tiếp tục</button>
+            </div>
+          )}
+
+          {s.kind === "outro" && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 54, marginBottom: 8 }}>🎉</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 30, color: C.text, lineHeight: 1.1 }}>Giờ tới lượt bạn!</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 12, lineHeight: 1.5 }}>Tạo Rankie đầu tiên để mọi người bình chọn, hoặc khám phá cộng đồng trước.</div>
+              <button onClick={() => onDone("create")} style={{ ...primaryButton, width: "100%", marginTop: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✍️ Tạo Rankie đầu tiên</button>
+              <button onClick={() => onDone()} style={{ width: "100%", marginTop: 10, padding: 13, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Khám phá đã →</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RankevApp() {
   // Giao diện sáng/tối (dark mặc định). Áp bằng data-theme trên <html> → CSS variables tự đổi.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("rankev.theme") || "dark"; } catch { return "dark"; } });
@@ -14136,6 +14241,8 @@ export default function RankevApp() {
     } catch { /* ignore */ }
   }, [theme]);
   const toggleTheme = useCallback(() => setTheme((t) => (t === "light" ? "dark" : "light")), []);
+  // Onboarding lần đầu ("rank everything"). Đã xem 1 lần thì thôi (lưu ở máy).
+  const [onboarded, setOnboarded] = useState(() => { try { return localStorage.getItem("rankev.onboarded") === "1"; } catch { return true; } });
   const [rankies, setRankies] = useState(initialRankies);
   // --- Feed thật từ API (Phần 2) — merge cùng mock, mock giữ làm nội dung nền/fallback ---
   const [apiPosts, setApiPosts] = useState([]);
@@ -15331,6 +15438,19 @@ export default function RankevApp() {
   }
   if (!authed) {
     return <AuthGate onAuthed={handleAuthed} />;
+  }
+  if (!onboarded) {
+    return (
+      <OnboardingFlow
+        theme={theme}
+        setTheme={setTheme}
+        onDone={(intent) => {
+          try { localStorage.setItem("rankev.onboarded", "1"); } catch { /* ignore */ }
+          setOnboarded(true);
+          if (intent === "create") setView("create");
+        }}
+      />
+    );
   }
 
   return (
