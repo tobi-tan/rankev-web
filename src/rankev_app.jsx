@@ -14335,33 +14335,32 @@ function ExamIllo() {
   );
 }
 
-// Preview: Rankie = biểu đồ BÀI THẬT (số liệu thật); Path/Survey/Exam = hình minh hoạ.
-function OnbExample({ type, data }) {
-  if (type === "path") return <div style={{ padding: "4px 2px" }}><PathIllo /></div>;
-  if (type === "survey") return <div style={{ padding: "4px 2px" }}><SurveyIllo /></div>;
-  if (type === "exam") return <div style={{ padding: "4px 2px" }}><ExamIllo /></div>;
-  if (!data) return <OnbTypePreview id={type} />;
-  const card = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 11px" };
-  const titleStyle = { fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 7 };
-  if (type === "rankie") {
-    const opts = data.options || []; const total = data.total || opts.reduce((s, o) => s + (o.votes || 0), 0) || 1;
-    return (
-      <div style={card}>
-        <div style={titleStyle}>📊 {data.title}</div>
-        {opts.map((o, i) => { const pct = Math.round(((o.votes || 0) / total) * 100); return (
-          <div key={i} style={{ marginBottom: i < opts.length - 1 ? 6 : 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted, marginBottom: 2 }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.emoji ? o.emoji + " " : ""}{o.label}</span>
-              <span style={{ fontVariantNumeric: "tabular-nums", flexShrink: 0, marginLeft: 6, fontWeight: 700, color: i === 0 ? C.gold : C.textMuted }}>{pct}%</span>
-            </div>
-            <div style={{ height: 6, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden" }}><div style={{ height: "100%", width: pct + "%", borderRadius: 99, background: i === 0 ? C.gold : "color-mix(in srgb, var(--teal) 60%, transparent)" }} /></div>
-          </div>
-        ); })}
-        <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint, marginTop: 7 }}>{fmtCompact(total)} lượt bình chọn</div>
-      </div>
-    );
-  }
-  return <OnbTypePreview id={type} />;
+// Rankie: minh hoạ bục xếp hạng (bảng ranking) — 1 vàng, 2 teal, 3 coral, kèm huy chương.
+function RankieIllo() {
+  const base = 100;
+  const cols = [
+    { x: 50, w: 56, h: 50, fill: C.teal, medal: "🥈", n: "2" },
+    { x: 122, w: 56, h: 72, fill: C.gold, medal: "🥇", n: "1" },
+    { x: 194, w: 56, h: 34, fill: C.coral, medal: "🥉", n: "3" },
+  ];
+  return (
+    <svg viewBox="0 0 300 116" width="100%" style={{ display: "block" }} aria-label="Minh hoạ bảng xếp hạng">
+      <line x1="34" y1={base} x2="266" y2={base} stroke={C.border} strokeWidth="2" />
+      {cols.map((c, i) => (
+        <g key={i}>
+          <rect x={c.x} y={base - c.h} width={c.w} height={c.h} rx="6" fill={c.fill} />
+          <text x={c.x + c.w / 2} y={base - c.h - 7} textAnchor="middle" fontSize="19">{c.medal}</text>
+          <text x={c.x + c.w / 2} y={base - c.h / 2 + 7} textAnchor="middle" fontSize="19" fontWeight="800" fill="#fff" fontFamily={bodyFont}>{c.n}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// Preview mỗi loại nội dung bằng hình minh hoạ dễ hiểu (không dùng bài thật nữa).
+function OnbExample({ type }) {
+  const Illo = { rankie: RankieIllo, path: PathIllo, survey: SurveyIllo, exam: ExamIllo }[type];
+  return Illo ? <div style={{ padding: "4px 2px" }}><Illo /></div> : <OnbTypePreview id={type} />;
 }
 
 // Một hàng kết quả cộng đồng: nhãn + thanh % + số phiếu. Tô đậm lựa chọn của mình.
@@ -14488,8 +14487,6 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   const [busy, setBusy] = useState(false);
   const [occQuery, setOccQuery] = useState(""); // ô tìm nghề
   const [occOpen, setOccOpen] = useState(false);
-  const [examples, setExamples] = useState(null); // bài THẬT preview mỗi loại
-  useEffect(() => { api.onboarding.examples().then(setExamples).catch(() => {}); }, []);
   const steps = ["intro", "theme", "type", "rating", "age", "gender", "occupation", "outro"];
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
@@ -14623,7 +14620,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                         </div>
                         <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : "transparent", border: `1.5px solid ${on ? C.gold : C.border}` }}>{on && <Check size={14} color="#231a05" strokeWidth={3} />}</span>
                       </div>
-                      <OnbExample type={o.id} data={examples?.[o.id]} />
+                      <OnbExample type={o.id} />
                     </button>
                   );
                 })}
