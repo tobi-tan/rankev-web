@@ -14326,6 +14326,70 @@ function onbAge(dob) {
   const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
   return a >= 0 && a <= 120 ? a : null;
 }
+function daysInMonth(m, y) { return new Date(y, m, 0).getDate(); } // m: 1..12
+
+// Một cột con lăn kiểu Apple: cuộn để chọn, chạm vào một mục cũng chọn.
+function WheelColumn({ items, value, onChange, disabled, render }) {
+  const ref = useRef(null);
+  const H = 38;
+  const idx = Math.max(0, items.indexOf(value));
+  useEffect(() => { if (ref.current) ref.current.scrollTop = idx * H; }, [idx]);
+  const onScroll = () => {
+    if (disabled || !ref.current) return;
+    clearTimeout(ref.current._t);
+    const el = ref.current;
+    el._t = setTimeout(() => {
+      const i = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / H)));
+      if (items[i] !== value) onChange(items[i]);
+    }, 110);
+  };
+  return (
+    <div style={{ position: "relative", flex: 1, height: H * 5, overflow: "hidden" }}>
+      <div ref={ref} onScroll={onScroll} className="wheelcol" style={{ height: "100%", overflowY: "scroll", scrollSnapType: "y mandatory", scrollbarWidth: "none" }}>
+        <div style={{ height: H * 2 }} />
+        {items.map((it) => (
+          <div key={it} onClick={() => !disabled && onChange(it)} style={{ height: H, scrollSnapAlign: "center", display: "grid", placeItems: "center", cursor: disabled ? "default" : "pointer", fontFamily: bodyFont, fontSize: 17, fontWeight: it === value ? 800 : 500, color: it === value ? C.gold : C.textFaint }}>
+            {render ? render(it) : it}
+          </div>
+        ))}
+        <div style={{ height: H * 2 }} />
+      </div>
+      <div style={{ position: "absolute", top: H * 2, left: 0, right: 0, height: H, borderTop: `1px solid ${C.gold}`, borderBottom: `1px solid ${C.gold}`, pointerEvents: "none" }} />
+    </div>
+  );
+}
+
+// Bộ chọn ngày sinh 3 con lăn (Ngày · Tháng · Năm). Mặc định 2000 để không kẹt ở năm nay.
+function DobWheel({ value, onChange, disabled }) {
+  const nowY = new Date().getFullYear();
+  const parsed = (() => { if (value) { const [y, m, d] = value.split("-").map(Number); if (y && m && d) return { d, m, y }; } return { d: 1, m: 1, y: 2000 }; })();
+  useEffect(() => { if (!value) onChange(`${parsed.y}-01-01`); /* đặt mặc định khi mở */ }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const years = []; for (let y = nowY; y >= nowY - 100; y--) years.push(y);
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const days = Array.from({ length: daysInMonth(parsed.m, parsed.y) }, (_, i) => i + 1);
+  const set = (patch) => {
+    const nx = { ...parsed, ...patch };
+    const maxD = daysInMonth(nx.m, nx.y); if (nx.d > maxD) nx.d = maxD;
+    onChange(`${nx.y}-${String(nx.m).padStart(2, "0")}-${String(nx.d).padStart(2, "0")}`);
+  };
+  return (
+    <div style={{ display: "flex", gap: 6, border: `1.5px solid ${value ? C.gold : C.border}`, borderRadius: 14, background: C.surface, padding: "6px 10px", opacity: disabled ? 0.7 : 1 }}>
+      <style>{`.wheelcol::-webkit-scrollbar{display:none}`}</style>
+      <div style={{ flex: 1 }}>
+        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Ngày</div>
+        <WheelColumn items={days} value={parsed.d} onChange={(d) => set({ d })} disabled={disabled} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Tháng</div>
+        <WheelColumn items={months} value={parsed.m} onChange={(m) => set({ m })} disabled={disabled} render={(v) => `Th ${v}`} />
+      </div>
+      <div style={{ flex: 1.3 }}>
+        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Năm</div>
+        <WheelColumn items={years} value={parsed.y} onChange={(y) => set({ y })} disabled={disabled} />
+      </div>
+    </div>
+  );
+}
 
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
@@ -14517,9 +14581,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 {visToggle("age")}
               </div>
               <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Xem bao nhiêu người cùng độ tuổi với bạn. Bật <b>Ẩn</b> để không hiện trên hồ sơ.</div>
-              <input type="date" value={choice.dob || ""} disabled={revealed.age} max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setChoice((c) => ({ ...c, dob: e.target.value }))}
-                style={{ width: "100%", padding: "13px 14px", borderRadius: 12, border: `1.5px solid ${choice.dob ? C.gold : C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontSize: 16, boxSizing: "border-box", colorScheme: theme === "light" ? "light" : "dark" }} />
+              <DobWheel value={choice.dob} onChange={(dob) => setChoice((c) => ({ ...c, dob }))} disabled={revealed.age} />
               {choice.dob && onbAge(choice.dob) != null && (
                 <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8 }}>Bạn <b style={{ color: C.gold }}>{onbAge(choice.dob)} tuổi</b> · nhóm {onbAgeBucket(choice.dob)}</div>
               )}
@@ -14584,6 +14646,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                     <Search size={17} color={C.textFaint} />
                     <input value={occQuery} placeholder={choice.occupation || "Tìm nghề nghiệp…"} onFocus={() => setOccOpen(true)}
                       onChange={(e) => { setOccQuery(e.target.value); setOccOpen(true); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && occQuery.trim()) { setChoice((c) => ({ ...c, occupation: occQuery.trim() })); setOccOpen(false); } }}
                       style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: C.text, fontFamily: bodyFont, fontSize: 15 }} />
                     {choice.occupation && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>{choice.occupation}</span>}
                   </div>
@@ -14617,7 +14680,9 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 </div>
               )}
               {!revealed.occupation
-                ? <button onClick={() => submitDemo({ occupation: choice.occupation, visible: { occupation: visible.occupation } }, "occupation")} disabled={busy || !choice.occupation} style={{ ...primaryFull, opacity: choice.occupation ? 1 : 0.5, cursor: choice.occupation ? "pointer" : "default" }}>Xem người giống bạn →</button>
+                ? (() => { const occVal = choice.occupation || occQuery.trim(); return (
+                    <button onClick={() => { if (!occVal) return; setChoice((c) => ({ ...c, occupation: occVal })); setOccOpen(false); submitDemo({ occupation: occVal, visible: { occupation: visible.occupation } }, "occupation"); }} disabled={busy || !occVal} style={{ ...primaryFull, opacity: occVal ? 1 : 0.5, cursor: occVal ? "pointer" : "default" }}>Xem người giống bạn →</button>
+                  ); })()
                 : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
               {!revealed.occupation && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
             </div>
