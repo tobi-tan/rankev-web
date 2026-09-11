@@ -9,7 +9,7 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -168,6 +168,95 @@ const authorFanclub = {
   bio: "Kênh chính thức đêm nhạc hội thường niên. Theo dõi để không bỏ lỡ vote thần tượng!",
 };
 const AUTHORS = { me: currentUser, u_esports: authorEsports, u_fanclub: authorFanclub };
+
+// Cầu nối điều hướng mở hồ sơ theo @handle từ bất kỳ đâu (bình luận, caption, thông báo)
+// mà không cần luồn prop qua hàng chục component. RankevApp gán NAV.openHandle khi mount.
+const NAV = { openHandle: null };
+const HANDLE_RE = /(@[a-zA-Z0-9_]{3,20})/g;
+
+// Hiển thị text có @handle: biến mỗi @handle thành liên kết mở hồ sơ người đó.
+function MentionText({ text, style }) {
+  if (!text) return null;
+  const parts = String(text).split(HANDLE_RE);
+  return (
+    <span style={style}>
+      {parts.map((p, i) => {
+        const m = /^@([a-zA-Z0-9_]{3,20})$/.exec(p);
+        if (!m) return <React.Fragment key={i}>{p}</React.Fragment>;
+        return (
+          <span
+            key={i}
+            onClick={(e) => { e.stopPropagation(); NAV.openHandle && NAV.openHandle(m[1]); }}
+            style={{ color: C.gold, fontWeight: 600, cursor: "pointer" }}
+          >
+            {p}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+// Thời gian tương đối gọn (vd "3 phút", "2 giờ", "4 ngày").
+function timeAgoShort(ts) {
+  const d = typeof ts === "number" ? ts : Date.parse(ts);
+  if (!d) return "";
+  const s = Math.max(1, Math.floor((Date.now() - d) / 1000));
+  if (s < 60) return "vừa xong";
+  const m = Math.floor(s / 60); if (m < 60) return `${m} phút`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h} giờ`;
+  const dd = Math.floor(h / 24); if (dd < 7) return `${dd} ngày`;
+  const w = Math.floor(dd / 7); if (w < 5) return `${w} tuần`;
+  return `${Math.floor(dd / 30)} tháng`;
+}
+
+// Panel thông báo (toàn màn trong khung app). Hiện: @nhắc tên trong bình luận.
+function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9998, background: C.frame, display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 480, background: C.bg, display: "flex", flexDirection: "column", height: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
+          <Bell size={20} color={C.gold} />
+          <div style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 700, fontSize: 22, color: C.text, flex: 1 }}>Thông báo</div>
+          <button onClick={onClose} title="Đóng" style={{ width: 34, height: 34, borderRadius: 99, background: C.surface, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", cursor: "pointer" }}><X size={18} color={C.textMuted} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {items.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "64px 24px", color: C.textFaint }}>
+              <Bell size={40} color={C.textFaint} style={{ opacity: 0.5 }} />
+              <div style={{ fontFamily: bodyFont, fontSize: 14, marginTop: 12 }}>Chưa có thông báo nào.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12.5, marginTop: 4, color: C.textFaint }}>Khi ai đó @nhắc tên bạn trong bình luận, nó sẽ hiện ở đây.</div>
+            </div>
+          ) : (
+            items.map((n) => {
+              const a = n.actor || {};
+              const name = a.name || (a.handle ? a.handle.replace(/^@/, "") : "Người dùng");
+              return (
+                <div key={n.id} onClick={() => onOpenItem?.(n)} style={{ display: "flex", gap: 12, padding: "13px 16px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", background: n.read ? "transparent" : "color-mix(in srgb, var(--gold) 7%, transparent)" }}>
+                  <div
+                    onClick={(e) => { e.stopPropagation(); if (a.handle) onOpenHandle?.(a.handle); }}
+                    style={{ width: 42, height: 42, borderRadius: 99, flexShrink: 0, background: a.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 20 }}
+                  >
+                    {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || <AtSign size={18} color={C.gold} />)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, lineHeight: 1.4 }}>
+                      <b style={{ fontWeight: 700 }}>{name}</b> đã nhắc bạn{n.targetTitle ? <> trong <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " trong một bình luận"}.
+                    </div>
+                    {n.text && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 3, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}><MentionText text={n.text} /></div>}
+                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 4 }}>{timeAgoShort(n.createdAt)}</div>
+                  </div>
+                  {!n.read && <span style={{ width: 8, height: 8, borderRadius: 99, background: C.gold, flexShrink: 0, marginTop: 6 }} />}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Quan hệ RankUp mặc định của người dùng với vài kênh: tier 0 (trung lập) → 1 (Quan
 // tâm) → 2 (Yêu thích) → 3 (Fan cuồng). Thay cho hệ Follow cũ. RankUp chỉ điều khiển
@@ -4571,7 +4660,7 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
   );
 }
 
-function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession }) {
+function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
   // Bộ icon lucide dùng CHUNG toàn hệ thống (khớp bộ lọc hồ sơ).
@@ -4602,6 +4691,20 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+          {/* Chuông thông báo — @nhắc tên trong bình luận */}
+          <button
+            onClick={onOpenNotifications}
+            title="Thông báo"
+            style={{ width: 38, height: 38, borderRadius: 99, background: C.surface, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", cursor: "pointer", position: "relative" }}
+          >
+            <Bell size={17} color={notifCount > 0 ? C.gold : C.textMuted} />
+            {notifCount > 0 && (
+              <span style={{ position: "absolute", top: -3, right: -3, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 99, background: C.coral, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 10, display: "grid", placeItems: "center", border: `2px solid ${C.bg}`, boxSizing: "content-box" }}>
+                {notifCount > 9 ? "9+" : notifCount}
+              </span>
+            )}
+          </button>
+
           {/* Content-type filter — lọc theo loại bài (Rankie/Path/…) */}
           {true && (
           <div style={{ position: "relative" }}>
@@ -5271,7 +5374,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                   )}
                   <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>· {timeAgo(c.createdAt)}</span>
                 </div>
-                {c.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}>{c.text}</div>}
+                {c.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={c.text} /></div>}
                 {c.image && <div style={{ marginTop: 6, width: 120, height: 120, borderRadius: 10, background: c.image }} />}
                 <div style={{ marginTop: 6, display: "flex", gap: 14, alignItems: "center" }}>
                   <button onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(""); setReplyImage(null); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: replyTo === c.id ? C.gold : C.textMuted }}>Trả lời</button>
@@ -5290,7 +5393,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                           <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 13 }}>{r.user}</span>
                           <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>· {timeAgo(r.createdAt)}</span>
                         </div>
-                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}>{r.text}</div>}
+                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={r.text} /></div>}
                         {r.image && <div style={{ marginTop: 4, width: 96, height: 96, borderRadius: 8, background: r.image }} />}
                       </div>
                     ))}
@@ -12807,6 +12910,7 @@ function ProfileView({
   const [editingPost, setEditingPost] = useState(null); // post currently open in the edit modal
   const [statsPost, setStatsPost] = useState(null); // post currently open in the stats modal
   const [confirmDelete, setConfirmDelete] = useState(null); // post pending permanent-delete confirmation
+  const [copiedLink, setCopiedLink] = useState(false); // vừa sao chép link hồ sơ
 
   const targetId = authorId || "me";
   const isMe = targetId === "me";
@@ -12942,7 +13046,20 @@ function ProfileView({
                   </span>
                 )}
               </div>
-              <div style={{ fontFamily: monoFont, fontSize: 13, color: C.textFaint, marginTop: 3 }}>{author.handle}</div>
+              <button
+                onClick={() => {
+                  const h = String(author.handle || "").replace(/^@/, "");
+                  const link = `${window.location.origin}/?u=${encodeURIComponent(h)}`;
+                  try { navigator.clipboard.writeText(link); } catch { /* noop */ }
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 1800);
+                }}
+                title="Sao chép link hồ sơ để chia sẻ"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: 0, marginTop: 3, cursor: "pointer", fontFamily: monoFont, fontSize: 13, color: copiedLink ? C.teal : C.textFaint }}
+              >
+                {author.handle}
+                {copiedLink ? <Check size={12} color={C.teal} /> : <Link2 size={12} color={C.textFaint} />}
+              </button>
               <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
                 <Star size={12} color={C.gold} fill={C.gold} /> {fmtCompact(author.followers)} RP
               </div>
@@ -14320,6 +14437,10 @@ export default function RankevApp() {
     setSearchHistory((prev) => prev.filter((s) => s !== term));
 
   const [viewedAuthorId, setViewedAuthorId] = useState("me"); // whose wall "authorProfile" currently shows
+  const [extraAuthorPosts, setExtraAuthorPosts] = useState([]); // bài nạp thêm khi mở hồ sơ theo @handle (không có sẵn trong feed)
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+  const [notifItems, setNotifItems] = useState([]);
   // Quan hệ RankUp của người dùng với từng kênh (authorId → tier 0-3). Điều khiển feed
   // cá nhân, không tính điểm công khai.
   const [rankTiers, setRankTiers] = useState(() => ({ ...INITIAL_RANKS }));
@@ -14817,7 +14938,11 @@ export default function RankevApp() {
   // per tab, since the owner needs to see their own hidden/trashed content, unlike the
   // public feed. Shares only ever show up on the sharer's own profile (there's no
   // following/friend graph yet to justify surfacing them in the main feed too).
-  const allPosts = [...apiRankies, ...rankies, ...allPaths, ...allDecks, ...sharedPosts].map(withMeta);
+  const allPosts = (() => {
+    const merged = [...apiRankies, ...rankies, ...allPaths, ...allDecks, ...sharedPosts, ...extraAuthorPosts].map(withMeta);
+    const seen = new Set();
+    return merged.filter((p) => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+  })();
 
   // Đếm số bài của mỗi tác giả mà người dùng ĐÃ tham gia (vote/làm bài). Dùng cho điều
   // kiện mở tầng 3 "Fan cuồng": phải tham gia > 10 bài của kênh đó (và đang ở tầng 2).
@@ -14995,6 +15120,38 @@ export default function RankevApp() {
     setPrevAfterAuthor(view);
     setView("authorProfile");
   };
+
+  // Mở hồ sơ theo @handle (từ bình luận, thông báo, hoặc link ?u=handle). Tra user thật,
+  // ghi vào AUTHORS để header đúng người, nạp thêm bài của họ để tường không trống.
+  const openAuthorByHandle = useCallback(async (handleRaw) => {
+    const h = String(handleRaw || "").replace(/^@/, "").trim();
+    if (!h) return;
+    setNotifOpen(false); // đóng panel thông báo nếu đang mở
+    if ((currentUser.handle || "").replace(/^@/, "").toLowerCase() === h.toLowerCase()) { setView("profile"); return; }
+    try {
+      const { user } = await api.social.byHandle(h);
+      if (!user) return;
+      AUTHORS[user.id] = apiAuthorToProto(user);
+      try {
+        const { items } = await api.social.postsByHandle(h);
+        const mapped = (items || []).map(apiSummaryToProto);
+        setExtraAuthorPosts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...mapped.filter((p) => !seen.has(p.id))];
+        });
+      } catch { /* không có bài cũng không sao */ }
+      openAuthorWall(user.id);
+    } catch {
+      showToast?.(`Không tìm thấy @${h}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  // Cho MentionText / thông báo gọi mở hồ sơ theo @handle từ bất kỳ đâu.
+  useEffect(() => {
+    NAV.openHandle = openAuthorByHandle;
+    return () => { if (NAV.openHandle === openAuthorByHandle) NAV.openHandle = null; };
+  }, [openAuthorByHandle]);
 
   // "Lưu vào Rankie": mở đúng thực thể mà một option tham chiếu (bài/user/comment).
   const openRef = useCallback((opt) => {
@@ -15293,6 +15450,42 @@ export default function RankevApp() {
     return () => { alive = false; };
   }, [authed]);
 
+  // Link chia sẻ hồ sơ: mở app với ?u=handle → nhảy vào hồ sơ người đó rồi dọn URL.
+  useEffect(() => {
+    if (!authed) return;
+    let u = null;
+    try { u = new URLSearchParams(window.location.search).get("u"); } catch { u = null; }
+    if (!u) return;
+    openAuthorByHandle(u);
+    try { const url = new URL(window.location.href); url.searchParams.delete("u"); window.history.replaceState({}, "", url.toString()); } catch { /* noop */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+
+  // Thông báo: đếm chưa đọc định kỳ (chuông ở feed). Chỉ khi đã đăng nhập thật.
+  useEffect(() => {
+    if (!authed || !api.isLoggedIn()) return;
+    let alive = true;
+    const tick = () => api.notifications.unreadCount().then((r) => { if (alive) setNotifCount(r?.count || 0); }).catch(() => {});
+    tick();
+    const iv = setInterval(tick, 30000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [authed]);
+
+  // Mở panel thông báo → nạp danh sách + đánh dấu đã đọc (xoá chấm đỏ).
+  const openNotifications = useCallback(() => {
+    setNotifOpen(true);
+    api.notifications.list().then((r) => setNotifItems(r?.items || [])).catch(() => {});
+    api.notifications.readAll().then(() => setNotifCount(0)).catch(() => {});
+  }, []);
+
+  // Bấm một thông báo → mở đúng bài/giải rồi đóng panel.
+  const onNotifClick = useCallback((n) => {
+    setNotifOpen(false);
+    if (n.postId) openRankie(n.postId);
+    else if (n.tournamentId) openTournament(n.tournamentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const loadMoreFeed = useCallback(async () => {
     if (feedLoadingMore || !apiCursor) return;
     setFeedLoadingMore(true);
@@ -15458,6 +15651,7 @@ export default function RankevApp() {
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
       <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} basketHidden={basketHidden} setBasketHidden={setBasketHidden} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
+      {notifOpen && <NotificationsPanel items={notifItems} onClose={() => setNotifOpen(false)} onOpenItem={onNotifClick} onOpenHandle={openAuthorByHandle} />}
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(18,14,7,0.95)", color: C.text, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}>
           {toast}
@@ -15508,6 +15702,8 @@ export default function RankevApp() {
               onVoteInline={voteOnFeed}
               fanCounts={participationCountByAuthor}
               onOpenSession={openSessionDetail}
+              notifCount={notifCount}
+              onOpenNotifications={openNotifications}
             />
           )}
           {view === "search" && (

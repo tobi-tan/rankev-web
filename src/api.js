@@ -266,6 +266,17 @@ export const social = {
   rankUp(authorId, tier) { return apiFetch(`/users/${authorId}/rankup`, { method: 'POST', body: { tier } }); },
   history() { return apiFetch('/users/me/history'); },
   profile(userId) { return apiFetch(`/users/${userId}`); }, // → { user, rankCounts: {tier1,tier2,tier3,total} }
+  // Hồ sơ theo @handle (bỏ @ đầu, không phân biệt hoa/thường) — cho link ngắn + @nhắc tên.
+  byHandle(handle) { return apiFetch(`/users/handle/${encodeURIComponent(String(handle).replace(/^@/, ''))}`); }, // → { user, rankCounts }
+  postsByHandle(handle) { return apiFetch(`/users/handle/${encodeURIComponent(String(handle).replace(/^@/, ''))}/posts`); }, // → { items }
+};
+
+// Thông báo trong ứng dụng (hiện: @nhắc tên trong bình luận).
+export const notifications = {
+  list() { return apiFetch('/notifications'); }, // → { items: [{id,type,actor,postId,tournamentId,commentId,targetTitle,text,read,createdAt}] }
+  unreadCount() { return apiFetch('/notifications/unread-count'); }, // → { count }
+  readAll() { return apiFetch('/notifications/read', { method: 'POST' }); },
+  read(id) { return apiFetch(`/notifications/${id}/read`, { method: 'POST' }); },
 };
 
 export const series = {
@@ -429,6 +440,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags,
+  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
