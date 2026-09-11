@@ -13791,6 +13791,29 @@ function AuthGate({ onAuthed }) {
     } finally { setSocialBusy(null); }
   };
 
+  // Google: dùng NÚT CHÍNH THỨC của Google (tin cậy hơn One Tap). Render vào googleRef.
+  const googleRef = useRef(null);
+  useEffect(() => {
+    if (!SOCIAL_ENV.google || !googleRef.current) return;
+    let cancelled = false;
+    loadScript("https://accounts.google.com/gsi/client", "gsi-script").then(() => {
+      if (cancelled || !googleRef.current || !window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: SOCIAL_ENV.google,
+        callback: async (resp) => {
+          if (!resp?.credential) return;
+          setErr(null); setSocialBusy("google");
+          try { await auth.social("google", resp.credential); await onAuthed(); }
+          catch (e) { setErr(e?.message || "Đăng nhập Google thất bại."); }
+          finally { setSocialBusy(null); }
+        },
+      });
+      googleRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleRef.current, { type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "pill", logo_alignment: "center", width: 340 });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [onAuthed]);
+
   const inputStyle = {
     width: "100%", padding: "13px 14px", marginBottom: 10, borderRadius: 12,
     border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text,
@@ -13817,8 +13840,10 @@ function AuthGate({ onAuthed }) {
           </div>
         </div>
 
-        {/* Nút mạng xã hội */}
-        {socialBtn("google", "Tiếp tục với Google", false)}
+        {/* Nút mạng xã hội — Google dùng nút chính thức khi đã cấu hình */}
+        {SOCIAL_ENV.google
+          ? <div ref={googleRef} style={{ display: "flex", justifyContent: "center", marginBottom: 10, minHeight: 44 }} />
+          : socialBtn("google", "Tiếp tục với Google", false)}
         {socialBtn("facebook", "Tiếp tục với Facebook", false)}
         {socialBtn("apple", "Tiếp tục với Apple", true)}
 
