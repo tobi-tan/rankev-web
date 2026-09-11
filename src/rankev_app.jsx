@@ -14276,8 +14276,70 @@ function OnbTypePreview({ id }) {
   return <div style={box}><div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "center" }}><div style={{ width: 30, height: 4, borderRadius: 2, background: C.border }} /><div style={{ display: "flex", gap: 8 }}><Check size={14} color={C.teal} strokeWidth={3} /><X size={14} color={C.coral} strokeWidth={3} /></div></div></div>;
 }
 
-// Preview bằng MỘT BÀI THẬT trên nền tảng (số liệu thật). Fallback về preview trừu tượng.
+// Hình minh hoạ dễ hiểu cho Path/Survey/Exam (khó preview bằng bài thật).
+function PathIllo() {
+  return (
+    <svg viewBox="0 0 300 116" width="100%" style={{ display: "block" }} aria-label="Minh hoạ Path">
+      <path d="M56 58 H96" fill="none" stroke={C.border} strokeWidth="2.5" />
+      <path d="M96 58 C122 58 124 30 150 30" fill="none" stroke={C.teal} strokeWidth="2.5" />
+      <path d="M96 58 C122 58 124 86 150 86" fill="none" stroke={C.coral} strokeWidth="2.5" />
+      <circle cx="34" cy="58" r="22" fill={C.goldSoft} stroke={C.gold} strokeWidth="2" />
+      <text x="34" y="65" textAnchor="middle" fontSize="20">🧭</text>
+      <circle cx="96" cy="58" r="6" fill={C.gold} />
+      <rect x="150" y="14" width="142" height="32" rx="9" fill={C.surface} stroke={C.teal} strokeWidth="1.5" />
+      <text x="163" y="35" fontSize="15">🏆</text>
+      <text x="185" y="34" fontSize="12.5" fill={C.text} fontFamily={bodyFont} fontWeight="700">Kết thúc vui</text>
+      <rect x="150" y="70" width="142" height="32" rx="9" fill={C.surface} stroke={C.coral} strokeWidth="1.5" />
+      <text x="163" y="91" fontSize="15">💀</text>
+      <text x="185" y="90" fontSize="12.5" fill={C.text} fontFamily={bodyFont} fontWeight="700">Kết thúc buồn</text>
+    </svg>
+  );
+}
+function SurveyIllo() {
+  const rows = [{ y: 20, sel: 0 }, { y: 50, sel: 1 }, { y: 80, sel: 2 }];
+  return (
+    <svg viewBox="0 0 300 116" width="100%" style={{ display: "block" }} aria-label="Minh hoạ Survey">
+      <rect x="8" y="6" width="284" height="104" rx="12" fill={C.surface} stroke={C.border} />
+      {rows.map((r, i) => (
+        <g key={i}>
+          <circle cx="30" cy={r.y + 14} r="5" fill={C.gold} />
+          <rect x="44" y={r.y + 6} width="96" height="8" rx="4" fill={C.border} />
+          {[0, 1, 2].map((c) => (
+            <rect key={c} x={168 + c * 40} y={r.y + 4} width="32" height="20" rx="10"
+              fill={c === r.sel ? (i === 1 ? C.teal : C.gold) : C.surfaceRaised} stroke={c === r.sel ? "none" : C.border} strokeWidth="1" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
+}
+function ExamIllo() {
+  return (
+    <svg viewBox="0 0 300 116" width="100%" style={{ display: "block" }} aria-label="Minh hoạ Exam">
+      <rect x="8" y="6" width="284" height="104" rx="12" fill={C.surface} stroke={C.border} />
+      <rect x="26" y="22" width="150" height="9" rx="4" fill={C.textFaint} opacity="0.45" />
+      {/* đáp án sai */}
+      <rect x="26" y="44" width="158" height="22" rx="8" fill={C.surfaceRaised} stroke={C.border} />
+      <text x="40" y="61" textAnchor="middle" fontSize="13" fill={C.coral} fontWeight="700">✕</text>
+      <rect x="56" y="51" width="96" height="8" rx="4" fill={C.border} />
+      {/* đáp án đúng */}
+      <rect x="26" y="72" width="158" height="22" rx="8" fill={C.surface} stroke={C.teal} strokeWidth="2" />
+      <circle cx="40" cy="83" r="8" fill={C.teal} />
+      <path d="M36 83 l3 3 l5 -6" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="56" y="79" width="96" height="8" rx="4" fill={C.teal} opacity="0.5" />
+      {/* điểm */}
+      <circle cx="245" cy="58" r="26" fill={C.goldSoft} stroke={C.gold} strokeWidth="2" />
+      <text x="245" y="56" textAnchor="middle" fontSize="16" fontWeight="800" fill={C.gold} fontFamily={bodyFont}>8/10</text>
+      <text x="245" y="72" textAnchor="middle" fontSize="8" fill={C.textMuted} fontFamily={bodyFont} letterSpacing="0.5">ĐIỂM</text>
+    </svg>
+  );
+}
+
+// Preview: Rankie = biểu đồ BÀI THẬT (số liệu thật); Path/Survey/Exam = hình minh hoạ.
 function OnbExample({ type, data }) {
+  if (type === "path") return <div style={{ padding: "4px 2px" }}><PathIllo /></div>;
+  if (type === "survey") return <div style={{ padding: "4px 2px" }}><SurveyIllo /></div>;
+  if (type === "exam") return <div style={{ padding: "4px 2px" }}><ExamIllo /></div>;
   if (!data) return <OnbTypePreview id={type} />;
   const card = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 11px" };
   const titleStyle = { fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 7 };
@@ -14299,36 +14361,7 @@ function OnbExample({ type, data }) {
       </div>
     );
   }
-  if (type === "path") {
-    return (
-      <div style={card}>
-        <div style={titleStyle}>🧭 {data.title}</div>
-        {data.question && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{data.question}</div>}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {(data.branches || []).map((b, i) => (
-            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "4px 9px", borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 11.5, color: C.text }}>{b.emoji ? b.emoji + " " : ""}{b.label} <ChevronRight size={11} color={C.gold} /></span>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  // survey / exam (deck)
-  return (
-    <div style={card}>
-      <div style={titleStyle}>{type === "exam" ? "📝" : "📋"} {data.title}{data.questionCount ? ` · ${data.questionCount} câu` : ""}</div>
-      {data.question && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{data.question}</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        {(data.options || []).slice(0, 3).map((o, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted }}>
-            {type === "exam"
-              ? (o.correct ? <Check size={13} color={C.teal} strokeWidth={3} /> : <X size={13} color={C.textFaint} strokeWidth={3} />)
-              : <span style={{ width: 10, height: 10, borderRadius: 3, border: `1.5px solid ${C.gold}`, flexShrink: 0 }} />}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <OnbTypePreview id={type} />;
 }
 
 // Một hàng kết quả cộng đồng: nhãn + thanh % + số phiếu. Tô đậm lựa chọn của mình.
