@@ -12931,11 +12931,11 @@ function ProfileView({
   useEffect(() => {
     let alive = true;
     const load = isMe ? api.auth.me().then((r) => r?.user) : (profileUserId ? api.social.profile(profileUserId).then((r) => r?.user) : Promise.resolve(null));
-    load.then((u) => { if (alive) setDemo(u ? { ageRange: u.ageRange, gender: u.gender, occupation: u.occupation, pub: u.demographicsPublic || {} } : null); }).catch(() => { if (alive) setDemo(null); });
+    load.then((u) => { if (alive) setDemo(u ? { age: u.age, gender: u.gender, occupation: u.occupation, pub: u.demographicsPublic || {} } : null); }).catch(() => { if (alive) setDemo(null); });
     return () => { alive = false; };
   }, [isMe, profileUserId]);
   const demoChips = demo ? [
-    { key: "age", val: demo.ageRange }, { key: "gender", val: demo.gender }, { key: "occupation", val: demo.occupation },
+    { key: "age", val: demo.age != null ? `${demo.age} tuổi` : null }, { key: "gender", val: demo.gender }, { key: "occupation", val: demo.occupation },
   ].filter((d) => d.val) : [];
 
   const theirPostsAll = posts
@@ -14300,11 +14300,32 @@ const ONB_TYPES = [
   { id: "survey", label: "Survey", sub: "Khảo sát nhiều câu" },
   { id: "exam", label: "Exam", sub: "Đố vui có chấm điểm" },
 ];
-const ONB_DEMO = [
-  { key: "age", label: "Độ tuổi", opts: ["<18", "18-24", "25-34", "35-44", "45+"] },
-  { key: "gender", label: "Giới tính", opts: ["Nam", "Nữ", "Khác"] },
-  { key: "occupation", label: "Nghề nghiệp", opts: ["Học sinh/Sinh viên", "Văn phòng", "Kinh doanh", "Kỹ thuật/IT", "Sáng tạo/Nghệ thuật", "Khác"] },
+const ONB_AGE_BUCKETS = ["<18", "18-24", "25-34", "35-44", "45+"];
+const ONB_GENDERS = ["Nam", "Nữ", "Khác"];
+// Gợi ý nghề (search droplist) — không ép chọn, có thể tự nhập.
+const ONB_OCCUPATIONS = [
+  "Học sinh", "Sinh viên", "Giáo viên", "Giảng viên", "Kỹ sư", "Lập trình viên", "Thiết kế đồ hoạ",
+  "Nhân viên văn phòng", "Kế toán", "Nhân sự", "Kinh doanh", "Bán hàng", "Marketing", "Bác sĩ",
+  "Điều dưỡng", "Dược sĩ", "Luật sư", "Kiến trúc sư", "Nhà báo", "Biên tập viên", "Nhiếp ảnh gia",
+  "Ca sĩ / Nhạc sĩ", "Diễn viên", "Đầu bếp", "Công nhân", "Nông dân", "Tài xế", "Freelancer",
+  "Chủ doanh nghiệp", "Công chức", "Nội trợ", "Đã nghỉ hưu",
 ];
+// khoảng tuổi suy ra từ ngày sinh (khớp backend) — để tô đậm phổ tuổi của bạn.
+function onbAgeBucket(dob) {
+  if (!dob) return null;
+  const d = new Date(dob); if (isNaN(d.getTime())) return null;
+  const n = new Date(); let a = n.getFullYear() - d.getFullYear();
+  const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
+  if (a < 0 || a > 120) return null;
+  return a < 18 ? "<18" : a <= 24 ? "18-24" : a <= 34 ? "25-34" : a <= 44 ? "35-44" : "45+";
+}
+function onbAge(dob) {
+  if (!dob) return null;
+  const d = new Date(dob); if (isNaN(d.getTime())) return null;
+  const n = new Date(); let a = n.getFullYear() - d.getFullYear();
+  const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
+  return a >= 0 && a <= 120 ? a : null;
+}
 
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
@@ -14313,9 +14334,12 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   const [stats, setStats] = useState({});   // {key: {counts, voters}}
   const [revealed, setRevealed] = useState({}); // {key|'demo': true}
   const [busy, setBusy] = useState(false);
-  const steps = ["intro", "theme", "type", "rating", "demo", "outro"];
+  const [occQuery, setOccQuery] = useState(""); // ô tìm nghề
+  const [occOpen, setOccOpen] = useState(false);
+  const steps = ["intro", "theme", "type", "rating", "age", "gender", "occupation", "outro"];
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
+  const back = () => setStep((i) => Math.max(i - 1, 0));
 
   const submitVote = async (key, choices) => {
     setBusy(true);
@@ -14323,14 +14347,21 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
     catch { /* offline vẫn cho đi tiếp */ }
     finally { setRevealed((r) => ({ ...r, [key]: true })); setBusy(false); }
   };
-  const submitDemo = async () => {
+  // Mỗi sheet nhân khẩu học gọi riêng (dob | gender | occupation) → lưu hồ sơ + trả stats.
+  const submitDemo = async (payload, key) => {
     setBusy(true);
     try {
-      const r = await api.onboarding.demographics({ age: choice.age, gender: choice.gender, occupation: choice.occupation, visible });
+      const r = await api.onboarding.demographics(payload);
       const map = {}; (r.stats || []).forEach((x) => { map[x.key] = x; });
       setStats((st) => ({ ...st, ...map }));
     } catch { /* bỏ qua */ }
-    finally { setRevealed((r) => ({ ...r, demo: true })); setBusy(false); }
+    finally { setRevealed((r) => ({ ...r, [key]: true })); setBusy(false); }
+  };
+  // % người có cùng lựa chọn với bạn ("% giống bạn").
+  const pctLikeYou = (key) => {
+    const st = stats[key]; if (!st || !st.voters) return null;
+    const mine = (st.mine || [])[0]; if (!mine) return null;
+    return Math.round(((st.counts?.[mine] || 0) / st.voters) * 100);
   };
 
   const ratingAvg = () => {
@@ -14341,11 +14372,40 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
 
   const primaryFull = { ...primaryButton, width: "100%", marginTop: 22 };
 
+  // Công tắc Ẩn/Công khai cho một field nhân khẩu học.
+  const visToggle = (key) => (
+    <button onClick={() => setVisible((v) => ({ ...v, [key]: !v[key] }))} title={visible[key] ? "Đang công khai — bấm để ẩn khỏi hồ sơ" : "Đang ẩn — bấm để công khai"}
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, border: `1px solid ${visible[key] ? C.border : C.gold}`, background: visible[key] ? "transparent" : C.goldSoft, color: visible[key] ? C.textFaint : C.gold }}>
+      {visible[key] ? <><Eye size={12} /> Công khai</> : <><EyeOff size={12} /> Ẩn</>}
+    </button>
+  );
+  // Dòng "🎯 X% giống bạn" hiển thị sau khi reveal một sheet nhân khẩu học.
+  const likeYouLine = (key, noun) => {
+    const p = pctLikeYou(key);
+    return p == null ? null : (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, background: C.goldSoft, marginBottom: 12 }}>
+        <span style={{ fontSize: 18 }}>🎯</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text }}><b style={{ color: C.gold, fontWeight: 800 }}>{p}%</b> người dùng {noun} giống bạn</span>
+      </div>
+    );
+  };
+  // Phổ kết quả cộng đồng cho một khoá, theo danh sách nhãn (hoặc tự lấy top từ counts).
+  const statRows = (key, labels) => {
+    const st = stats[key] || {}; const mine = (st.mine || [])[0];
+    let list = labels;
+    if (!list) list = Object.entries(st.counts || {}).sort((a, b) => b[1] - a[1]).slice(0, 6).map((e) => e[0]);
+    if (mine && !list.includes(mine)) list = [...list, mine];
+    return list.map((op) => <OnbResultRow key={op} label={op} count={st.counts?.[op] || 0} total={st.voters || 0} mine={mine === op} />);
+  };
+
   return (
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", padding: "20px 22px 28px", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          {step > 0 && step < steps.length - 1 && (
+            <button onClick={back} title="Quay lại" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "grid", placeItems: "center", color: C.textMuted }}><ChevronLeft size={20} /></button>
+          )}
           <div style={{ flex: 1, display: "flex", gap: 5 }}>
             {steps.map((_, i) => <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? C.gold : C.border, transition: "background .2s" }} />)}
           </div>
@@ -14426,8 +14486,8 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
 
           {s === "rating" && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Giao diện Rankev hấp dẫn cỡ nào?</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 20 }}>Chấm sao — rồi xem mọi người chấm bao nhiêu.</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Ứng dụng Rankev đáng mấy sao?</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 20 }}>Ấn tượng đầu của bạn về Rankev — rồi xem mọi người chấm bao nhiêu.</div>
               <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} disabled={busy || revealed.rating} onClick={() => { setChoice((c) => ({ ...c, rating: n })); submitVote("rating", [String(n)]); }} style={{ background: "none", border: "none", cursor: revealed.rating ? "default" : "pointer", padding: 2 }}>
@@ -14450,43 +14510,116 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
             </div>
           )}
 
-          {s === "demo" && (
+          {s === "age" && (
             <div>
-              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Đôi nét về bạn (tuỳ chọn)</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 16 }}>Giúp so sánh xu hướng theo nhóm. Bật <b>Ẩn</b> để không hiện trên trang cá nhân (Rankev vẫn dùng cho thống kê ẩn danh).</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {ONB_DEMO.map((f) => (
-                  <div key={f.key}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{f.label}</span>
-                      <button onClick={() => setVisible((v) => ({ ...v, [f.key]: !v[f.key] }))} title={visible[f.key] ? "Đang công khai — bấm để ẩn" : "Đang ẩn — bấm để công khai"}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, border: `1px solid ${visible[f.key] ? C.border : C.gold}`, background: visible[f.key] ? "transparent" : C.goldSoft, color: visible[f.key] ? C.textFaint : C.gold }}>
-                        {visible[f.key] ? <><Eye size={12} /> Công khai</> : <><EyeOff size={12} /> Ẩn</>}
-                      </button>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                      {f.opts.map((op) => {
-                        const on = choice[f.key] === op;
-                        return (
-                          <button key={op} disabled={revealed.demo} onClick={() => setChoice((c) => ({ ...c, [f.key]: on ? undefined : op }))}
-                            style={{ padding: "7px 12px", borderRadius: 99, cursor: revealed.demo ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 600, fontSize: 13, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted }}>{op}</button>
-                        );
-                      })}
-                    </div>
-                    {revealed.demo && choice[f.key] && stats[f.key] && (
-                      <div style={{ marginTop: 12 }}>
-                        {f.opts.filter((op) => (stats[f.key]?.counts?.[op] || 0) > 0 || op === choice[f.key]).map((op) => (
-                          <OnbResultRow key={op} label={op} count={stats[f.key]?.counts?.[op] || 0} total={stats[f.key]?.voters || 0} mine={choice[f.key] === op} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text }}>Bạn sinh ngày nào?</div>
+                {visToggle("age")}
               </div>
-              {!revealed.demo
-                ? <button onClick={submitDemo} disabled={busy || !(choice.age || choice.gender || choice.occupation)} style={{ ...primaryFull, opacity: (choice.age || choice.gender || choice.occupation) ? 1 : 0.5, cursor: (choice.age || choice.gender || choice.occupation) ? "pointer" : "default" }}>Xem thống kê & tiếp →</button>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Xem bao nhiêu người cùng độ tuổi với bạn. Bật <b>Ẩn</b> để không hiện trên hồ sơ.</div>
+              <input type="date" value={choice.dob || ""} disabled={revealed.age} max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setChoice((c) => ({ ...c, dob: e.target.value }))}
+                style={{ width: "100%", padding: "13px 14px", borderRadius: 12, border: `1.5px solid ${choice.dob ? C.gold : C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontSize: 16, boxSizing: "border-box", colorScheme: theme === "light" ? "light" : "dark" }} />
+              {choice.dob && onbAge(choice.dob) != null && (
+                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8 }}>Bạn <b style={{ color: C.gold }}>{onbAge(choice.dob)} tuổi</b> · nhóm {onbAgeBucket(choice.dob)}</div>
+              )}
+              {revealed.age && (
+                <div style={{ marginTop: 18, animation: "popIn .3s ease" }}>
+                  {likeYouLine("age", "cùng độ tuổi")}
+                  <div style={{ padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Phổ tuổi cộng đồng</div>
+                    {statRows("age", ONB_AGE_BUCKETS)}
+                  </div>
+                </div>
+              )}
+              {!revealed.age
+                ? <button onClick={() => submitDemo({ dob: choice.dob, visible: { age: visible.age } }, "age")} disabled={busy || !choice.dob} style={{ ...primaryFull, opacity: choice.dob ? 1 : 0.5, cursor: choice.dob ? "pointer" : "default" }}>Xem người giống bạn →</button>
                 : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
-              {!revealed.demo && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua bước này</button>}
+              {!revealed.age && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
+            </div>
+          )}
+
+          {s === "gender" && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text }}>Giới tính của bạn?</div>
+                {visToggle("gender")}
+              </div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Chọn xong xem bao nhiêu người giống bạn.</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {ONB_GENDERS.map((op) => {
+                  const on = choice.gender === op;
+                  return (
+                    <button key={op} disabled={revealed.gender} onClick={() => setChoice((c) => ({ ...c, gender: op }))}
+                      style={{ flex: 1, padding: "14px 8px", borderRadius: 14, cursor: revealed.gender ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 15, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted }}>{op}</button>
+                  );
+                })}
+              </div>
+              {revealed.gender && (
+                <div style={{ marginTop: 18, animation: "popIn .3s ease" }}>
+                  {likeYouLine("gender", "")}
+                  <div style={{ padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng</div>
+                    {statRows("gender", ONB_GENDERS)}
+                  </div>
+                </div>
+              )}
+              {!revealed.gender
+                ? <button onClick={() => submitDemo({ gender: choice.gender, visible: { gender: visible.gender } }, "gender")} disabled={busy || !choice.gender} style={{ ...primaryFull, opacity: choice.gender ? 1 : 0.5, cursor: choice.gender ? "pointer" : "default" }}>Xem người giống bạn →</button>
+                : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
+              {!revealed.gender && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
+            </div>
+          )}
+
+          {s === "occupation" && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text }}>Bạn làm nghề gì?</div>
+                {visToggle("occupation")}
+              </div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 16 }}>Gõ để tìm — hoặc tự nhập nghề của bạn.</div>
+              {!revealed.occupation && (
+                <div style={{ position: "relative" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${choice.occupation ? C.gold : C.border}`, background: C.surface }}>
+                    <Search size={17} color={C.textFaint} />
+                    <input value={occQuery} placeholder={choice.occupation || "Tìm nghề nghiệp…"} onFocus={() => setOccOpen(true)}
+                      onChange={(e) => { setOccQuery(e.target.value); setOccOpen(true); }}
+                      style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: C.text, fontFamily: bodyFont, fontSize: 15 }} />
+                    {choice.occupation && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>{choice.occupation}</span>}
+                  </div>
+                  {occOpen && (occQuery.trim() || true) && (() => {
+                    const q = occQuery.trim().toLowerCase();
+                    const matches = ONB_OCCUPATIONS.filter((o) => !q || o.toLowerCase().includes(q)).slice(0, 8);
+                    const showCustom = q && !ONB_OCCUPATIONS.some((o) => o.toLowerCase() === q);
+                    return (
+                      <div style={{ marginTop: 6, border: `1px solid ${C.border}`, borderRadius: 12, background: C.surface, maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px -12px rgba(0,0,0,0.4)" }}>
+                        {showCustom && (
+                          <button onClick={() => { setChoice((c) => ({ ...c, occupation: occQuery.trim() })); setOccQuery(""); setOccOpen(false); }}
+                            style={{ width: "100%", textAlign: "left", padding: "11px 14px", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 14, color: C.gold, fontWeight: 700 }}>+ Dùng “{occQuery.trim()}”</button>
+                        )}
+                        {matches.map((o) => (
+                          <button key={o} onClick={() => { setChoice((c) => ({ ...c, occupation: o })); setOccQuery(""); setOccOpen(false); }}
+                            style={{ width: "100%", textAlign: "left", padding: "11px 14px", background: choice.occupation === o ? C.goldSoft : "transparent", border: "none", borderBottom: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 14, color: C.text }}>{o}</button>
+                        ))}
+                        {matches.length === 0 && !showCustom && <div style={{ padding: "11px 14px", fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Gõ để tìm nghề…</div>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              {revealed.occupation && (
+                <div style={{ marginTop: 4, animation: "popIn .3s ease" }}>
+                  {likeYouLine("occupation", "cùng nghề")}
+                  <div style={{ padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Nghề phổ biến nhất</div>
+                    {statRows("occupation")}
+                  </div>
+                </div>
+              )}
+              {!revealed.occupation
+                ? <button onClick={() => submitDemo({ occupation: choice.occupation, visible: { occupation: visible.occupation } }, "occupation")} disabled={busy || !choice.occupation} style={{ ...primaryFull, opacity: choice.occupation ? 1 : 0.5, cursor: choice.occupation ? "pointer" : "default" }}>Xem người giống bạn →</button>
+                : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
+              {!revealed.occupation && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
             </div>
           )}
 
