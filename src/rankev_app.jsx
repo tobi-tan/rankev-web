@@ -12746,9 +12746,14 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   };
 
   return (
-    <div>
-      <TopBar title="Tạo giải đấu" onBack={onBack} />
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 4, paddingBottom: 14 }}>
+        <button onClick={onBack} aria-label="Quay lại" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 4, marginLeft: -4 }}>
+          <ChevronLeft size={22} />
+        </button>
+        <span style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text }}>Tạo giải đấu</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <div style={label}>Câu hỏi / Tên giải</div>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="vd: Cầu thủ vĩ đại nhất mọi thời đại?" style={{ ...field, width: "100%" }} />
