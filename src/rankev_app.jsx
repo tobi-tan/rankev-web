@@ -10405,6 +10405,84 @@ function distributeExamPoints(questions) {
 
 const EMOJI_CHOICES = ["🎯", "🎨", "⚙️", "💚", "🤝", "🎧", "🔥", "⭐", "🏆", "🚀", "🎬", "⚽"];
 
+// Mini demo cho các biến thể Rankie ở trang đệm.
+function MiniBars() {
+  return <svg viewBox="0 0 60 44" width="100%" height="44"><g>{[[8,16],[20,28],[32,22],[44,34]].map(([x,h],i)=><rect key={i} x={x} y={40-h} width="9" height={h} rx="2" fill={i%2?C.teal:C.gold}/>)}</g></svg>;
+}
+function MiniVs() {
+  return <svg viewBox="0 0 60 44" width="100%" height="44"><circle cx="16" cy="22" r="12" fill={C.gold}/><circle cx="44" cy="22" r="12" fill={C.coral}/><text x="30" y="26" textAnchor="middle" fontSize="11" fontWeight="800" fill={C.text} fontFamily={bodyFont}>VS</text></svg>;
+}
+function MiniPie() {
+  // 3 lát: 50% vàng, 30% teal, 20% coral
+  const cx=30, cy=22, r=16; const seg=(a0,a1)=>{const p=(a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];const s=p(a0),e=p(a1);const large=a1-a0>Math.PI?1:0;return `M${cx} ${cy} L${s[0]} ${s[1]} A${r} ${r} 0 ${large} 1 ${e[0]} ${e[1]} Z`;};
+  const t=Math.PI*2, o=-Math.PI/2;
+  return <svg viewBox="0 0 60 44" width="100%" height="44"><path d={seg(o,o+t*0.5)} fill={C.gold}/><path d={seg(o+t*0.5,o+t*0.8)} fill={C.teal}/><path d={seg(o+t*0.8,o+t)} fill={C.coral}/></svg>;
+}
+function MiniBracket() {
+  return <svg viewBox="0 0 60 44" width="100%" height="44" fill="none" stroke={C.gold} strokeWidth="2"><path d="M6 10 H20 M6 22 H20 M20 10 V22 M20 16 H30"/><path d="M6 30 H20 M20 30 H20 M20 30 V16" opacity="0.5"/><path d="M30 16 H40 M40 8 H54 M40 24 H54" stroke={C.teal}/><path d="M40 8 V24" stroke={C.teal}/></svg>;
+}
+
+// Trang đệm giới thiệu mỗi loại + demo các biến thể trước khi vào trình tạo.
+function CreateTypeLanding({ type, onStart, onStartTournament }) {
+  const Hero = { rankie: RankieIllo, path: PathIllo, survey: SurveyIllo, exam: ExamIllo }[type];
+  const meta = {
+    rankie: { name: "Rankie", tagline: "Bình chọn nhanh & xem bảng xếp hạng trực quan." },
+    path: { name: "Path", tagline: "Câu chuyện rẽ nhánh — mỗi lựa chọn mở ra kết cục khác." },
+    survey: { name: "Survey", tagline: "Khảo sát nhiều câu hỏi, thu ý kiến cộng đồng." },
+    exam: { name: "Exam", tagline: "Bài đố/kiểm tra có chấm điểm tự động." },
+  }[type];
+  // Biến thể: rankie có action (đổi chartType / mở giải đấu); loại khác chỉ minh hoạ rồi vào builder.
+  const variants = {
+    rankie: [
+      { label: "Biểu đồ cột", desc: "Xếp hạng nhiều lựa chọn", visual: <MiniBars />, onClick: () => onStart({ chartType: "bar" }) },
+      { label: "Đối đầu 1-1", desc: "Hai lựa chọn so kè", visual: <MiniVs />, onClick: () => onStart({ chartType: "head_to_head" }) },
+      { label: "Biểu đồ tròn", desc: "Xem theo tỉ lệ %", visual: <MiniPie />, onClick: () => onStart({ chartType: "pie" }) },
+      { label: "Giải đấu", desc: "Đấu loại nhiều vòng", visual: <MiniBracket />, onClick: () => (onStartTournament ? onStartTournament([]) : onStart()) },
+    ],
+    path: [
+      { label: "Rẽ nhánh nhiều kết cục", desc: "Chọn hướng → kết thúc riêng", emoji: "🌿", onClick: () => onStart() },
+      { label: "Cảnh có điểm chạm", desc: "Ảnh nền + hotspot bấm được", emoji: "🖼️", onClick: () => onStart() },
+    ],
+    survey: [
+      { label: "Nhiều câu hỏi", desc: "Một hoặc nhiều lựa chọn", emoji: "📋", onClick: () => onStart() },
+      { label: "Thang điểm sao", desc: "Đánh giá 1–5 sao", emoji: "⭐", onClick: () => onStart() },
+      { label: "Trả lời tự do", desc: "Thu câu trả lời chữ", emoji: "✍️", onClick: () => onStart() },
+    ],
+    exam: [
+      { label: "Chấm điểm tự động", desc: "Đáp án đúng + điểm số", emoji: "✅", onClick: () => onStart() },
+      { label: "Hẹn giờ làm bài", desc: "Giới hạn thời gian", emoji: "⏱️", onClick: () => onStart() },
+      { label: "Ngưỡng điểm đạt", desc: "Đặt mức đạt/không đạt", emoji: "🎯", onClick: () => onStart() },
+    ],
+  }[type];
+  return (
+    <div style={{ animation: "popIn .25s ease" }}>
+      {/* Hero minh hoạ */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px 16px", marginBottom: 16 }}>
+        <Hero />
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginTop: 8 }}>{meta.name}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 2, lineHeight: 1.45 }}>{meta.tagline}</div>
+      </div>
+
+      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Các kiểu bạn có thể tạo</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+        {variants.map((v, i) => (
+          <button key={i} onClick={v.onClick} style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer" }}>
+            <div style={{ height: 44, display: "flex", alignItems: "center" }}>
+              {v.visual ? v.visual : <span style={{ fontSize: 30 }}>{v.emoji}</span>}
+            </div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, color: C.text }}>{v.label}</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      <button onClick={() => onStart()} style={{ ...primaryButton, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        Bắt đầu tạo {meta.name} <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+}
+
 function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament }) {
   // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
   // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
@@ -10418,6 +10496,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     ? (editItem.type === "deck" ? (dk?.deckMode === "exam" ? "exam" : "deck") : editItem.type)
     : "rankie";
   const [contentType, setContentType] = useState(initContentType);
+  const [building, setBuilding] = useState(editing); // false = đang xem trang đệm giới thiệu; true = vào trình tạo
   const [title, setTitle] = useState(editItem?.title || "");
   const [opts, setOpts] = useState([
     { label: "", emoji: null, image: null },
@@ -10850,51 +10929,59 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     </label>
   );
 
+  const contentTabs = (
+    <div style={{ display: "flex", gap: 6, marginBottom: 20, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, flexWrap: "wrap" }}>
+      {[
+        { id: "rankie", label: "Rankie", desc: "Bình chọn", Icon: BarChart3 },
+        { id: "path", label: "Path", desc: "Cây quyết định", Icon: GitBranch },
+        { id: "deck", label: "Survey", desc: "Khảo sát", Icon: Layers },
+        { id: "exam", label: "Exam", desc: "Bài thi", Icon: Edit3 },
+      ].map((t) => {
+        const active = contentType === t.id;
+        return (
+          <button
+            key={t.id}
+            disabled={editing}
+            onClick={editing ? undefined : () => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
+            style={{ flex: "1 1 21%", minWidth: 70, padding: "10px 6px", borderRadius: 9, border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: active ? C.gold : "transparent", color: active ? "#1A1305" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: editing ? "default" : "pointer", opacity: editing && contentType !== t.id ? 0.4 : 1, lineHeight: 1.3 }}
+          >
+            <t.Icon size={18} color={active ? "#1A1305" : C.textMuted} />
+            {t.label}
+            <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // Trang đệm: khi TẠO MỚI, xem giới thiệu + demo các biến thể của loại đang chọn trước
+  // khi vào trình tạo thật. Sửa bài (editing) thì vào thẳng builder.
+  if (!editing && !building) {
+    return (
+      <div style={{ padding: 16 }}>
+        <TopBar title="Tạo bài đăng mới" />
+        <div style={{ paddingTop: 16 }}>
+          {contentTabs}
+          <CreateTypeLanding
+            type={contentType}
+            onStart={(o) => { if (o && o.chartType) setChartType(o.chartType); setBuilding(true); }}
+            onStartTournament={onStartTournament}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: 16 }}>
       <TopBar title={editing ? "Chỉnh sửa bài đăng" : "Tạo bài đăng mới"} />
       <div style={{ paddingTop: 16 }}>
-        {/* Content type toggle: Rankie / Path / Survey / Exam */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 20, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, flexWrap: "wrap" }}>
-          {[
-            { id: "rankie", label: "Rankie", desc: "Bình chọn", Icon: BarChart3 },
-            { id: "path", label: "Path", desc: "Cây quyết định", Icon: GitBranch },
-            { id: "deck", label: "Survey", desc: "Khảo sát", Icon: Layers },
-            { id: "exam", label: "Exam", desc: "Bài thi", Icon: Edit3 },
-          ].map((t) => {
-            const active = contentType === t.id;
-            return (
-              <button
-                key={t.id}
-                disabled={editing}
-                onClick={editing ? undefined : () => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
-                style={{
-                  flex: "1 1 21%",
-                  minWidth: 70,
-                  padding: "10px 6px",
-                  borderRadius: 9,
-                  border: "none",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 3,
-                  background: active ? C.gold : "transparent",
-                  color: active ? "#1A1305" : C.textMuted,
-                  fontFamily: bodyFont,
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: editing ? "default" : "pointer",
-                  opacity: editing && contentType !== t.id ? 0.4 : 1,
-                  lineHeight: 1.3,
-                }}
-              >
-                <t.Icon size={18} color={active ? "#1A1305" : C.textMuted} />
-                {t.label}
-                <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
-              </button>
-            );
-          })}
-        </div>
+        {!editing && (
+          <button onClick={() => setBuilding(false)} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <ChevronLeft size={15} /> Chọn loại khác
+          </button>
+        )}
+        {contentTabs}
 
         {!editing && onStartTournament && contentType === "rankie" && (
           <button onClick={() => onStartTournament([])} style={{ width: "100%", marginBottom: 20, padding: "11px 12px", borderRadius: 12, background: C.surface, border: `1px dashed ${C.gold}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
