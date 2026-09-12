@@ -10434,9 +10434,8 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
   // Biến thể: rankie có action (đổi chartType / mở giải đấu); loại khác chỉ minh hoạ rồi vào builder.
   const variants = {
     rankie: [
-      { label: "Biểu đồ cột", desc: "Xếp hạng nhiều lựa chọn", visual: <MiniBars />, onClick: () => onStart({ chartType: "bar" }) },
-      { label: "Đối đầu 1-1", desc: "Hai lựa chọn so kè", visual: <MiniVs />, onClick: () => onStart({ chartType: "head_to_head" }) },
-      { label: "Biểu đồ tròn", desc: "Xem theo tỉ lệ %", visual: <MiniPie />, onClick: () => onStart({ chartType: "pie" }) },
+      { label: "Đối đầu", desc: "1 chọi 1 — Kamehameha, kéo co…", visual: <MiniVs />, onClick: () => onStart({ chartType: "head_to_head" }) },
+      { label: "Xếp hạng", desc: "Nhiều lựa chọn — cột, tròn, bục", visual: <MiniBars />, onClick: () => onStart({ chartType: "bar" }) },
       { label: "Giải đấu", desc: "Đấu loại nhiều vòng", visual: <MiniBracket />, onClick: () => (onStartTournament ? onStartTournament([]) : onStart()) },
     ],
     path: [
@@ -10964,7 +10963,12 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           {contentTabs}
           <CreateTypeLanding
             type={contentType}
-            onStart={(o) => { if (o && o.chartType) setChartType(o.chartType); setBuilding(true); }}
+            onStart={(o) => {
+              const ct = o && o.chartType;
+              if (ct) setChartType(ct);
+              if (ct === "head_to_head") setOpts([{ label: "", emoji: null, image: null }, { label: "", emoji: null, image: null }]); // Đối đầu = đúng 2
+              setBuilding(true);
+            }}
             onStartTournament={onStartTournament}
           />
         </div>
@@ -11165,22 +11169,28 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               )
             ))}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
-            <button
-              onClick={addOpt}
-              style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-            >
-              <PlusCircle size={14} /> Thêm phương án
-            </button>
-            {(rk?.basket?.length || 0) > 0 && (
+          {chartType === "head_to_head" ? (
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              ⚔️ Kiểu Đối đầu — đúng 2 lựa chọn (skin Kamehameha / Kéo co / Đối đầu).
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
               <button
-                onClick={() => setBasketPickerOpen(true)}
-                style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                onClick={addOpt}
+                style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
               >
-                🔖 Chọn từ Đã lưu ({rk.basket.length})
+                <PlusCircle size={14} /> Thêm phương án
               </button>
-            )}
-          </div>
+              {(rk?.basket?.length || 0) > 0 && (
+                <button
+                  onClick={() => setBasketPickerOpen(true)}
+                  style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  🔖 Chọn từ Đã lưu ({rk.basket.length})
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {basketPickerOpen && (
           <BasketPickerModal basket={rk?.basket || []} onClose={() => setBasketPickerOpen(false)} onAdd={(items) => { addFromBasketItems(items); setBasketPickerOpen(false); }} />
@@ -11351,13 +11361,15 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           )}
         </div>
 
-        <div style={field}>
-          <span style={label}>Biểu đồ hiển thị</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <OptionRow opt={{ text: "Cột ngang", active: chartType === "bar" }} on={() => setChartType("bar")} />
-            <OptionRow opt={{ text: "Hình tròn", active: chartType === "pie" }} on={() => setChartType("pie")} />
+        {chartType !== "head_to_head" && (
+          <div style={field}>
+            <span style={label}>Biểu đồ hiển thị</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <OptionRow opt={{ text: "Cột ngang", active: chartType === "bar" }} on={() => setChartType("bar")} />
+              <OptionRow opt={{ text: "Hình tròn", active: chartType === "pie" }} on={() => setChartType("pie")} />
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={field}>
           <span style={label}>Đối tượng tham gia</span>
