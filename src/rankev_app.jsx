@@ -10424,11 +10424,11 @@ function MiniBracket() {
 
 // Trang đệm giới thiệu mỗi loại + demo các biến thể trước khi vào trình tạo.
 function CreateTypeLanding({ type, onStart, onStartTournament }) {
-  const Hero = { rankie: RankieIllo, path: PathIllo, survey: SurveyIllo, exam: ExamIllo }[type];
+  const Hero = { rankie: RankieIllo, path: PathIllo, deck: SurveyIllo, exam: ExamIllo }[type];
   const meta = {
     rankie: { name: "Rankie", tagline: "Bình chọn nhanh & xem bảng xếp hạng trực quan." },
     path: { name: "Path", tagline: "Câu chuyện rẽ nhánh — mỗi lựa chọn mở ra kết cục khác." },
-    survey: { name: "Survey", tagline: "Khảo sát nhiều câu hỏi, thu ý kiến cộng đồng." },
+    deck: { name: "Survey", tagline: "Khảo sát nhiều câu hỏi, thu ý kiến cộng đồng." },
     exam: { name: "Exam", tagline: "Bài đố/kiểm tra có chấm điểm tự động." },
   }[type];
   // Biến thể: rankie có action (đổi chartType / mở giải đấu); loại khác chỉ minh hoạ rồi vào builder.
@@ -10443,7 +10443,7 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
       { label: "Rẽ nhánh nhiều kết cục", desc: "Chọn hướng → kết thúc riêng", emoji: "🌿", onClick: () => onStart() },
       { label: "Cảnh có điểm chạm", desc: "Ảnh nền + hotspot bấm được", emoji: "🖼️", onClick: () => onStart() },
     ],
-    survey: [
+    deck: [
       { label: "Nhiều câu hỏi", desc: "Một hoặc nhiều lựa chọn", emoji: "📋", onClick: () => onStart() },
       { label: "Thang điểm sao", desc: "Đánh giá 1–5 sao", emoji: "⭐", onClick: () => onStart() },
       { label: "Trả lời tự do", desc: "Thu câu trả lời chữ", emoji: "✍️", onClick: () => onStart() },
