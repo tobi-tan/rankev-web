@@ -10966,7 +10966,6 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           >
             <t.Icon size={18} color={active ? "#1A1305" : C.textMuted} />
             {t.label}
-            <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
           </button>
         );
       })}
