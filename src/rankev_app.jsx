@@ -2744,7 +2744,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
 // hoàn toàn với "Lịch sử tham gia" (việc bạn đã làm) và "Đánh dấu" (bài muốn xem sau).
 function PresentationHistoryView({ history, onOpenSession, onBack }) {
   const [filter, setFilter] = useState("all"); // all | rankie | survey | exam
-  const getIcon = (entry) => entry.type === "rankie" ? FlagTypeIcon : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
+  const getIcon = (entry) => entry.type === "rankie" ? BarChart3 : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
   const getLabel = (entry) => entry.type === "rankie" ? "Rankie" : entry.type === "path" ? "Path" : entry.deckMode === "exam" ? "Exam" : "Survey";
 
   const filtered = history.filter((entry) => {
@@ -2837,7 +2837,7 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
 // "Đánh dấu" — bài được đánh dấu để xem/làm lại sau, không liên quan tới việc đã tham gia hay chưa.
 function BookmarksView({ bookmarks, onOpenRankie, onOpenPath, onOpenDeck, onToggleBookmark, onBack }) {
   const list = Object.values(bookmarks || {}).sort((a, b) => (b.bookmarkedAt || 0) - (a.bookmarkedAt || 0));
-  const getIcon = (item) => item.type === "rankie" ? FlagTypeIcon : item.type === "path" ? GitBranch : item.deckMode === "exam" ? Edit3 : Layers;
+  const getIcon = (item) => item.type === "rankie" ? BarChart3 : item.type === "path" ? GitBranch : item.deckMode === "exam" ? Edit3 : Layers;
   const getLabel = (item) => item.type === "rankie" ? "Rankie" : item.type === "path" ? "Path" : item.deckMode === "exam" ? "Exam" : "Survey";
   const openItem = (item) => {
     if (item.type === "rankie") onOpenRankie(item.id);
@@ -3518,16 +3518,9 @@ function FbShareIcon({ size = 16, color = "currentColor" }) {
 // người dùng đã tham gia (không còn là toggle trang trí). Khi chưa tham gia,
 // bấm vào icon đó sẽ gọi onJoinClick để mở màn hình chi tiết (nơi họ thực sự
 // tham gia), giống hệt việc bấm vào thẻ bài.
-function FlagTypeIcon({ size = 20, color = C.textMuted }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 3v18" />
-      <path d="M5 4h11l-2 4 2 4H5" />
-    </svg>
-  );
-}
-// icon theo loại nội dung — dùng chung icon đã có ở badge PATH/SURVEY/EXAM để nhất quán
-const ENGAGEMENT_TYPE_ICON = { rankie: FlagTypeIcon, path: GitBranch, survey: Layers, exam: Edit3 };
+// Icon theo loại nội dung — bộ ĐÃ CHỐT dùng nhất quán toàn app (Rankie=biểu đồ cột,
+// Path=nhánh, Survey=lớp, Exam=bút).
+const ENGAGEMENT_TYPE_ICON = { rankie: BarChart3, path: GitBranch, survey: Layers, exam: Edit3 };
 
 function IconCommentBubble({ size = 20, color = C.textMuted }) {
   return (
@@ -3562,7 +3555,7 @@ function IconBookmark({ filled, size = 20 }) {
 // `onJoinClick`: luôn mở màn hình chi tiết — dù đã tham gia (xem lại kết quả)
 // hay chưa (để tham gia thật).
 function EngagementBar({ type = "rankie", joined = false, participants = 0, comments = 0, shares = 0, sessionCount = null, sessionList = [], onSeeAllSessions, onOpenSession, bookmarked = false, onJoinClick, onCommentClick, onShareClick, onBookmarkClick }) {
-  const TypeIcon = ENGAGEMENT_TYPE_ICON[type] || FlagTypeIcon;
+  const TypeIcon = ENGAGEMENT_TYPE_ICON[type] || BarChart3;
   const joinColor = joined ? C.coral : C.textMuted;
   const hasSessions = (sessionCount || 0) > 0;
   const [showSessions, setShowSessions] = useState(false);
@@ -10864,35 +10857,43 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {/* Content type toggle: Rankie / Path / Survey / Exam */}
         <div style={{ display: "flex", gap: 6, marginBottom: 20, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, flexWrap: "wrap" }}>
           {[
-            { id: "rankie", label: "📊 Rankie", desc: "Bình chọn" },
-            { id: "path", label: "🌿 Path", desc: "Cây quyết định" },
-            { id: "deck", label: "📋 Survey", desc: "Khảo sát" },
-            { id: "exam", label: "📝 Exam", desc: "Bài thi" },
-          ].map((t) => (
-            <button
-              key={t.id}
-              disabled={editing}
-              onClick={editing ? undefined : () => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
-              style={{
-                flex: "1 1 21%",
-                minWidth: 70,
-                padding: "10px 6px",
-                borderRadius: 9,
-                border: "none",
-                background: contentType === t.id ? C.gold : "transparent",
-                color: contentType === t.id ? "#1A1305" : C.textMuted,
-                fontFamily: bodyFont,
-                fontWeight: 700,
-                fontSize: 13,
-                cursor: editing ? "default" : "pointer",
-                opacity: editing && contentType !== t.id ? 0.4 : 1,
-                lineHeight: 1.3,
-              }}
-            >
-              {t.label}
-              <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
-            </button>
-          ))}
+            { id: "rankie", label: "Rankie", desc: "Bình chọn", Icon: BarChart3 },
+            { id: "path", label: "Path", desc: "Cây quyết định", Icon: GitBranch },
+            { id: "deck", label: "Survey", desc: "Khảo sát", Icon: Layers },
+            { id: "exam", label: "Exam", desc: "Bài thi", Icon: Edit3 },
+          ].map((t) => {
+            const active = contentType === t.id;
+            return (
+              <button
+                key={t.id}
+                disabled={editing}
+                onClick={editing ? undefined : () => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
+                style={{
+                  flex: "1 1 21%",
+                  minWidth: 70,
+                  padding: "10px 6px",
+                  borderRadius: 9,
+                  border: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 3,
+                  background: active ? C.gold : "transparent",
+                  color: active ? "#1A1305" : C.textMuted,
+                  fontFamily: bodyFont,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: editing ? "default" : "pointer",
+                  opacity: editing && contentType !== t.id ? 0.4 : 1,
+                  lineHeight: 1.3,
+                }}
+              >
+                <t.Icon size={18} color={active ? "#1A1305" : C.textMuted} />
+                {t.label}
+                <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{t.desc}</div>
+              </button>
+            );
+          })}
         </div>
 
         {!editing && onStartTournament && contentType === "rankie" && (
@@ -13406,7 +13407,7 @@ function ProfileView({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {participationHistory.map((entry) => {
-                const Icon = entry.type === "rankie" ? FlagTypeIcon : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
+                const Icon = entry.type === "rankie" ? BarChart3 : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
                 const label = entry.type === "rankie" ? "Rankie" : entry.type === "path" ? "Path" : entry.deckMode === "exam" ? "Exam" : "Survey";
                 const openEntry = () => onOpenSession(entry);
                 return (
@@ -13449,7 +13450,7 @@ function ProfileView({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {presentationHistory.map((entry) => {
-                const Icon = entry.type === "rankie" ? FlagTypeIcon : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
+                const Icon = entry.type === "rankie" ? BarChart3 : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
                 const label = entry.type === "rankie" ? "Rankie" : entry.type === "path" ? "Path" : entry.deckMode === "exam" ? "Exam" : "Survey";
                 const openEntry = () => onOpenSession(entry);
                 return (
@@ -13492,7 +13493,7 @@ function ProfileView({
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {list.map((item) => {
-                  const Icon = item.type === "rankie" ? FlagTypeIcon : item.type === "path" ? GitBranch : item.deckMode === "exam" ? Edit3 : Layers;
+                  const Icon = item.type === "rankie" ? BarChart3 : item.type === "path" ? GitBranch : item.deckMode === "exam" ? Edit3 : Layers;
                   const label = item.type === "rankie" ? "Rankie" : item.type === "path" ? "Path" : item.deckMode === "exam" ? "Exam" : "Survey";
                   const openItem = () => {
                     if (item.type === "rankie") onOpenRankie(item.id);
