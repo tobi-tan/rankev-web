@@ -10981,15 +10981,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       <TopBar title={editing ? "Chỉnh sửa bài đăng" : "Tạo bài đăng mới"} />
       <div style={{ paddingTop: 16 }}>
         {!editing && (
-          <button onClick={() => setBuilding(false)} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button onClick={() => setBuilding(false)} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 4 }}>
             <ChevronLeft size={15} /> Chọn loại khác
-          </button>
-        )}
-        {contentTabs}
-
-        {!editing && onStartTournament && contentType === "rankie" && (
-          <button onClick={() => onStartTournament([])} style={{ width: "100%", marginBottom: 20, padding: "11px 12px", borderRadius: 12, background: C.surface, border: `1px dashed ${C.gold}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            🏆 Tạo giải đấu (đấu loại nhiều vòng) →
           </button>
         )}
 
@@ -16561,7 +16554,7 @@ export default function RankevApp() {
             <CreateTournamentView
               initialContestants={createTournamentSeed}
               onCreate={(t) => openTournament(t.id)}
-              onBack={() => setView("feed")}
+              onBack={() => setView("create")}
               showToast={showToast}
             />
           )}
