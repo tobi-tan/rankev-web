@@ -10502,6 +10502,82 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
   );
 }
 
+// Preview biểu đồ TƯƠNG TÁC cho trình tạo Rankie: chọn skin (kéo co/kame/đối đầu/cột/
+// tròn), bấm thử bình chọn (đơn/nhiều/không giới hạn), hiện sticker "đã vote". Skin đang
+// chọn = chartType dùng khi đăng.
+function RankieComposerPreview({ options, votingType, chartType, setChartType, voteMarker }) {
+  const field = { marginBottom: 20 };
+  const label = { fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8, display: "block", letterSpacing: 0.3 };
+  const previewOpts = options.map((o, i) => ({
+    id: "p" + i,
+    label: (o.label && o.label.trim()) || o.preview?.name || o.preview?.user || `Phương án ${i + 1}`,
+    emoji: o.emoji || null,
+    image: o.image || null,
+    color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43", "#5FA8D3"][i % 6],
+  }));
+  const n = previewOpts.length || 2;
+  const seed = useMemo(() => previewOpts.map((_, i) => Math.max(3, Math.round(((n - i) / n) * 12))), [n]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [voted, setVoted] = useState(null);
+  const [votedSet, setVotedSet] = useState(() => new Set());
+  const [taps, setTaps] = useState({});
+  const [activeTap, setActiveTap] = useState(null);
+
+  const isUnlimited = votingType === "unlimited";
+  const isMultiple = votingType === "multiple";
+
+  const vote = (id) => {
+    if (isUnlimited) { setTaps((t) => ({ ...t, [id]: (t[id] || 0) + 1 })); setActiveTap(id); return; }
+    if (isMultiple) { setVotedSet((s) => { const nx = new Set(s); nx.has(id) ? nx.delete(id) : nx.add(id); return nx; }); return; }
+    setVoted((v) => (v === id ? null : id));
+  };
+
+  const withVotes = previewOpts.map((o, i) => {
+    let v = seed[i] || 0;
+    if (isUnlimited) v += taps[o.id] || 0;
+    else if (isMultiple) v += votedSet.has(o.id) ? 1 : 0;
+    else v += voted === o.id ? 1 : 0;
+    return { ...o, votes: v };
+  });
+  const votedId = isUnlimited ? null : isMultiple ? null : voted;
+
+  const skins = n === 2
+    ? [{ id: "head_to_head", label: "Đối đầu" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }, { id: "bar", label: "Cột" }, { id: "pie", label: "Tròn" }]
+    : [{ id: "bar", label: "Cột" }, ...(n >= 3 ? [{ id: "podium", label: "Bục" }] : []), { id: "pie", label: "Tròn" }];
+  const active = skins.some((s) => s.id === chartType) ? chartType : skins[0].id;
+  useEffect(() => { if (!skins.some((s) => s.id === chartType)) setChartType(skins[0].id); }, [n]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vp = { options: withVotes, isClosed: false, onVote: vote, votedId, voteMarker, tapCounts: isUnlimited ? taps : undefined, activeTapId: isUnlimited ? activeTap : undefined };
+
+  return (
+    <div style={{ ...field }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        <span style={label}>Xem trước & chọn biểu đồ</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>· chạm để thử bình chọn</span>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {skins.map((s) => {
+          const on = active === s.id;
+          return (
+            <button key={s.id} onClick={() => setChartType(s.id)} style={{ padding: "6px 12px", borderRadius: 999, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{s.label}</button>
+          );
+        })}
+      </div>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, position: "relative" }}>
+        {active === "head_to_head" && <HeadToHead rankie={{ chartType: "head_to_head", colorA: C.coral, colorB: C.teal }} {...vp} />}
+        {active === "bar" && <BarViz {...vp} />}
+        {active === "tug" && <TugViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
+        {active === "beam" && <BeamViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
+        {active === "podium" && <PodiumViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
+        {active === "pie" && <PieViz options={withVotes} />}
+      </div>
+      <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
+        {isUnlimited ? "Chế độ không giới hạn: chạm liên tục để cộng vote." : isMultiple ? "Chọn nhiều: chạm để bật/tắt từng phương án." : "Chọn một: chạm để bình chọn, chạm lại để bỏ."} Biểu đồ đang chọn (<b style={{ color: C.gold }}>{skins.find((s) => s.id === active)?.label}</b>) sẽ dùng khi đăng — có thể đổi sau khi sửa bài.
+      </div>
+    </div>
+  );
+}
+
 function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament, onBack }) {
   // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
   // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
@@ -10533,6 +10609,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const [closingTime, setClosingTime] = useState(null); // null = vô hạn; number = giờ tính từ lúc đăng; { custom } = mốc giờ cụ thể
   const [openAtLocal, setOpenAtLocal] = useState(""); // "" = lên sóng ngay; giá trị datetime-local = hẹn giờ
   const [chartType, setChartType] = useState("bar");
+  // Đối đầu (head_to_head) không có "nhiều phương án" → tự chuyển về "1 đáp án".
+  useEffect(() => { if (chartType === "head_to_head" && votingType === "multiple") setVotingType("single"); }, [chartType, votingType]);
   const [advancedOpen, setAdvancedOpen] = useState(false); // thu gọn cài đặt nâng cao
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   // Custom "voted" marker — replaces the default "VOTED" label next to whichever
@@ -11207,40 +11285,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           <BasketPickerModal basket={rk?.basket || []} onClose={() => setBasketPickerOpen(false)} onAdd={(items) => { addFromBasketItems(items); setBasketPickerOpen(false); }} />
         )}
 
-        {/* Xem trước biểu đồ mặc định — để người dùng biết kết quả sẽ hiện thế nào */}
-        {(() => {
-          const filled = opts.filter((o) => (o.label && o.label.trim()) || o.refType || o.emoji || o.image);
-          const show = (filled.length ? filled : opts).slice(0, 6);
-          const n = show.length || 2;
-          const isH2H = n === 2;
-          const cols = [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43", "#5FA8D3"];
-          const demo = show.map((_, i) => Math.max(8, Math.round((n - i) / ((n * (n + 1)) / 2) * 100))); // giảm dần cho sinh động
-          const total = demo.reduce((s, x) => s + x, 0) || 1;
-          const pct = demo.map((d) => Math.round((d / total) * 100));
-          return (
-            <div style={{ ...field }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <span style={label}>Xem trước</span>
-                <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.gold, background: C.goldSoft, padding: "2px 8px", borderRadius: 999 }}>{isH2H ? "⚔️ Đối đầu" : "📊 Cột"}</span>
-                <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>· số liệu minh hoạ</span>
-              </div>
-              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
-                {show.map((o, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: "grid", placeItems: "center", overflow: "hidden", background: o.image ? "transparent" : (o.emoji ? C.surfaceRaised : cols[i % 6] + "33"), border: `1px solid ${o.emoji || o.image ? C.border : cols[i % 6]}` }}>
-                      {o.image ? <img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : o.emoji ? <span style={{ fontSize: 13 }}>{o.emoji}</span> : null}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 3 }}>{o.label?.trim() || o.preview?.name || o.preview?.user || `Phương án ${i + 1}`}</div>
-                      <div style={{ height: 8, borderRadius: 99, background: C.track, overflow: "hidden" }}><div style={{ width: `${pct[i]}%`, height: "100%", background: cols[i % 6] }} /></div>
-                    </div>
-                    <span style={{ fontFamily: monoFont, fontSize: 11.5, fontWeight: 700, color: C.textMuted, flexShrink: 0, width: 30, textAlign: "right" }}>{pct[i]}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
+        {/* Preview TƯƠNG TÁC: chọn skin biểu đồ + thử bình chọn + hiện sticker "đã vote" */}
+        <RankieComposerPreview options={opts} votingType={votingType} chartType={chartType} setChartType={setChartType} voteMarker={voteMarker} />
 
         {/* Nút thu gọn: mặc định chỉ hiện Câu hỏi + Phương án + Preview; còn lại nằm trong Nâng cao */}
         <button
@@ -11263,9 +11309,10 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         <div style={field}>
           <span style={label}>Kiểu bình chọn</span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <OptionRow opt={{ text: "1 phương án", active: votingType === "single" }} on={() => setVotingType("single")} />
-            <OptionRow opt={{ text: "Nhiều phương án", active: votingType === "multiple" }} on={() => setVotingType("multiple")} />
-            <OptionRow opt={{ text: "Thang điểm", active: votingType === "rating" }} on={() => setVotingType("rating")} />
+            <OptionRow opt={{ text: chartType === "head_to_head" ? "1 đáp án" : "1 phương án", active: votingType === "single" }} on={() => setVotingType("single")} />
+            {chartType !== "head_to_head" && (
+              <OptionRow opt={{ text: "Nhiều phương án", active: votingType === "multiple" }} on={() => setVotingType("multiple")} />
+            )}
             <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
           </div>
           {votingType === "unlimited" && (
