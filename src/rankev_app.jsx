@@ -12228,7 +12228,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
   );
 }
 
-function BottomNav({ active, setView, chatUnread = 0 }) {
+function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
   const items = [
     { id: "feed", icon: Home, label: "Bảng tin" },
     { id: "create", icon: PlusCircle, label: "Tạo mới" },
@@ -12244,6 +12244,9 @@ function BottomNav({ active, setView, chatUnread = 0 }) {
         padding: "8px 4px",
         position: "sticky",
         bottom: 0,
+        transform: hidden ? "translateY(130%)" : "translateY(0)",
+        transition: "transform .28s ease",
+        willChange: "transform",
       }}
     >
       {items.map((it) => {
@@ -14946,6 +14949,17 @@ export default function RankevApp() {
   // container nội bộ để phòng khi CSS thay đổi khiến nó trở thành vùng cuộn riêng.
   const scrollContainerRef = useRef(null);
   const feedScrollTopRef = useRef(0);
+  // Ẩn thanh menu dưới khi lướt XUỐNG, hiện lại khi lướt LÊN (giống các app khác).
+  const [navHidden, setNavHidden] = useState(false);
+  const lastNavScrollRef = useRef(0);
+  const updateNavOnScroll = () => {
+    const y = currentFeedScroll();
+    const last = lastNavScrollRef.current;
+    if (y < 48) setNavHidden(false);            // gần đầu → luôn hiện
+    else if (y - last > 6) setNavHidden(true);   // lướt xuống → ẩn
+    else if (last - y > 6) setNavHidden(false);  // lướt lên → hiện
+    lastNavScrollRef.current = y;
+  };
   // viewRef phản chiếu `view` một cách ĐỒNG BỘ (cập nhật ngay mỗi lần render, trước paint).
   // Listener scroll đọc viewRef thay vì closure `view`: khi mở overlay, scrollTo(0,0) bắn ra
   // một sự kiện scroll — lúc đó view đã là "detail" nên listener bỏ qua, KHÔNG ghi đè 0 lên
@@ -14957,10 +14971,12 @@ export default function RankevApp() {
   const currentFeedScroll = () => Math.max(window.scrollY || window.pageYOffset || 0, scrollContainerRef.current?.scrollTop || 0);
   const handleScrollContainer = () => {
     if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
+    updateNavOnScroll();
   };
   useEffect(() => {
     const onWindowScroll = () => {
       if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
+      updateNavOnScroll();
     };
     window.addEventListener("scroll", onWindowScroll, { passive: true });
     return () => window.removeEventListener("scroll", onWindowScroll);
@@ -16167,6 +16183,7 @@ export default function RankevApp() {
     view === "tournament" ||
     view === "createTournament" ||
     view === "chat";
+  const navPresent = !isOverlay || (view === "chat" && !openConversation);
 
   // Mở một trang "chồng" (hồ sơ người khác, chi tiết bài…) → cuộn lên đầu.
   // App cuộn bằng WINDOW (container flex:1 không bị giới hạn chiều cao nên window mới cuộn).
@@ -16179,6 +16196,9 @@ export default function RankevApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, viewedAuthorId, selectedId, selectedDeck?.id, selectedPath?.id]);
+
+  // Đổi màn → luôn hiện lại thanh menu dưới.
+  useEffect(() => { setNavHidden(false); lastNavScrollRef.current = 0; }, [view]);
 
   // Cổng đăng nhập (Phần 1): chờ kiểm tra phiên → nếu chưa đăng nhập thì hiện AuthGate.
   // Tham gia phiên trực tiếp qua link ?join=CODE — KHÔNG cần đăng nhập.
@@ -16599,8 +16619,8 @@ export default function RankevApp() {
             />
           )}
         </div>
-        {(!isOverlay || (view === "chat" && !openConversation)) && (
-          <BottomNav active={view} setView={(v) => { setOpenConversation(null); if (v === "create") setEditStructPost(null); setView(v); }} chatUnread={chatUnread} />
+        {navPresent && (
+          <BottomNav active={view} setView={(v) => { setOpenConversation(null); if (v === "create") setEditStructPost(null); setView(v); }} chatUnread={chatUnread} hidden={navHidden} />
         )}
       </div>
     </div>
