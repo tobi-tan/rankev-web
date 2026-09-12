@@ -16150,7 +16150,7 @@ export default function RankevApp() {
   // Dùng useLayoutEffect (chạy trước paint) để không "nháy" giữa trang. Không reset khi về
   // feed để giữ vị trí đang xem (khôi phục ở effect view === "feed" bên trên).
   useLayoutEffect(() => {
-    if (isOverlay) {
+    if (isOverlay || view === "create") {
       window.scrollTo(0, 0);
       if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     }
