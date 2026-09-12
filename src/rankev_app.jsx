@@ -10462,27 +10462,47 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
         <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 2, lineHeight: 1.45 }}>{meta.tagline}</div>
       </div>
 
-      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Các kiểu bạn có thể tạo</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-        {variants.map((v, i) => (
-          <button key={i} onClick={v.onClick} style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer" }}>
-            <div style={{ height: 44, display: "flex", alignItems: "center" }}>
-              {v.visual ? v.visual : <span style={{ fontSize: 30 }}>{v.emoji}</span>}
-            </div>
-            <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, color: C.text }}>{v.label}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
+      {type === "rankie" ? (
+        // Rankie có 3 KIỂU thật — mỗi thẻ vào một trình tạo riêng.
+        <>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Chọn kiểu Rankie</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {variants.map((v, i) => (
+              <button key={i} onClick={v.onClick} style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer" }}>
+                <div style={{ height: 44, display: "flex", alignItems: "center" }}>
+                  {v.visual ? v.visual : <span style={{ fontSize: 30 }}>{v.emoji}</span>}
+                </div>
+                <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, color: C.text }}>{v.label}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        // Path/Survey/Exam chỉ có 1 loại — liệt kê tính năng rồi 1 nút bắt đầu.
+        <>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Tính năng nổi bật</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+            {variants.map((v, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{v.emoji}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text }}>{v.label}</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => onStart()} style={{ ...primaryButton, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            Bắt đầu tạo {meta.name} <ChevronRight size={18} />
           </button>
-        ))}
-      </div>
-
-      <button onClick={() => onStart()} style={{ ...primaryButton, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-        Bắt đầu tạo {meta.name} <ChevronRight size={18} />
-      </button>
+        </>
+      )}
     </div>
   );
 }
 
-function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament }) {
+function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament, onBack }) {
   // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
   // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
   const editing = !!editItem;
@@ -10958,33 +10978,32 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   if (!editing && !building) {
     return (
       <div style={{ padding: 16 }}>
-        <TopBar title="Tạo bài đăng mới" />
-        <div style={{ paddingTop: 16 }}>
-          {contentTabs}
-          <CreateTypeLanding
-            type={contentType}
-            onStart={(o) => {
-              const ct = o && o.chartType;
-              if (ct) setChartType(ct);
-              if (ct === "head_to_head") setOpts([{ label: "", emoji: null, image: null }, { label: "", emoji: null, image: null }]); // Đối đầu = đúng 2
-              setBuilding(true);
-            }}
-            onStartTournament={onStartTournament}
-          />
-        </div>
+        {contentTabs}
+        <CreateTypeLanding
+          type={contentType}
+          onStart={(o) => {
+            const ct = o && o.chartType;
+            if (ct) setChartType(ct);
+            if (ct === "head_to_head") setOpts([{ label: "", emoji: null, image: null }, { label: "", emoji: null, image: null }]); // Đối đầu = đúng 2
+            setBuilding(true);
+          }}
+          onStartTournament={onStartTournament}
+        />
       </div>
     );
   }
 
   return (
     <div style={{ padding: 16 }}>
-      <TopBar title={editing ? "Chỉnh sửa bài đăng" : "Tạo bài đăng mới"} />
-      <div style={{ paddingTop: 16 }}>
-        {!editing && (
-          <button onClick={() => setBuilding(false)} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <ChevronLeft size={15} /> Chọn loại khác
-          </button>
-        )}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 4, paddingBottom: 14 }}>
+        <button onClick={() => (editing ? onBack?.() : setBuilding(false))} aria-label="Quay lại" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 4, marginLeft: -4 }}>
+          <ChevronLeft size={22} />
+        </button>
+        <span style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text }}>
+          {editing ? "Chỉnh sửa" : `Tạo ${({ rankie: "Rankie", path: "Path", deck: "Survey", exam: "Exam" })[contentType] || "bài đăng"}`}
+        </span>
+      </div>
+      <div style={{ paddingTop: 0 }}>
 
         <div style={field}>
           <span style={label}>
@@ -16416,7 +16435,7 @@ export default function RankevApp() {
           {view === "livePresent" && selectedDeck && (
             <LivePresenterView deck={selectedDeck} onBack={() => setView("deckDetail")} onSessionEnd={(session) => saveDeckSession(session)} />
           )}
-          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} onStartTournament={startCreateTournament} />}
+          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} onStartTournament={startCreateTournament} onBack={() => setView("feed")} />}
           {view === "profile" && (
             <ProfileView
               pathUnlocks={pathUnlocks}
