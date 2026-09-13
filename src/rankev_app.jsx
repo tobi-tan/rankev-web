@@ -10631,7 +10631,6 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
         <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, letterSpacing: 0.3 }}>Xem trước & chọn biểu đồ</span>
-        <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>· chạm để thử bình chọn</span>
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {skins.map((s) => {
@@ -10653,9 +10652,6 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
         {active === "beam" && <BeamViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
         {active === "podium" && <PodiumViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
         {active === "pie" && <PieViz options={withVotes} />}
-      </div>
-      <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.4 }}>
-        {isUnlimited ? "Chế độ không giới hạn: chạm liên tục để cộng vote." : isMultiple ? "Chọn nhiều: chạm để bật/tắt từng phương án." : "Chọn một: chạm để bình chọn, chạm lại để bỏ."} Biểu đồ đang chọn (<b style={{ color: C.gold }}>{skins.find((s) => s.id === active)?.label}</b>) sẽ dùng khi đăng.
       </div>
     </div>
   );
@@ -11513,7 +11509,6 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 <button onClick={() => { setTimeInline(true); setOpenTool(null); }} title="Thời gian vote" style={btn("time", !!closingTime)}><Clock size={19} /></button>
               )}
               <button onClick={() => setOpenTool(openTool === "schedule" ? null : "schedule")} title="Hẹn giờ lên sóng" style={btn("schedule", !!openAtLocal)}><CalendarClock size={19} /></button>
-              <button onClick={() => setOpenTool(openTool === "sticker" ? null : "sticker")} title="Sticker đã vote" style={btn("sticker", !!voteMarker)}><Smile size={20} /></button>
               <button onClick={() => setOpenTool(openTool === "present" ? null : "present")} title="Trình chiếu" style={btn("present", allowGuestPresent || !!seriesInput)}><Monitor size={20} /></button>
             </div>
           );
@@ -11560,20 +11555,6 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Không điền thì đăng luôn Rankie. Trước giờ lên sóng, Rankie hiện "sắp diễn ra".</div>
               </div>
             )}
-            {openTool === "sticker" && (
-              <div>
-                <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Sticker hiện cạnh phương án đã bình chọn (mặc định nhãn "VOTED").</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                  {EMOJI_CHOICES.map((em) => (
-                    <button key={em} onClick={() => setVoteMarker({ emoji: em, image: null })} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${voteMarker?.emoji === em && !voteMarker?.image ? C.gold : C.border}`, background: voteMarker?.emoji === em && !voteMarker?.image ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => mockUploadVoteMarker()} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ImagePlus size={14} /> Ảnh riêng</button>
-                  {voteMarker && <button onClick={() => setVoteMarker(null)} style={{ padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Dùng "VOTED"</button>}
-                </div>
-              </div>
-            )}
             {openTool === "present" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
@@ -11608,9 +11589,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 </div>
               ) : (
               <div key={i} style={{ ...versusFlex, display: "flex", gap: 8, alignItems: "center" }}>
-                {/* Thumbnail đính kèm (nếu có) — chạm để cuộn xuống phần chỉnh ảnh/emoji dưới preview */}
+                {/* Thumbnail đính kèm (nếu có) — chạm để mở bảng chỉnh */}
                 {(o.emoji || o.image) && (
-                  <button onClick={() => setEmojiPickerFor(i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }} title="Chỉnh ảnh/emoji (bên dưới preview)">
+                  <button onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }} title="Đổi ảnh/emoji">
                     <Illustration emoji={o.emoji} image={o.image} size={40} radius={10} />
                   </button>
                 )}
@@ -11620,6 +11601,14 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                   value={o.label}
                   onChange={(e) => updateOpt(i, { label: e.target.value })}
                 />
+                {/* Nút đính kèm ảnh/emoji cho phương án */}
+                <button
+                  onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)}
+                  title="Đính kèm ảnh hoặc emoji (tuỳ chọn)"
+                  style={{ padding: 9, borderRadius: 10, border: `1px solid ${emojiPickerFor === i || o.emoji || o.image ? C.gold : C.border}`, background: emojiPickerFor === i ? C.goldSoft : C.surface, color: o.emoji || o.image ? C.gold : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}
+                >
+                  <Paperclip size={16} />
+                </button>
                 {opts.length > 2 && (
                   <button onClick={() => setOpts((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ phương án" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
                 )}
@@ -11627,11 +11616,24 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               );
             })}
           </div>
-          {rankieKind === "versus" ? (
-            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              ⚔️ Kiểu Đối đầu — đúng 2 lựa chọn (skin Kamehameha / Kéo co / Đối đầu).
+          {/* Bảng đính kèm ảnh/emoji cho phương án đang chọn (full-width, hợp cho cả 2 cột Đối đầu) */}
+          {emojiPickerFor != null && opts[emojiPickerFor] && !opts[emojiPickerFor].refType && (
+            <div style={{ marginTop: 10, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Đính kèm cho <b style={{ color: C.text }}>{opts[emojiPickerFor].label.trim() || `Phương án ${emojiPickerFor + 1}`}</b></div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <button onClick={() => { mockUpload(emojiPickerFor); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
+                {(opts[emojiPickerFor].emoji || opts[emojiPickerFor].image) && (
+                  <button onClick={() => { updateOpt(emojiPickerFor, { emoji: null, image: null }); setEmojiPickerFor(null); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ</button>
+                )}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {EMOJI_CHOICES.map((em) => (
+                  <button key={em} onClick={() => { updateOpt(emojiPickerFor, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${opts[emojiPickerFor].emoji === em ? C.gold : C.border}`, background: opts[emojiPickerFor].emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
+                ))}
+              </div>
             </div>
-          ) : (
+          )}
+          {rankieKind !== "versus" && (
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
               <button
                 onClick={addOpt}
@@ -11657,38 +11659,20 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {/* Preview TƯƠNG TÁC: chọn skin biểu đồ + thử bình chọn + hiện sticker "đã vote" */}
         <RankieComposerPreview options={opts} votingType={votingType} chartType={chartType} setChartType={setChartType} voteMarker={voteMarker} kind={rankieKind} closingTime={closingTime} />
 
-        {/* Ảnh / Emoji cho từng phương án — nằm DƯỚI preview để người dùng điều chỉnh */}
+        {/* Ảnh/Sticker thay chữ "VOTED" — nằm DƯỚI preview */}
         <div style={field}>
-          <span style={label}>Ảnh / Emoji cho phương án (tuỳ chọn)</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {opts.map((o, i) => o.refType ? null : (
-              <div key={i}>
-                <button
-                  onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 10, border: `1px solid ${emojiPickerFor === i ? C.gold : C.border}`, background: emojiPickerFor === i ? C.goldSoft : C.surface, cursor: "pointer", textAlign: "left" }}
-                >
-                  {(o.emoji || o.image)
-                    ? <Illustration emoji={o.emoji} image={o.image} size={36} radius={8} />
-                    : <span style={{ width: 36, height: 36, borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", color: C.textFaint, flexShrink: 0 }}><ImagePlus size={16} /></span>}
-                  <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13.5, fontWeight: 600, color: C.text, ...ellip }}>{o.label.trim() || `Phương án ${i + 1}`}</span>
-                  <ChevronDown size={16} color={C.textMuted} style={{ transform: emojiPickerFor === i ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
-                </button>
-                {emojiPickerFor === i && (
-                  <div style={{ marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                      <button onClick={() => { mockUpload(i); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
-                      {(o.emoji || o.image) && (
-                        <button onClick={() => { updateOpt(i, { emoji: null, image: null }); setEmojiPickerFor(null); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ</button>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {EMOJI_CHOICES.map((em) => (
-                        <button key={em} onClick={() => { updateOpt(i, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${o.emoji === em ? C.gold : C.border}`, background: o.emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+          <span style={label}>Ảnh / Sticker thay chữ "VOTED" (tuỳ chọn)</span>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 8, lineHeight: 1.4 }}>Hiện cạnh phương án mà người xem đã bình chọn. Để trống = dùng nhãn "VOTED".</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ width: 44, height: 44, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden" }}>
+              {voteMarker?.image ? <img src={voteMarker.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : voteMarker?.emoji ? <span style={{ fontSize: 22 }}>{voteMarker.emoji}</span> : <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 800, color: C.gold }}>VOTED</span>}
+            </span>
+            <button onClick={() => mockUploadVoteMarker()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={14} /> Tải ảnh</button>
+            {voteMarker && <button onClick={() => setVoteMarker(null)} style={{ padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Dùng "VOTED"</button>}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {EMOJI_CHOICES.map((em) => (
+              <button key={em} onClick={() => setVoteMarker({ emoji: em, image: null })} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${voteMarker?.emoji === em && !voteMarker?.image ? C.gold : C.border}`, background: voteMarker?.emoji === em && !voteMarker?.image ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
             ))}
           </div>
         </div>
