@@ -7,7 +7,7 @@ import {
   Home, GitBranch, PlusCircle, User, Flame, MessageCircle, Share2, ChevronLeft,
   QrCode, Users, Clock, Lock, Globe, Trophy, ChevronRight, Check,
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
-  MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
+  MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
 } from "lucide-react";
@@ -3364,11 +3364,25 @@ function VoteBubbleLayer({ bubbles }) {
 
 // Renders post media: an image (color-block placeholder) or a video (placeholder with play button).
 // In the prototype, real files aren't uploaded; media carries { type, color, emoji, url? }.
-function PostMedia({ media, height = 180, radius = 12 }) {
+function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480 }) {
+  // fit: "cover" (cắt lấp đầy, chiều cao cố định) | "contain" (hiện trọn ảnh dọc) |
+  // "auto" (mặc định: ảnh DỌC → contain hiện trọn kiểu IG/TikTok, ảnh ngang/vuông → cover).
+  const [portrait, setPortrait] = useState(false);
   if (!media) return null;
   const bg = media.url
     ? undefined
     : `linear-gradient(135deg, ${media.color || C.surfaceRaised}, ${C.surface})`;
+  const onImgLoad = (e) => { if (fit === "auto") { const im = e.target; if (im.naturalWidth && im.naturalHeight) setPortrait(im.naturalHeight > im.naturalWidth * 1.05); } };
+  // contain: hiển thị TRỌN ảnh (ảnh dọc — không cắt ngang). Khung nền tối, cao co theo
+  // ảnh nhưng không vượt maxHeight; ảnh căn giữa.
+  const useContain = !!media.url && (fit === "contain" || (fit === "auto" && portrait));
+  if (useContain) {
+    return (
+      <div style={{ position: "relative", width: "100%", maxHeight, borderRadius: radius, overflow: "hidden", background: "#0b0b0d", border: `1px solid ${C.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <img src={media.url} alt="" onLoad={onImgLoad} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -3384,7 +3398,7 @@ function PostMedia({ media, height = 180, radius = 12 }) {
       }}
     >
       {media.url ? (
-        <img src={media.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={media.url} alt="" onLoad={onImgLoad} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span style={{ fontSize: 54, opacity: 0.9 }}>{media.emoji || (media.type === "video" ? "🎬" : "🖼️")}</span>
       )}
@@ -5839,45 +5853,94 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
     const K = stateRef.current;
     let raf = null;
     const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    // Đỏ TRÁI vs xanh PHẢI (khớp ảnh mẫu Kamehameha). Dùng màu option nếu có.
+    const RED = a.color || "#E23B3B", BLU = b.color || "#2F6BFF";
     const hexA = (h, al) => { h = (h || "#5FC9A8").replace("#", ""); return `rgba(${parseInt(h.substr(0, 2), 16)},${parseInt(h.substr(2, 2), 16)},${parseInt(h.substr(4, 2), 16)},${al})`; };
-    const fit = () => { const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); K.W = r.width; K.H = r.height; };
+    // Cảnh nền (đá vụn + mặt đất lởm chởm) tính 1 lần / mỗi kích thước → không giật khung.
+    const buildScenery = () => {
+      const W = K.W, H = K.H; K.ground = []; let x = -10; const baseY = H - 10;
+      while (x < W + 20) { const w = 14 + Math.random() * 30, h = 6 + Math.random() * 20; K.ground.push({ x, w, y: baseY - h }); x += w * 0.7; }
+      K.rocks = []; for (let i = 0; i < 8; i++) K.rocks.push({ x: 16 + Math.random() * (W - 32), y: H * 0.6 + Math.random() * (H * 0.28), s: 5 + Math.random() * 14, r: Math.random() * 6.28 });
+    };
+    const fit = () => { const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); K.W = r.width; K.H = r.height; buildScenery(); };
     fit(); if (!K.clashX) K.clashX = K.W * 0.5;
     let ro; if (window.ResizeObserver) { ro = new ResizeObserver(() => { fit(); if (!K.clashX) K.clashX = K.W * 0.5; }); ro.observe(cv); }
-    const spawn = (x, y, n, col) => { for (let i = 0; i < n; i++) { const ang = Math.random() * 6.283, sp = 1 + Math.random() * 4.5; K.parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 0.6, life: 1, col }); } };
-    const beam = (x0, x1, cy, thin, thick, color) => {
-      const mx = (x0 + x1) / 2; ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 28;
-      ctx.beginPath(); ctx.moveTo(x0, cy - thin); ctx.quadraticCurveTo(mx, cy - thick * 0.55, x1, cy - thick); ctx.lineTo(x1, cy + thick); ctx.quadraticCurveTo(mx, cy + thick * 0.55, x0, cy + thin); ctx.closePath();
-      const g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, hexA(color, 0.10)); g.addColorStop(0.72, color); g.addColorStop(1, "#ffffff"); ctx.fillStyle = g; ctx.fill();
-      ctx.shadowBlur = 0; ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x1, cy); ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.lineWidth = Math.max(2, thin * 0.9); ctx.lineCap = "round"; ctx.stroke(); ctx.restore();
+    const spawn = (x, y, n, col) => { for (let i = 0; i < n; i++) { const ang = Math.random() * 6.283, sp = 1 + Math.random() * 5.5; K.parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 0.6, life: 1, col }); } };
+    // Nền tối + hào quang đỏ (trái) / xanh (phải).
+    const bg = () => {
+      const W = K.W, H = K.H;
+      let base = ctx.createLinearGradient(0, 0, 0, H); base.addColorStop(0, "#0a0912"); base.addColorStop(1, "#050507");
+      ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
+      let gL = ctx.createRadialGradient(W * 0.13, H * 0.42, 4, W * 0.13, H * 0.42, W * 0.62); gL.addColorStop(0, hexA(RED, 0.52)); gL.addColorStop(0.5, hexA(RED, 0.13)); gL.addColorStop(1, hexA(RED, 0));
+      ctx.fillStyle = gL; ctx.fillRect(0, 0, W, H);
+      let gR = ctx.createRadialGradient(W * 0.87, H * 0.42, 4, W * 0.87, H * 0.42, W * 0.62); gR.addColorStop(0, hexA(BLU, 0.52)); gR.addColorStop(0.5, hexA(BLU, 0.13)); gR.addColorStop(1, hexA(BLU, 0));
+      ctx.fillStyle = gR; ctx.fillRect(0, 0, W, H);
     };
-    const orb = (cx, cy, R) => {
-      ctx.save(); ctx.shadowColor = "#ffe08a"; ctx.shadowBlur = 34;
-      const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, R); g.addColorStop(0, "#ffffff"); g.addColorStop(.42, "#fff2bf"); g.addColorStop(.78, hexA("#ffcf47", .92)); g.addColorStop(1, hexA("#ffcf47", 0));
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.fill(); ctx.restore();
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(K.t * 0.5); ctx.fillStyle = "rgba(255,255,255,.45)";
-      for (let i = 0; i < 8; i++) { ctx.rotate(0.7854); const L = R * (1.5 + Math.sin(K.t * 4 + i) * 0.45); ctx.beginPath(); ctx.moveTo(0, -3.5); ctx.lineTo(L, 0); ctx.lineTo(0, 3.5); ctx.closePath(); ctx.fill(); }
+    // Chùm tia phóng xạ toả ra từ điểm va chạm — kéo dài theo phương ngang (đỏ trái / xanh phải).
+    const rayBurst = (cx, cy, scale) => {
+      const N = 46; ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < N; i++) {
+        const ang = (i / N) * 6.283 + K.t * 0.05, c = Math.cos(ang), s = Math.sin(ang), horiz = Math.abs(c);
+        const flick = 0.55 + 0.45 * Math.sin(K.t * 6 + i * 1.7);
+        const len = (26 + horiz * horiz * K.W * 0.46) * (0.4 + 0.6 * flick) * scale;
+        const col = c < 0 ? RED : BLU, x2 = cx + c * len, y2 = cy + s * len;
+        const g = ctx.createLinearGradient(cx, cy, x2, y2); g.addColorStop(0, "rgba(255,255,255,.9)"); g.addColorStop(0.14, hexA(col, 0.9)); g.addColorStop(1, hexA(col, 0));
+        ctx.strokeStyle = g; ctx.lineWidth = 1 + horiz * 2.4; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x2, y2); ctx.stroke();
+      }
       ctx.restore();
+    };
+    const beam = (x0, x1, cy, color) => {
+      const mx = (x0 + x1) / 2, thin = 8, thick = 27; ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 26;
+      ctx.beginPath(); ctx.moveTo(x0, cy - thin); ctx.quadraticCurveTo(mx, cy - thick * 0.5, x1, cy - thick); ctx.lineTo(x1, cy + thick); ctx.quadraticCurveTo(mx, cy + thick * 0.5, x0, cy + thin); ctx.closePath();
+      const g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, hexA(color, 0.12)); g.addColorStop(0.7, color); g.addColorStop(1, "#ffffff"); ctx.fillStyle = g; ctx.fill();
+      ctx.shadowBlur = 0; ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x1, cy); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = Math.max(2, thin * 0.8); ctx.lineCap = "round"; ctx.stroke(); ctx.restore();
+    };
+    // Vòm khí ở điểm phát (rìa hai bên).
+    const chargeDome = (x, cy, color) => {
+      const R = 30 + Math.sin(K.t * 4) * 3; ctx.save(); ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(x, cy, 2, x, cy, R); g.addColorStop(0, "#ffffff"); g.addColorStop(0.4, hexA(color, 0.8)); g.addColorStop(1, hexA(color, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, cy, R, 0, 6.283); ctx.fill(); ctx.restore();
+    };
+    // Lõi nổ trắng-hồng + trụ sáng dọc.
+    const core = (cx, cy, R) => {
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      let g = ctx.createRadialGradient(cx, cy, 1, cx, cy, R * 2.3); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.26, "rgba(255,214,236,.92)"); g.addColorStop(0.6, "rgba(255,110,190,.26)"); g.addColorStop(1, "rgba(255,110,190,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 2.3, 0, 6.283); ctx.fill();
+      let c2 = ctx.createRadialGradient(cx, cy, 1, cx, cy, R); c2.addColorStop(0, "#ffffff"); c2.addColorStop(0.7, "rgba(255,255,255,.95)"); c2.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = c2; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.fill();
+      let vf = ctx.createLinearGradient(cx, cy - K.H * 0.5, cx, cy + K.H * 0.5); vf.addColorStop(0, "rgba(255,255,255,0)"); vf.addColorStop(0.5, "rgba(255,255,255,.55)"); vf.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = vf; ctx.fillRect(cx - R * 0.5, cy - K.H * 0.5, R, K.H); ctx.restore();
+    };
+    // Đá bay (bóng đen) + mặt đất lởm chởm foreground.
+    const scenery = () => {
+      const W = K.W, H = K.H; ctx.save(); ctx.fillStyle = "#04050a";
+      (K.rocks || []).forEach((rk) => { ctx.save(); ctx.translate(rk.x, rk.y); ctx.rotate(rk.r); ctx.beginPath(); ctx.moveTo(-rk.s, 0); ctx.lineTo(-rk.s * 0.3, -rk.s * 0.8); ctx.lineTo(rk.s * 0.6, -rk.s * 0.5); ctx.lineTo(rk.s, rk.s * 0.3); ctx.lineTo(0, rk.s * 0.7); ctx.closePath(); ctx.fill(); ctx.restore(); });
+      ctx.beginPath(); ctx.moveTo(0, H); (K.ground || []).forEach((g) => { ctx.lineTo(g.x, g.y); ctx.lineTo(g.x + g.w * 0.5, g.y + (H - g.y) * 0.35); }); ctx.lineTo(W, H); ctx.closePath(); ctx.fill(); ctx.restore();
     };
     const draw = (step) => {
       const o = optsRef.current, av = o[0].votes, bv = o[1].votes;
-      const tt = av + bv, ra = tt ? av / tt : 0.5; // 0 phiếu → cầu ở giữa
-      const W = K.W, H = K.H, cy = H / 2, margin = 66;
+      const tt = av + bv, ra = tt ? av / tt : 0.5; // 0 phiếu → va chạm ở giữa
+      const W = K.W, H = K.H, cy = H * 0.46, margin = 40;
       const target = margin + ra * (W - 2 * margin);
       K.clashX += (target - K.clashX) * (step ? 0.10 : 1);
       const sh = K.shake > 0 ? K.shake : 0, cx = K.clashX + (Math.random() - .5) * sh, sy = cy + (Math.random() - .5) * sh;
-      ctx.clearRect(0, 0, W, H);
-      beam(margin - 26, cx, sy, 7, 30, a.color || C.teal);
-      beam(W - (margin - 26), cx, sy, 7, 30, b.color || C.coral);
-      K.t += 0.08; const R = (30 + Math.min(24, (tt / 7000) * 20)) * (1 + Math.sin(K.t * 3) * 0.08) + (sh ? 6 : 0);
-      orb(cx, sy, R);
-      for (let i = K.parts.length - 1; i >= 0; i--) { const p = K.parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.07; p.life -= 0.028; if (p.life <= 0) { K.parts.splice(i, 1); continue; } ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 2.3, 0, 6.283); ctx.fill(); }
+      K.t += 0.08;
+      bg();
+      rayBurst(cx, sy, 1 + (sh ? 0.18 : 0));
+      beam(margin - 20, cx, sy, RED);
+      beam(W - (margin - 20), cx, sy, BLU);
+      chargeDome(margin - 20, cy, RED); chargeDome(W - (margin - 20), cy, BLU);
+      const R = (24 + Math.min(22, (tt / 7000) * 20)) * (1 + Math.sin(K.t * 3) * 0.08) + (sh ? 6 : 0);
+      core(cx, sy, R);
+      for (let i = K.parts.length - 1; i >= 0; i--) { const p = K.parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.07; p.life -= 0.028; if (p.life <= 0) { K.parts.splice(i, 1); continue; } ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, 6.283); ctx.fill(); }
       ctx.globalAlpha = 1;
-      if (step && Math.random() < 0.4) spawn(cx, sy, 1, "#fff6cf");
+      scenery();
+      if (step && Math.random() < 0.5) spawn(cx, sy, 1, Math.random() < 0.5 ? RED : BLU);
       if (K.shake > 0) { K.shake *= 0.86; if (K.shake < 0.4) K.shake = 0; }
       if (step && !reduce) raf = requestAnimationFrame(() => draw(true));
     };
     if (reduce) draw(false); else draw(true);
-    K.surge = (side, color) => { K.shake = 11; spawn(K.clashX, K.H / 2, 16, color); if (reduce) draw(false); };
+    K.surge = (side, color) => { K.shake = 12; spawn(K.clashX, K.H * 0.46, 18, color); if (reduce) draw(false); };
     return () => { if (raf) cancelAnimationFrame(raf); if (ro) ro.disconnect(); K.surge = null; };
   }, [a.color, b.color]);
 
@@ -5891,7 +5954,7 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   );
   return (
     <div>
-      <div ref={wrapRef} style={{ position: "relative", height: 216, borderRadius: 16, overflow: "hidden", background: "radial-gradient(130% 100% at 50% 130%, #123024, #0a1510 70%)", border: `1px solid ${C.border}` }}>
+      <div ref={wrapRef} style={{ position: "relative", height: 216, borderRadius: 16, overflow: "hidden", background: "#050507", border: `1px solid ${C.border}` }}>
         <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
         {sideLabel(a, 0, pa)}
         {sideLabel(b, 1, 100 - pa)}
@@ -10651,6 +10714,34 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // null means "use the default VOTED label".
   const [voteMarker, setVoteMarker] = useState(null); // { emoji, image } | null
   const [voteMarkerPickerOpen, setVoteMarkerPickerOpen] = useState(false);
+  // Menu ⋮ ở góc trên-phải (kiểu tạo bài MXH): Hủy tạo / Thêm vào bản nháp.
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef(null);
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const onDown = (e) => { if (headerMenuRef.current && !headerMenuRef.current.contains(e.target)) setHeaderMenuOpen(false); };
+    document.addEventListener("mousedown", onDown); document.addEventListener("touchstart", onDown);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("touchstart", onDown); };
+  }, [headerMenuOpen]);
+  // Thời gian vote: ô nhập giờ điện tử (thay icon đồng hồ khi bật). durationInput dạng "HH:MM"
+  // (giờ có thể >24). closingTime lưu dạng SỐ GIỜ (tương thích submit) hoặc null = vô thời hạn.
+  const [timeInline, setTimeInline] = useState(false);
+  const [durationInput, setDurationInput] = useState("");
+  const parseDurationToHours = (str) => {
+    const m = String(str).trim().match(/^(\d{1,4}):?(\d{0,2})$/);
+    if (!m) return null;
+    const h = parseInt(m[1] || "0", 10); const mm = m[2] ? parseInt(m[2], 10) : 0;
+    if (Number.isNaN(h) || Number.isNaN(mm) || mm > 59) return null;
+    const total = h + mm / 60; return total > 0 ? total : null;
+  };
+  const fmtDuration = (hoursFloat) => {
+    if (!hoursFloat) return "";
+    let total = Math.round(hoursFloat * 60); // phút
+    const d = Math.floor(total / 1440); total -= d * 1440;
+    const h = Math.floor(total / 60); const mm = total % 60;
+    const p = (x) => String(x).padStart(2, "0");
+    return d > 0 ? `${d}D:${p(h)}:${p(mm)}` : `${p(h)}:${p(mm)}`;
+  };
 
   // Shared post content across all three content types (caption + optional media placeholder)
   const [caption, setCaption] = useState(editItem?.caption || "");
@@ -10959,6 +11050,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
   const submit = () => {
     if (!canSubmit) return;
+    try { localStorage.removeItem("rankev_draft_rankie"); } catch {}
     // Resolve the chosen closing-time option into an absolute timestamp (or null = vô hạn)
     let closesAt = null;
     if (typeof closingTime === "number") {
@@ -11024,6 +11116,72 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     });
   };
 
+  // ---- Bản nháp Rankie (localStorage) ----
+  const DRAFT_KEY = "rankev_draft_rankie";
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [savedToast, setSavedToast] = useState(false); // "Đã lưu bản nháp" trên màn landing
+  const [draftTick, setDraftTick] = useState(0); // ép đọc lại nháp sau khi lưu/xoá
+  const readDraft = () => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      if (!d || (!(d.title || "").trim() && !(d.opts || []).some((o) => (o.label || "").trim()))) return null;
+      return d;
+    } catch { return null; }
+  };
+  const resetRankieForm = () => {
+    setTitle(""); setCaption(""); setOpts([{ label: "", emoji: null, image: null }, { label: "", emoji: null, image: null }]);
+    setTags([]); setVotingType("single"); setAudience("public"); setClosingTime(null); setOpenAtLocal("");
+    setVoteMarker(null); setMedia(null); setAllowGuestPresent(false); setSeriesInput(""); setSelectedSeriesId(null);
+    setTimeInline(false); setDurationInput(""); setShowHashtag(false); setOpenTool(null); setEmojiPickerFor(null);
+    setDraftRestored(false);
+  };
+  const applyDraft = (d) => {
+    if (d.title != null) setTitle(d.title);
+    if (d.caption != null) setCaption(d.caption);
+    if (Array.isArray(d.opts) && d.opts.length >= 2) setOpts(d.opts);
+    if (Array.isArray(d.tags)) setTags(d.tags);
+    if (d.votingType) setVotingType(d.votingType);
+    if (d.chartType) setChartType(d.chartType);
+    if (d.rankieKind) setRankieKind(d.rankieKind);
+    if (d.audience) setAudience(d.audience);
+    if (d.closingTime !== undefined) {
+      setClosingTime(d.closingTime);
+      if (typeof d.closingTime === "number") {
+        const total = Math.round(d.closingTime * 60), H = Math.floor(total / 60), M = total % 60;
+        setDurationInput(`${H}:${String(M).padStart(2, "0")}`); setTimeInline(true);
+      }
+    }
+    if (d.openAtLocal != null) setOpenAtLocal(d.openAtLocal);
+    if (d.voteMarker !== undefined) setVoteMarker(d.voteMarker);
+    if (d.media !== undefined) setMedia(d.media);
+    if (typeof d.allowGuestPresent === "boolean") setAllowGuestPresent(d.allowGuestPresent);
+    if (d.seriesInput != null) setSeriesInput(d.seriesInput);
+  };
+  const saveDraft = () => {
+    try {
+      const draft = { title, caption, opts, tags, votingType, chartType, rankieKind, audience, closingTime, openAtLocal, voteMarker, media, allowGuestPresent, seriesInput, savedAt: Date.now() };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setHeaderMenuOpen(false);
+      if (editing) { onBack?.(); return; }
+      resetRankieForm(); setBuilding(false); setSavedToast(true); setDraftTick((t) => t + 1);
+    } catch { alert("Không lưu được bản nháp."); }
+  };
+  const discardCreate = () => {
+    setHeaderMenuOpen(false);
+    if (editing) { onBack?.(); return; }
+    resetRankieForm(); setBuilding(false);
+  };
+  const resumeDraft = () => {
+    const d = readDraft(); if (!d) return;
+    applyDraft(d);
+    setDraftRestored(true); setSavedToast(false);
+    setBuilding(true);
+  };
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} setDraftRestored(false); setDraftTick((t) => t + 1); };
+  useEffect(() => { if (!savedToast) return; const id = setTimeout(() => setSavedToast(false), 3500); return () => clearTimeout(id); }, [savedToast]);
+
   const field = { marginBottom: 20 };
   const label = { fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8, display: "block", letterSpacing: 0.3 };
   const input = {
@@ -11086,9 +11244,28 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Trang đệm: khi TẠO MỚI, xem giới thiệu + demo các biến thể của loại đang chọn trước
   // khi vào trình tạo thật. Sửa bài (editing) thì vào thẳng builder.
   if (!editing && !building) {
+    void draftTick; // đọc lại nháp sau khi lưu/xoá
+    const landingDraft = contentType === "rankie" ? readDraft() : null;
     return (
       <div style={{ padding: 16 }}>
         {contentTabs}
+        {savedToast && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}`, marginBottom: 12 }}>
+            <Check size={16} color={C.gold} strokeWidth={3} />
+            <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>Đã lưu bản nháp</span>
+          </div>
+        )}
+        {landingDraft && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+            <span style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Save size={18} color={C.gold} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>BẢN NHÁP</div>
+              <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: C.text, ...ellip }}>{(landingDraft.title || "").trim() || "Rankie chưa có tiêu đề"}</div>
+            </div>
+            <button onClick={resumeDraft} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tiếp tục</button>
+            <button onClick={clearDraft} title="Xoá nháp" style={{ flexShrink: 0, background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center", padding: 4 }}><Trash2 size={16} /></button>
+          </div>
+        )}
         <CreateTypeLanding
           type={contentType}
           onStart={(o) => {
@@ -11111,14 +11288,33 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           <ChevronLeft size={22} />
         </button>
         <span style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text }}>
-          {editing ? "Chỉnh sửa" : `Tạo ${({ rankie: "Rankie", path: "Path", deck: "Survey", exam: "Exam" })[contentType] || "bài đăng"}`}
+          {editing ? "Chỉnh sửa" : contentType === "rankie" ? (rankieKind === "versus" ? "Tạo đối đầu" : "Tạo xếp hạng") : `Tạo ${({ path: "Path", deck: "Survey", exam: "Exam" })[contentType] || "bài đăng"}`}
         </span>
+        {contentType === "rankie" && (
+          <div ref={headerMenuRef} style={{ marginLeft: "auto", position: "relative" }}>
+            <button onClick={() => setHeaderMenuOpen((v) => !v)} aria-label="Tùy chọn" title="Tùy chọn" style={{ background: headerMenuOpen ? C.goldSoft : "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 6, borderRadius: 8 }}>
+              <MoreVertical size={20} />
+            </button>
+            {headerMenuOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 30, minWidth: 180, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+                <button onClick={saveDraft} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", background: "none", border: "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, textAlign: "left" }}>
+                  <Save size={16} color={C.textMuted} /> Thêm vào bản nháp
+                </button>
+                <button onClick={discardCreate} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", background: "none", border: "none", borderTop: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.coral, textAlign: "left" }}>
+                  <Trash2 size={16} /> Hủy tạo
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div style={{ paddingTop: 0 }}>
 
+        {/* Tiêu đề riêng cho path/deck/exam. Rankie gộp câu hỏi vào khung soạn thảo hợp nhất bên dưới. */}
+        {contentType !== "rankie" && (
         <div style={field}>
           <span style={label}>
-            {contentType === "path" ? "Tiêu đề Path" : contentType === "deck" ? "Tiêu đề Survey" : contentType === "exam" ? "Tiêu đề Exam" : "Câu hỏi"}
+            {contentType === "path" ? "Tiêu đề Path" : contentType === "deck" ? "Tiêu đề Survey" : "Tiêu đề Exam"}
           </span>
           <input
             style={input}
@@ -11127,14 +11323,13 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 ? "VD: Con đường sự nghiệp nào hợp với bạn?"
                 : contentType === "deck"
                 ? "VD: Khảo sát mức độ hài lòng / Ý kiến về sự kiện"
-                : contentType === "exam"
-                ? "VD: Bài thi Kiến thức Công nghệ"
-                : "VD: Bộ phim hay nhất 2026?"
+                : "VD: Bài thi Kiến thức Công nghệ"
             }
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
         </div>
+        )}
 
         {/* Nội dung/Trình chiếu/Series cho path/deck/exam (Rankie có composer riêng bên dưới) */}
         {contentType !== "rankie" && (<>
@@ -11230,58 +11425,108 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         {contentType === "rankie" && (
         <>
-        {/* Mô tả + (toggle) hashtag + media preview */}
-        <div style={field}>
+        {draftRestored && (
+          <div style={{ ...field, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
+            <Save size={15} color={C.gold} />
+            <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp</span>
+            <button onClick={clearDraft} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Bỏ nháp</button>
+          </div>
+        )}
+        {/* KHUNG SOẠN THẢO HỢP NHẤT: câu hỏi + mô tả + media + hashtag trong 1 khối */}
+        <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 14px 12px", position: "relative" }}>
           <textarea
-            style={{ ...input, minHeight: 60, resize: "vertical", fontFamily: bodyFont }}
-            placeholder="Mô tả, bối cảnh, lời kêu gọi... (tuỳ chọn)"
+            rows={1}
+            style={{ width: "100%", border: "none", background: "transparent", outline: "none", resize: "none", color: C.text, fontFamily: displayFont, fontWeight: 600, fontSize: 20, lineHeight: 1.3, padding: 0, display: "block", overflow: "hidden" }}
+            placeholder="VD: Bộ phim hay nhất 2026?"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+          />
+          <div style={{ height: 1, background: C.border, opacity: 0.7, margin: "11px 0" }} />
+          <textarea
+            style={{ width: "100%", border: "none", background: "transparent", outline: "none", resize: "vertical", minHeight: 52, color: C.text, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.5, padding: 0, display: "block" }}
+            placeholder="Mô tả, bối cảnh, lời kêu gọi… (tùy chọn)"
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
           />
+          {media && (
+            <div style={{ marginTop: 12, position: "relative" }}>
+              <PostMedia media={media} fit="contain" maxHeight={480} />
+              <button onClick={() => setMedia(null)} title="Xoá media" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center", zIndex: 2 }}><X size={14} /></button>
+            </div>
+          )}
           {showHashtag ? (
-            <div ref={hashtagRef} style={{ marginTop: 10 }}>
+            <div ref={hashtagRef} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
               <HashtagInput tags={tags} onChange={setTags} placeholder="Thêm hashtag: thethao, esports…" />
             </div>
           ) : tags.length > 0 && (
-            <button onClick={() => setShowHashtag(true)} title="Xem / sửa hashtag" style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-              <Hash size={13} /> {tags.length} hashtag
-            </button>
-          )}
-          {media && (
-            <div style={{ marginTop: 10, position: "relative" }}>
-              <PostMedia media={media} height={140} />
-              <button onClick={() => setMedia(null)} title="Xoá media" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={14} /></button>
+            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {tags.map((t) => (
+                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700 }}>
+                  <Hash size={12} />{t}
+                </span>
+              ))}
+              <button onClick={() => setShowHashtag(true)} title="Sửa hashtag" style={{ padding: "4px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Sửa</button>
             </div>
           )}
         </div>
 
-        {/* Thanh icon: media · hashtag · kiểu vote · quyền · thời gian · hẹn giờ · sticker · thêm */}
+        {/* Thanh icon: media · hashtag · kiểu vote · quyền · thời gian · hẹn giờ · sticker · trình chiếu */}
         {(() => {
-          const items = [
-            { id: "media", icon: <ImagePlus size={20} />, active: !!media, on: () => setOpenTool(openTool === "media" ? null : "media"), title: "Ảnh / Emoji / Video" },
-            { id: "hashtag", icon: <Hash size={20} />, active: tags.length > 0 || showHashtag, on: () => { setShowHashtag((v) => !v); setOpenTool(null); }, title: "Hashtag" },
-            rankieKind === "versus"
-              ? { id: "fire", icon: <Flame size={20} />, active: votingType === "unlimited", on: () => { setVotingType(votingType === "unlimited" ? "single" : "unlimited"); setOpenTool(null); }, title: votingType === "unlimited" ? "Không giới hạn (đang bật)" : "Bật vote không giới hạn" }
-              : { id: "vote", icon: <SlidersHorizontal size={19} />, active: votingType !== "single", on: () => setOpenTool(openTool === "vote" ? null : "vote"), title: "Kiểu bình chọn" },
-            { id: "privacy", icon: audience === "public" ? <Globe size={19} /> : audience === "private" ? <Users size={19} /> : <Lock size={19} />, active: audience !== "public", on: () => setOpenTool(openTool === "privacy" ? null : "privacy"), title: "Quyền riêng tư" },
-            { id: "time", icon: <Clock size={19} />, active: !!closingTime, on: () => setOpenTool(openTool === "time" ? null : "time"), title: "Thời gian vote" },
-            { id: "schedule", icon: <CalendarClock size={19} />, active: !!openAtLocal, on: () => setOpenTool(openTool === "schedule" ? null : "schedule"), title: "Hẹn giờ lên sóng" },
-            { id: "sticker", icon: <Smile size={20} />, active: !!voteMarker, on: () => setOpenTool(openTool === "sticker" ? null : "sticker"), title: "Sticker đã vote" },
-            { id: "more", icon: <MoreVertical size={20} />, active: allowGuestPresent || !!seriesInput, on: () => setOpenTool(openTool === "more" ? null : "more"), title: "Thêm (trình chiếu, series)" },
-          ];
+          const btn = (id, active) => ({ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, border: "none", background: openTool === id ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted });
+          const privacyIcon = audience === "public" ? <Globe size={19} /> : audience === "private" ? <Users size={19} /> : <Lock size={19} />;
+          const privacyOpts = [{ id: "public", t: "Công khai", Icon: Globe }, { id: "private", t: "Nhóm", Icon: Users }, { id: "unlisted", t: "Chỉ mình tôi", Icon: Lock }];
           return (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: openTool ? 6 : 18, alignItems: "center" }}>
-              {items.map((it) => (
-                <button key={it.id} onClick={it.on} title={it.title} style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, border: "none", background: openTool === it.id ? C.goldSoft : "transparent", color: it.active ? C.gold : C.textMuted }}>
-                  {it.icon}
-                </button>
-              ))}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: openTool && openTool !== "privacy" ? 6 : 18, alignItems: "center" }}>
+              <button onClick={() => setOpenTool(openTool === "media" ? null : "media")} title="Ảnh / Video" style={btn("media", !!media)}><ImagePlus size={20} /></button>
+              <button onClick={() => { setShowHashtag((v) => !v); setOpenTool(null); }} title="Hashtag" style={btn("hashtag", tags.length > 0 || showHashtag)}><Hash size={20} /></button>
+              <button onClick={() => setOpenTool(openTool === "vote" ? null : "vote")} title={rankieKind === "versus" ? "Bình chọn không giới hạn" : "Kiểu bình chọn"} style={btn("vote", rankieKind === "versus" ? votingType === "unlimited" : votingType !== "single")}>{rankieKind === "versus" ? <Flame size={20} /> : <SlidersHorizontal size={19} />}</button>
+              {/* Quyền riêng tư: popup NHỎ GỌN neo ngay dưới icon (không mở frame full-width) */}
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setOpenTool(openTool === "privacy" ? null : "privacy")} title="Quyền riêng tư" style={btn("privacy", audience !== "public")}>{privacyIcon}</button>
+                {openTool === "privacy" && (
+                  <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 25, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", overflow: "hidden", width: "max-content" }}>
+                    {privacyOpts.map((o, i) => (
+                      <button key={o.id} onClick={() => { setAudience(o.id); setOpenTool(null); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px 9px 12px", background: audience === o.id ? C.goldSoft : "none", border: "none", borderTop: i ? `1px solid ${C.border}` : "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 13.5, fontWeight: audience === o.id ? 700 : 500, color: audience === o.id ? C.gold : C.text, whiteSpace: "nowrap", textAlign: "left" }}>
+                        <o.Icon size={15} color={audience === o.id ? C.gold : C.textMuted} /> {o.t}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Thời gian vote: bấm icon → ĐỔI thành ô nhập giờ điện tử (thay icon); bỏ trống → vô thời hạn */}
+              {timeInline ? (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 38, padding: "0 8px", borderRadius: 10, border: `1px solid ${C.gold}`, background: C.goldSoft }}>
+                  <Clock size={15} color={C.gold} />
+                  <input
+                    autoFocus
+                    value={durationInput}
+                    onChange={(e) => { const v = e.target.value.replace(/[^\d:]/g, "").slice(0, 7); setDurationInput(v); const h = parseDurationToHours(v); setClosingTime(h ? h : null); }}
+                    placeholder="36:00"
+                    inputMode="numeric"
+                    style={{ width: 58, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 14, fontWeight: 700, padding: 0 }}
+                  />
+                  {closingTime ? <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.gold }}>→ {fmtDuration(closingTime)}</span> : null}
+                  <button onClick={() => setTimeInline(false)} title="Đóng" style={{ background: "none", border: "none", cursor: "pointer", color: C.gold, display: "grid", placeItems: "center", padding: 2 }}><X size={14} /></button>
+                </div>
+              ) : (
+                <button onClick={() => { setTimeInline(true); setOpenTool(null); }} title="Thời gian vote" style={btn("time", !!closingTime)}><Clock size={19} /></button>
+              )}
+              <button onClick={() => setOpenTool(openTool === "schedule" ? null : "schedule")} title="Hẹn giờ lên sóng" style={btn("schedule", !!openAtLocal)}><CalendarClock size={19} /></button>
+              <button onClick={() => setOpenTool(openTool === "sticker" ? null : "sticker")} title="Sticker đã vote" style={btn("sticker", !!voteMarker)}><Smile size={20} /></button>
+              <button onClick={() => setOpenTool(openTool === "present" ? null : "present")} title="Trình chiếu" style={btn("present", allowGuestPresent || !!seriesInput)}><Monitor size={20} /></button>
             </div>
           );
         })()}
 
-        {/* Popover cho icon đang mở */}
-        {openTool && (
+        {timeInline && (
+          <div style={{ marginTop: -8, marginBottom: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
+            Nhập thời lượng bình chọn dạng <b style={{ color: C.textMuted }}>giờ:phút</b> (VD: 36:00 → 1D:12:00). Không điền thì vote vô thời hạn.
+          </div>
+        )}
+
+        {/* Popover cho icon đang mở (privacy dùng popup nhỏ neo dưới icon, không vào đây) */}
+        {openTool && openTool !== "privacy" && (
           <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
             {openTool === "media" && (
               <div style={{ display: "flex", gap: 8 }}>
@@ -11290,35 +11535,29 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               </div>
             )}
             {openTool === "vote" && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <OptionRow opt={{ text: chartType === "head_to_head" ? "1 đáp án" : "1 phương án", active: votingType === "single" }} on={() => setVotingType("single")} />
-                {chartType !== "head_to_head" && <OptionRow opt={{ text: "Nhiều phương án", active: votingType === "multiple" }} on={() => setVotingType("multiple")} />}
-                <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
-              </div>
-            )}
-            {openTool === "privacy" && (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {[{ id: "public", t: "🌍 Công khai" }, { id: "private", t: "👥 Nhóm" }, { id: "unlisted", t: "🔒 Chỉ mình tôi" }].map((o, i) => (
-                  <button key={o.id} onClick={() => { setAudience(o.id); setOpenTool(null); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "11px 4px", background: "none", border: "none", borderTop: i ? `1px solid ${C.border}` : "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 14, fontWeight: audience === o.id ? 800 : 500, color: audience === o.id ? C.gold : C.text }}>
-                    {o.t} {audience === o.id && <Check size={16} color={C.gold} strokeWidth={3} />}
-                  </button>
-                ))}
-              </div>
-            )}
-            {openTool === "time" && (
               <div>
-                <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
-                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Sau mốc này Rankie tự khoá, vẫn xem được kết quả. "Vô hạn" = chạy mãi.</div>
+                {rankieKind === "versus" ? (
+                  <button onClick={() => setVotingType(votingType === "unlimited" ? "single" : "unlimited")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${votingType === "unlimited" ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Flame size={15} color={votingType === "unlimited" ? C.gold : C.textMuted} /> Bình chọn không giới hạn</span>
+                    <span style={{ width: 40, height: 22, borderRadius: 999, background: votingType === "unlimited" ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: votingType === "unlimited" ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <OptionRow opt={{ text: chartType === "head_to_head" ? "1 đáp án" : "1 phương án", active: votingType === "single" }} on={() => setVotingType("single")} />
+                    {chartType !== "head_to_head" && <OptionRow opt={{ text: "Nhiều phương án", active: votingType === "multiple" }} on={() => setVotingType("multiple")} />}
+                    <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
+                  </div>
+                )}
+                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
+                  <b style={{ color: C.textMuted }}>Không giới hạn</b>: mỗi người được chạm bình chọn nhiều lần để "dồn khí" — hợp cho không khí sôi động, không phải khảo sát chính xác.
+                </div>
               </div>
             )}
             {openTool === "schedule" && (
               <div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setOpenAtLocal("")} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${!openAtLocal ? C.gold : C.border}`, background: !openAtLocal ? C.goldSoft : C.surface, color: !openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Lên sóng ngay</button>
-                  <button onClick={() => { if (!openAtLocal) { const d = new Date(Date.now() + 3600_000); const p = (x) => String(x).padStart(2, "0"); setOpenAtLocal(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`); } }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${openAtLocal ? C.gold : C.border}`, background: openAtLocal ? C.goldSoft : C.surface, color: openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hẹn giờ</button>
-                </div>
-                {openAtLocal && <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ marginTop: 8, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", colorScheme: "light dark", boxSizing: "border-box" }} />}
-                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Trước giờ lên sóng, Rankie hiện "sắp diễn ra". Để trống = mở ngay.</div>
+                <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${openAtLocal ? C.gold : C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box" }} />
+                {openAtLocal && <button onClick={() => setOpenAtLocal("")} style={{ marginTop: 8, background: "none", border: "none", color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Xoá giờ hẹn</button>}
+                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Không điền thì đăng luôn Rankie. Trước giờ lên sóng, Rankie hiện "sắp diễn ra".</div>
               </div>
             )}
             {openTool === "sticker" && (
@@ -11335,7 +11574,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 </div>
               </div>
             )}
-            {openTool === "more" && (
+            {openTool === "present" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
@@ -11359,67 +11598,36 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         <div style={field}>
           <span style={label}>Phương án bình chọn</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {opts.map((o, i) => (
-              o.refType ? (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 12, padding: "10px 12px" }}>
+          <div style={{ display: "flex", flexDirection: rankieKind === "versus" ? "row" : "column", gap: 10, flexWrap: "wrap" }}>
+            {opts.map((o, i) => {
+              const versusFlex = rankieKind === "versus" ? { flex: "1 1 44%", minWidth: 130 } : {};
+              return o.refType ? (
+                <div key={i} style={{ ...versusFlex, display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 12, padding: "10px 12px" }}>
                   <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={o} /></div>
                   <button onClick={() => setOpts((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
                 </div>
               ) : (
-              <div key={i}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {/* Ô ảnh/emoji chỉ hiện khi ĐÃ đính kèm (mặc định chỉ có chữ) */}
-                  {(o.emoji || o.image) && (
-                    <button onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }} title="Đổi đính kèm">
-                      <Illustration emoji={o.emoji} image={o.image} size={44} radius={10} />
-                    </button>
-                  )}
-                  <input
-                    style={{ ...input, flex: 1 }}
-                    placeholder={`Phương án ${i + 1}`}
-                    value={o.label}
-                    onChange={(e) => updateOpt(i, { label: e.target.value })}
-                  />
-                  {/* MỘT nút đính kèm (ghim) — gộp emoji + ảnh */}
-                  <button
-                    onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)}
-                    title="Đính kèm emoji hoặc ảnh (tuỳ chọn)"
-                    style={{ padding: 10, borderRadius: 10, border: `1px solid ${emojiPickerFor === i || o.emoji || o.image ? C.gold : C.border}`, background: emojiPickerFor === i ? C.goldSoft : C.surface, color: o.emoji || o.image ? C.gold : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}
-                  >
-                    <Paperclip size={16} />
+              <div key={i} style={{ ...versusFlex, display: "flex", gap: 8, alignItems: "center" }}>
+                {/* Thumbnail đính kèm (nếu có) — chạm để cuộn xuống phần chỉnh ảnh/emoji dưới preview */}
+                {(o.emoji || o.image) && (
+                  <button onClick={() => setEmojiPickerFor(i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }} title="Chỉnh ảnh/emoji (bên dưới preview)">
+                    <Illustration emoji={o.emoji} image={o.image} size={40} radius={10} />
                   </button>
-                  {opts.length > 2 && (
-                    <button onClick={() => setOpts((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ phương án" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
-                  )}
-                </div>
-                {/* Bảng đính kèm: tải ảnh / bỏ / chọn emoji */}
-                {emojiPickerFor === i && (
-                  <div style={{ marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                      <button onClick={() => { mockUpload(i); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
-                      {(o.emoji || o.image) && (
-                        <button onClick={() => { updateOpt(i, { emoji: null, image: null }); setEmojiPickerFor(null); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ</button>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {EMOJI_CHOICES.map((em) => (
-                        <button
-                          key={em}
-                          onClick={() => { updateOpt(i, { emoji: em, image: null }); setEmojiPickerFor(null); }}
-                          style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${o.emoji === em ? C.gold : C.border}`, background: o.emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}
-                        >
-                          {em}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                )}
+                <input
+                  style={{ ...input, flex: 1, minWidth: 0 }}
+                  placeholder={`Phương án ${i + 1}`}
+                  value={o.label}
+                  onChange={(e) => updateOpt(i, { label: e.target.value })}
+                />
+                {opts.length > 2 && (
+                  <button onClick={() => setOpts((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ phương án" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
                 )}
               </div>
-              )
-            ))}
+              );
+            })}
           </div>
-          {chartType === "head_to_head" ? (
+          {rankieKind === "versus" ? (
             <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
               ⚔️ Kiểu Đối đầu — đúng 2 lựa chọn (skin Kamehameha / Kéo co / Đối đầu).
             </div>
@@ -11448,6 +11656,42 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         {/* Preview TƯƠNG TÁC: chọn skin biểu đồ + thử bình chọn + hiện sticker "đã vote" */}
         <RankieComposerPreview options={opts} votingType={votingType} chartType={chartType} setChartType={setChartType} voteMarker={voteMarker} kind={rankieKind} closingTime={closingTime} />
+
+        {/* Ảnh / Emoji cho từng phương án — nằm DƯỚI preview để người dùng điều chỉnh */}
+        <div style={field}>
+          <span style={label}>Ảnh / Emoji cho phương án (tuỳ chọn)</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {opts.map((o, i) => o.refType ? null : (
+              <div key={i}>
+                <button
+                  onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 10, border: `1px solid ${emojiPickerFor === i ? C.gold : C.border}`, background: emojiPickerFor === i ? C.goldSoft : C.surface, cursor: "pointer", textAlign: "left" }}
+                >
+                  {(o.emoji || o.image)
+                    ? <Illustration emoji={o.emoji} image={o.image} size={36} radius={8} />
+                    : <span style={{ width: 36, height: 36, borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", color: C.textFaint, flexShrink: 0 }}><ImagePlus size={16} /></span>}
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13.5, fontWeight: 600, color: C.text, ...ellip }}>{o.label.trim() || `Phương án ${i + 1}`}</span>
+                  <ChevronDown size={16} color={C.textMuted} style={{ transform: emojiPickerFor === i ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
+                </button>
+                {emojiPickerFor === i && (
+                  <div style={{ marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                      <button onClick={() => { mockUpload(i); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
+                      {(o.emoji || o.image) && (
+                        <button onClick={() => { updateOpt(i, { emoji: null, image: null }); setEmojiPickerFor(null); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ</button>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {EMOJI_CHOICES.map((em) => (
+                        <button key={em} onClick={() => { updateOpt(i, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${o.emoji === em ? C.gold : C.border}`, background: o.emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
 
         <button
