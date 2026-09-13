@@ -9,7 +9,7 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -10611,6 +10611,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const [chartType, setChartType] = useState("bar");
   // Đối đầu (head_to_head) không có "nhiều phương án" → tự chuyển về "1 đáp án".
   useEffect(() => { if (chartType === "head_to_head" && votingType === "multiple") setVotingType("single"); }, [chartType, votingType]);
+  // Thanh icon composer (Rankie): popover đang mở + bật/tắt khung hashtag.
+  const [openTool, setOpenTool] = useState(null); // 'media'|'vote'|'privacy'|'time'|'schedule'|'sticker'|'more'|null
+  const [showHashtag, setShowHashtag] = useState((editItem?.tags || []).length > 0);
   const [advancedOpen, setAdvancedOpen] = useState(false); // thu gọn cài đặt nâng cao
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   // Custom "voted" marker — replaces the default "VOTED" label next to whichever
@@ -11102,8 +11105,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           />
         </div>
 
-        {/* Nội dung/Trình chiếu/Series: hiện cho path/deck/exam; với rankie chỉ hiện khi mở Nâng cao */}
-        {(contentType !== "rankie" || advancedOpen) && (<>
+        {/* Nội dung/Trình chiếu/Series cho path/deck/exam (Rankie có composer riêng bên dưới) */}
+        {contentType !== "rankie" && (<>
         {/* Shared post content: caption + media (all content types) */}
         <div style={field}>
           <span style={label}>Nội dung bài đăng (tùy chọn)</span>
@@ -11196,6 +11199,128 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         {contentType === "rankie" && (
         <>
+        {/* Mô tả + (toggle) hashtag + media preview */}
+        <div style={field}>
+          <textarea
+            style={{ ...input, minHeight: 60, resize: "vertical", fontFamily: bodyFont }}
+            placeholder="Mô tả, bối cảnh, lời kêu gọi... (tuỳ chọn)"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+          />
+          {showHashtag && (
+            <div style={{ marginTop: 10 }}>
+              <HashtagInput tags={tags} onChange={setTags} placeholder="Thêm hashtag: thethao, esports…" />
+            </div>
+          )}
+          {media && (
+            <div style={{ marginTop: 10, position: "relative" }}>
+              <PostMedia media={media} height={140} />
+              <button onClick={() => setMedia(null)} title="Xoá media" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={14} /></button>
+            </div>
+          )}
+        </div>
+
+        {/* Thanh icon: media · hashtag · kiểu vote · quyền · thời gian · hẹn giờ · sticker · thêm */}
+        {(() => {
+          const items = [
+            { id: "media", icon: <ImagePlus size={19} />, active: !!media, on: () => setOpenTool(openTool === "media" ? null : "media"), title: "Ảnh / Video" },
+            { id: "hashtag", icon: <Hash size={19} />, active: tags.length > 0 || showHashtag, on: () => { setShowHashtag((v) => !v); setOpenTool(null); }, title: "Hashtag" },
+            { id: "vote", icon: <SlidersHorizontal size={18} />, active: votingType !== "single", on: () => setOpenTool(openTool === "vote" ? null : "vote"), title: "Kiểu bình chọn" },
+            { id: "privacy", icon: audience === "public" ? <Globe size={18} /> : audience === "private" ? <Users size={18} /> : <Lock size={18} />, active: audience !== "public", on: () => setOpenTool(openTool === "privacy" ? null : "privacy"), title: "Quyền riêng tư" },
+            { id: "time", icon: <Clock size={18} />, active: !!closingTime, on: () => setOpenTool(openTool === "time" ? null : "time"), title: "Thời gian đóng" },
+            { id: "schedule", icon: <CalendarClock size={18} />, active: !!openAtLocal, on: () => setOpenTool(openTool === "schedule" ? null : "schedule"), title: "Hẹn giờ lên sóng" },
+            { id: "sticker", icon: <Smile size={19} />, active: !!voteMarker, on: () => setOpenTool(openTool === "sticker" ? null : "sticker"), title: "Sticker đã vote" },
+            { id: "more", icon: <MoreVertical size={19} />, active: allowGuestPresent || !!seriesInput, on: () => setOpenTool(openTool === "more" ? null : "more"), title: "Thêm (trình chiếu, series)" },
+          ];
+          return (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: openTool ? 4 : 20 }}>
+              {items.map((it) => {
+                const hot = it.active || openTool === it.id;
+                return (
+                  <button key={it.id} onClick={it.on} title={it.title} style={{ width: 42, height: 42, borderRadius: 12, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, border: `1px solid ${hot ? C.gold : C.border}`, background: openTool === it.id ? C.goldSoft : C.surface, color: it.active ? C.gold : C.textMuted }}>
+                    {it.icon}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* Popover cho icon đang mở */}
+        {openTool && (
+          <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+            {openTool === "media" && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { addImageMedia(); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ImagePlus size={15} /> Thêm ảnh</button>
+                <button onClick={() => { addMockMedia("video"); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Play size={15} /> Thêm video</button>
+              </div>
+            )}
+            {openTool === "vote" && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <OptionRow opt={{ text: chartType === "head_to_head" ? "1 đáp án" : "1 phương án", active: votingType === "single" }} on={() => setVotingType("single")} />
+                {chartType !== "head_to_head" && <OptionRow opt={{ text: "Nhiều phương án", active: votingType === "multiple" }} on={() => setVotingType("multiple")} />}
+                <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
+              </div>
+            )}
+            {openTool === "privacy" && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <OptionRow opt={{ text: "🌍 Công khai", active: audience === "public" }} on={() => setAudience("public")} />
+                <OptionRow opt={{ text: "👥 Nhóm", active: audience === "private" }} on={() => setAudience("private")} />
+                <OptionRow opt={{ text: "🔒 Chỉ mình tôi", active: audience === "unlisted" }} on={() => setAudience("unlisted")} />
+              </div>
+            )}
+            {openTool === "time" && (
+              <div>
+                <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
+                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Sau mốc này Rankie tự khoá, vẫn xem được kết quả. "Vô hạn" = chạy mãi.</div>
+              </div>
+            )}
+            {openTool === "schedule" && (
+              <div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setOpenAtLocal("")} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${!openAtLocal ? C.gold : C.border}`, background: !openAtLocal ? C.goldSoft : C.surface, color: !openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Lên sóng ngay</button>
+                  <button onClick={() => { if (!openAtLocal) { const d = new Date(Date.now() + 3600_000); const p = (x) => String(x).padStart(2, "0"); setOpenAtLocal(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`); } }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${openAtLocal ? C.gold : C.border}`, background: openAtLocal ? C.goldSoft : C.surface, color: openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hẹn giờ</button>
+                </div>
+                {openAtLocal && <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ marginTop: 8, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", colorScheme: "light dark", boxSizing: "border-box" }} />}
+                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Trước giờ lên sóng, Rankie hiện "sắp diễn ra". Để trống = mở ngay.</div>
+              </div>
+            )}
+            {openTool === "sticker" && (
+              <div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Sticker hiện cạnh phương án đã bình chọn (mặc định nhãn "VOTED").</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                  {EMOJI_CHOICES.map((em) => (
+                    <button key={em} onClick={() => setVoteMarker({ emoji: em, image: null })} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${voteMarker?.emoji === em && !voteMarker?.image ? C.gold : C.border}`, background: voteMarker?.emoji === em && !voteMarker?.image ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => mockUploadVoteMarker()} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ImagePlus size={14} /> Ảnh riêng</button>
+                  {voteMarker && <button onClick={() => setVoteMarker(null)} style={{ padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Dùng "VOTED"</button>}
+                </div>
+              </div>
+            )}
+            {openTool === "more" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
+                  <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
+                </button>
+                <div>
+                  <span style={label}>Series (Chapter)</span>
+                  <input value={seriesInput} onChange={(e) => { setSeriesInput(e.target.value); setSelectedSeriesId(null); }} placeholder="Tên series (để trống nếu độc lập)" style={{ ...input, fontSize: 15 }} />
+                  {mySeries.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {mySeries.map((s) => { const a = selectedSeriesId === s.id; return (
+                        <button key={s.id} onClick={() => { if (a) { setSelectedSeriesId(null); setSeriesInput(""); } else { setSelectedSeriesId(s.id); setSeriesInput(s.name); } }} style={{ padding: "5px 11px", borderRadius: 999, border: `1px solid ${a ? C.gold : C.border}`, background: a ? C.goldSoft : "transparent", color: a ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{s.name} · {s.postCount}</button>
+                      ); })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={field}>
           <span style={label}>Phương án bình chọn</span>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -11288,178 +11413,6 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {/* Preview TƯƠNG TÁC: chọn skin biểu đồ + thử bình chọn + hiện sticker "đã vote" */}
         <RankieComposerPreview options={opts} votingType={votingType} chartType={chartType} setChartType={setChartType} voteMarker={voteMarker} />
 
-        {/* Nút thu gọn: mặc định chỉ hiện Câu hỏi + Phương án + Preview; còn lại nằm trong Nâng cao */}
-        <button
-          onClick={() => setAdvancedOpen((v) => !v)}
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}`, cursor: "pointer", marginBottom: advancedOpen ? 4 : 20 }}
-        >
-          <span style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>
-            <Settings size={16} color={C.gold} /> Nâng cao
-            <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 500, color: C.textFaint }}>hashtag · hẹn giờ · quyền xem…</span>
-          </span>
-          <ChevronDown size={18} color={C.textMuted} style={{ transform: advancedOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-        </button>
-
-        {advancedOpen && (<>
-        <div style={field}>
-          <span style={label}>Hashtag</span>
-          <HashtagInput tags={tags} onChange={setTags} placeholder="Ví dụ: thethao, amnhac…" />
-        </div>
-
-        <div style={field}>
-          <span style={label}>Kiểu bình chọn</span>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <OptionRow opt={{ text: chartType === "head_to_head" ? "1 đáp án" : "1 phương án", active: votingType === "single" }} on={() => setVotingType("single")} />
-            {chartType !== "head_to_head" && (
-              <OptionRow opt={{ text: "Nhiều phương án", active: votingType === "multiple" }} on={() => setVotingType("multiple")} />
-            )}
-            <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
-          </div>
-          {votingType === "unlimited" && (
-            <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-              Người bình chọn có thể bấm liên tục nhiều lần cho cùng một phương án — hợp cho fanclub live, bình chọn thần tượng. Kết quả sẽ tách riêng "tổng số vote" và "số người vote".
-            </div>
-          )}
-        </div>
-
-        <div style={field}>
-          <span style={label}>Biểu tượng đánh dấu "đã bình chọn"</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              onClick={() => setVoteMarkerPickerOpen((v) => !v)}
-              style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}
-            >
-              {voteMarker ? (
-                <Illustration emoji={voteMarker.emoji} image={voteMarker.image} size={44} radius={10} />
-              ) : (
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 10,
-                    border: `1px dashed ${C.border}`,
-                    background: C.surfaceRaised,
-                    display: "grid",
-                    placeItems: "center",
-                    color: C.textFaint,
-                    fontFamily: bodyFont,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  VOTED
-                </div>
-              )}
-            </button>
-            <div style={{ flex: 1, fontFamily: bodyFont, fontSize: 12, color: C.textMuted, lineHeight: 1.4 }}>
-              {voteMarker
-                ? "Sticker này sẽ hiện cạnh phương án mà mỗi người đã bình chọn."
-                : 'Mặc định hiện nhãn "VOTED". Bấm để chọn sticker hoặc ảnh riêng.'}
-            </div>
-            {voteMarker && (
-              <button
-                onClick={() => setVoteMarker(null)}
-                title="Dùng lại nhãn mặc định"
-                style={{ padding: 8, borderRadius: 9, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-          {voteMarkerPickerOpen && (
-            <div style={{ marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                {EMOJI_CHOICES.map((em) => (
-                  <button
-                    key={em}
-                    onClick={() => {
-                      setVoteMarker({ emoji: em, image: null });
-                      setVoteMarkerPickerOpen(false);
-                    }}
-                    style={{
-                      fontSize: 20,
-                      width: 36,
-                      height: 36,
-                      borderRadius: 8,
-                      border: `1px solid ${voteMarker?.emoji === em && !voteMarker?.image ? C.gold : C.border}`,
-                      background: voteMarker?.emoji === em && !voteMarker?.image ? C.goldSoft : C.surfaceRaised,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {em}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => {
-                  mockUploadVoteMarker();
-                  setVoteMarkerPickerOpen(false);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "9px 10px",
-                  borderRadius: 9,
-                  border: `1px solid ${C.border}`,
-                  background: C.surfaceRaised,
-                  color: C.textMuted,
-                  fontFamily: bodyFont,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                }}
-              >
-                <ImagePlus size={14} /> Tải ảnh riêng lên
-              </button>
-            </div>
-          )}
-        </div>
-
-        {chartType !== "head_to_head" && (
-          <div style={field}>
-            <span style={label}>Biểu đồ hiển thị</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <OptionRow opt={{ text: "Cột ngang", active: chartType === "bar" }} on={() => setChartType("bar")} />
-              <OptionRow opt={{ text: "Hình tròn", active: chartType === "pie" }} on={() => setChartType("pie")} />
-            </div>
-          </div>
-        )}
-
-        <div style={field}>
-          <span style={label}>Đối tượng tham gia</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <OptionRow opt={{ text: "🌍 Công khai", active: audience === "public" }} on={() => setAudience("public")} />
-            <OptionRow opt={{ text: "🔒 Nhóm riêng", active: audience === "private" }} on={() => setAudience("private")} />
-            <OptionRow opt={{ text: "🔗 Link riêng", active: audience === "unlisted" }} on={() => setAudience("unlisted")} />
-          </div>
-        </div>
-
-        <div style={field}>
-          <span style={label}>Thời gian kết thúc bình chọn</span>
-          <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
-          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            Sau mốc này, Rankie tự động khóa — không nhận thêm bình chọn nhưng vẫn xem được kết quả. Chọn "Vô hạn" nếu muốn Rankie chạy mãi.
-          </div>
-        </div>
-
-        <div style={field}>
-          <span style={label}>🔴 Hẹn giờ lên sóng</span>
-          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-            <button onClick={() => setOpenAtLocal("")} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${!openAtLocal ? C.gold : C.border}`, background: !openAtLocal ? C.goldSoft : C.surface, color: !openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Lên sóng ngay</button>
-            <button onClick={() => { if (!openAtLocal) { const d = new Date(Date.now() + 3600_000); const p = (n) => String(n).padStart(2, "0"); setOpenAtLocal(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`); } }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${openAtLocal ? C.gold : C.border}`, background: openAtLocal ? C.goldSoft : C.surface, color: openAtLocal ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hẹn giờ</button>
-          </div>
-          {openAtLocal && (
-            <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ marginTop: 8, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", colorScheme: "dark" }} />
-          )}
-          <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            Trước giờ lên sóng, Rankie hiện dạng "sắp diễn ra" và chưa ai bình chọn được. Để trống = mở ngay khi đăng.
-          </div>
-        </div>
-        </>)}
 
         <button
           onClick={submit}
