@@ -10629,8 +10629,13 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, letterSpacing: 0.3 }}>Xem trước & chọn biểu đồ</span>
+        {remain != null && (
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.surface, border: `1px solid ${C.border}`, fontFamily: monoFont, fontSize: 11.5, fontWeight: 700, color: remain < 3600000 ? C.coral : C.gold }}>
+            <Clock size={12} /> {fmtRemain(remain)}
+          </span>
+        )}
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {skins.map((s) => {
@@ -10641,11 +10646,6 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
         })}
       </div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, position: "relative" }}>
-        {remain != null && (
-          <div style={{ position: "absolute", top: 10, right: 10, zIndex: 5, display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}`, fontFamily: monoFont, fontSize: 11.5, fontWeight: 700, color: remain < 3600000 ? C.coral : C.gold }}>
-            <Clock size={12} /> {fmtRemain(remain)}
-          </div>
-        )}
         {active === "head_to_head" && <HeadToHead rankie={rankieObj} {...vp} />}
         {active === "bar" && <BarViz {...vp} />}
         {active === "tug" && <TugViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
@@ -11506,8 +11506,15 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                   <input
                     autoFocus
                     value={durationInput}
-                    onChange={(e) => { const v = e.target.value.replace(/[^\d:]/g, "").slice(0, 7); setDurationInput(v); const h = parseDurationToHours(v); setClosingTime(h ? h : null); }}
-                    placeholder="30:30"
+                    onChange={(e) => {
+                      // Gõ SỐ, tự chèn dấu ":" — 2 số cuối = phút. VD "2430" → "24:30".
+                      const d = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      const disp = d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`;
+                      setDurationInput(disp);
+                      const h = parseDurationToHours(disp); setClosingTime(h ? h : null);
+                    }}
+                    onBlur={() => setTimeInline(false)}
+                    placeholder="24:30"
                     inputMode="numeric"
                     style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 15, fontWeight: 700, padding: 0 }}
                   />
@@ -11523,7 +11530,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         {timeInline && (
           <div style={{ marginTop: -8, marginBottom: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            Nhập thời lượng dạng <b style={{ color: C.textMuted }}>giờ:phút</b> (VD: 30:30). Đồng hồ đếm ngược quy đổi ngày/giờ hiện ở khung xem trước. Không điền = vote vô thời hạn.
+Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ color: C.textMuted }}>2430</b> → 24:30 = 24 giờ 30 phút). Đếm ngược quy đổi ngày/giờ hiện ở khung xem trước. Không điền = vote vô thời hạn.
           </div>
         )}
 
