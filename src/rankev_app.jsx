@@ -10622,7 +10622,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => { if (!target) return; const iv = setInterval(() => setNowTick(Date.now()), 1000); return () => clearInterval(iv); }, [target]);
   const remain = target ? Math.max(0, target - nowTick) : null;
-  const fmtRemain = (ms) => { const s = Math.floor(ms / 1000); const d = Math.floor(s / 86400); if (d >= 1) return d + "d"; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60; return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`; };
+  const fmtRemain = (ms) => { const s = Math.floor(ms / 1000); const d = Math.floor(s / 86400); const h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60; const p = (x) => String(x).padStart(2, "0"); return d >= 1 ? `${d}D:${p(h)}:${p(m)}:${p(ss)}` : `${p(h)}:${p(m)}:${p(ss)}`; };
 
   const rankieObj = { chartType: active, colorA: withVotes[0]?.color, colorB: withVotes[1]?.color, voteMarker };
   const vp = { options: withVotes, isClosed: false, onVote: vote, votedId, voteMarker, tapCounts: isUnlimited ? taps : undefined, activeTapId: isUnlimited ? activeTap : undefined };
@@ -10738,6 +10738,14 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     const p = (x) => String(x).padStart(2, "0");
     return d > 0 ? `${d}D:${p(h)}:${p(mm)}` : `${p(h)}:${p(mm)}`;
   };
+  // Click ra ngoài thanh tính năng → tự thoát (đóng ô thời gian inline + popover đang mở).
+  const toolRef = useRef(null);
+  useEffect(() => {
+    if (!timeInline && !openTool) return;
+    const onDown = (e) => { if (toolRef.current && !toolRef.current.contains(e.target)) { setTimeInline(false); setOpenTool(null); } };
+    document.addEventListener("mousedown", onDown); document.addEventListener("touchstart", onDown);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("touchstart", onDown); };
+  }, [timeInline, openTool]);
 
   // Shared post content across all three content types (caption + optional media placeholder)
   const [caption, setCaption] = useState(editItem?.caption || "");
@@ -11467,7 +11475,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           )}
         </div>
 
-        {/* Thanh icon: media · hashtag · kiểu vote · quyền · thời gian · hẹn giờ · sticker · trình chiếu */}
+        <div ref={toolRef}>
+        {/* Thanh icon: media · hashtag · kiểu vote · quyền · thời gian · hẹn giờ · trình chiếu */}
         {(() => {
           const btn = (id, active) => ({ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, border: "none", background: openTool === id ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted });
           const privacyIcon = audience === "public" ? <Globe size={19} /> : audience === "private" ? <Users size={19} /> : <Lock size={19} />;
@@ -11492,18 +11501,16 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               </div>
               {/* Thời gian vote: bấm icon → ĐỔI thành ô nhập giờ điện tử (thay icon); bỏ trống → vô thời hạn */}
               {timeInline ? (
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 38, padding: "0 8px", borderRadius: 10, border: `1px solid ${C.gold}`, background: C.goldSoft }}>
-                  <Clock size={15} color={C.gold} />
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", borderRadius: 10, border: `1px solid ${C.gold}`, background: C.goldSoft }}>
+                  <Clock size={16} color={C.gold} />
                   <input
                     autoFocus
                     value={durationInput}
                     onChange={(e) => { const v = e.target.value.replace(/[^\d:]/g, "").slice(0, 7); setDurationInput(v); const h = parseDurationToHours(v); setClosingTime(h ? h : null); }}
-                    placeholder="36:00"
+                    placeholder="30:30"
                     inputMode="numeric"
-                    style={{ width: 58, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 14, fontWeight: 700, padding: 0 }}
+                    style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 15, fontWeight: 700, padding: 0 }}
                   />
-                  {closingTime ? <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.gold }}>→ {fmtDuration(closingTime)}</span> : null}
-                  <button onClick={() => setTimeInline(false)} title="Đóng" style={{ background: "none", border: "none", cursor: "pointer", color: C.gold, display: "grid", placeItems: "center", padding: 2 }}><X size={14} /></button>
                 </div>
               ) : (
                 <button onClick={() => { setTimeInline(true); setOpenTool(null); }} title="Thời gian vote" style={btn("time", !!closingTime)}><Clock size={19} /></button>
@@ -11516,7 +11523,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         {timeInline && (
           <div style={{ marginTop: -8, marginBottom: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            Nhập thời lượng bình chọn dạng <b style={{ color: C.textMuted }}>giờ:phút</b> (VD: 36:00 → 1D:12:00). Không điền thì vote vô thời hạn.
+            Nhập thời lượng dạng <b style={{ color: C.textMuted }}>giờ:phút</b> (VD: 30:30). Đồng hồ đếm ngược quy đổi ngày/giờ hiện ở khung xem trước. Không điền = vote vô thời hạn.
           </div>
         )}
 
@@ -11576,6 +11583,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             )}
           </div>
         )}
+        </div>
 
         <div style={field}>
           <span style={label}>Phương án bình chọn</span>
@@ -11659,21 +11667,21 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {/* Preview TƯƠNG TÁC: chọn skin biểu đồ + thử bình chọn + hiện sticker "đã vote" */}
         <RankieComposerPreview options={opts} votingType={votingType} chartType={chartType} setChartType={setChartType} voteMarker={voteMarker} kind={rankieKind} closingTime={closingTime} />
 
-        {/* Ảnh/Sticker thay chữ "VOTED" — nằm DƯỚI preview */}
+        {/* Sticker thay chữ "VOTED" — bấm ô để gõ emoji (bàn phím iOS), hoặc chọn ảnh */}
         <div style={field}>
-          <span style={label}>Ảnh / Sticker thay chữ "VOTED" (tuỳ chọn)</span>
-          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 8, lineHeight: 1.4 }}>Hiện cạnh phương án mà người xem đã bình chọn. Để trống = dùng nhãn "VOTED".</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <span style={{ width: 44, height: 44, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden" }}>
-              {voteMarker?.image ? <img src={voteMarker.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : voteMarker?.emoji ? <span style={{ fontSize: 22 }}>{voteMarker.emoji}</span> : <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 800, color: C.gold }}>VOTED</span>}
-            </span>
-            <button onClick={() => mockUploadVoteMarker()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={14} /> Tải ảnh</button>
-            {voteMarker && <button onClick={() => setVoteMarker(null)} style={{ padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Dùng "VOTED"</button>}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {EMOJI_CHOICES.map((em) => (
-              <button key={em} onClick={() => setVoteMarker({ emoji: em, image: null })} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${voteMarker?.emoji === em && !voteMarker?.image ? C.gold : C.border}`, background: voteMarker?.emoji === em && !voteMarker?.image ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-            ))}
+          <span style={label}>Sticker thay chữ "VOTED" (tuỳ chọn)</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <label title="Bấm để gõ emoji" style={{ position: "relative", width: 52, height: 52, borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${voteMarker ? C.gold : C.border}`, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", cursor: "text" }}>
+              {voteMarker?.image ? <img src={voteMarker.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : voteMarker?.emoji ? <span style={{ fontSize: 28 }}>{voteMarker.emoji}</span> : <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 800, color: C.gold }}>VOTED</span>}
+              <input
+                value={voteMarker?.image ? "" : (voteMarker?.emoji || "")}
+                onChange={(e) => { const v = e.target.value; let g; try { g = [...new Intl.Segmenter().segment(v)].map((s) => s.segment); } catch { g = Array.from(v); } const em = g.length ? g[g.length - 1] : null; setVoteMarker(em && em.trim() ? { emoji: em, image: null } : null); }}
+                aria-label="Gõ emoji cho sticker"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", background: "transparent", cursor: "text", textAlign: "center" }}
+              />
+            </label>
+            <button onClick={() => mockUploadVoteMarker()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "11px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Ảnh</button>
+            {voteMarker && <button onClick={() => setVoteMarker(null)} title="Xoá" style={{ padding: "11px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.coral, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Xoá</button>}
           </div>
         </div>
 
