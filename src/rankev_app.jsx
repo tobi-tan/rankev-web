@@ -3282,6 +3282,9 @@ function PostStatsModal({ post, onClose, onExport }) {
 
 // Renders an emoji or an uploaded image inside a consistent tile
 function Illustration({ emoji, image, size = 56, radius = 12 }) {
+  // Ảnh 404/hỏng (vd upload cũ bị xoá) → fallback về emoji/placeholder cho đỡ vỡ.
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [image]);
   return (
     <div
       style={{
@@ -3296,8 +3299,8 @@ function Illustration({ emoji, image, size = 56, radius = 12 }) {
         placeItems: "center",
       }}
     >
-      {image ? (
-        <img src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {image && !broken ? (
+        <img src={image} alt="" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span style={{ fontSize: size * 0.5, lineHeight: 1 }}>{emoji || "❓"}</span>
       )}
@@ -3399,18 +3402,21 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
   // fit: "cover" (cắt lấp đầy, chiều cao cố định) | "contain" (hiện trọn ảnh dọc) |
   // "auto" (mặc định: ảnh DỌC → contain hiện trọn kiểu IG/TikTok, ảnh ngang/vuông → cover).
   const [portrait, setPortrait] = useState(false);
+  const [imgBroken, setImgBroken] = useState(false); // ảnh 404/hỏng → hiện placeholder thay vì icon vỡ
+  useEffect(() => { setPortrait(false); setImgBroken(false); }, [media?.url]);
   if (!media) return null;
-  const bg = media.url
+  const url = media.url && !imgBroken ? media.url : null;
+  const bg = url
     ? undefined
     : `linear-gradient(135deg, ${media.color || C.surfaceRaised}, ${C.surface})`;
   const onImgLoad = (e) => { if (fit === "auto") { const im = e.target; if (im.naturalWidth && im.naturalHeight) setPortrait(im.naturalHeight > im.naturalWidth * 1.05); } };
   // contain: hiển thị TRỌN ảnh (ảnh dọc — không cắt ngang). Khung nền tối, cao co theo
   // ảnh nhưng không vượt maxHeight; ảnh căn giữa.
-  const useContain = !!media.url && (fit === "contain" || (fit === "auto" && portrait));
+  const useContain = !!url && (fit === "contain" || (fit === "auto" && portrait));
   if (useContain) {
     return (
       <div style={{ position: "relative", width: "100%", maxHeight, borderRadius: radius, overflow: "hidden", background: "#0b0b0d", border: `1px solid ${C.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
-        <img src={media.url} alt="" onLoad={onImgLoad} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
+        <img src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
       </div>
     );
   }
@@ -3428,8 +3434,8 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
         placeItems: "center",
       }}
     >
-      {media.url ? (
-        <img src={media.url} alt="" onLoad={onImgLoad} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {url ? (
+        <img src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span style={{ fontSize: 54, opacity: 0.9 }}>{media.emoji || (media.type === "video" ? "🎬" : "🖼️")}</span>
       )}
@@ -5781,6 +5787,7 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
   const clickable = !!onVote && !isClosed;
   const sorted = [...options].sort((a, b) => b.votes - a.votes);
   const top = sorted.slice(0, 3);
+  const rest = sorted.slice(3); // top 4, 5, ... — hiện dạng cột ngang bên dưới
   const max = top[0]?.votes || 1;
   const total = options.reduce((s, o) => s + o.votes, 0) || 1;
   const order = [top[1], top[0], top[2]].filter(Boolean); // bạc · vàng · đồng
@@ -5812,7 +5819,35 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
           );
         })}
       </div>
-      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 12 }}>{clickable ? "Chạm vào một người để bình chọn" : "Bục vinh danh · Top 3"}</div>
+      {/* Top 4, 5, ... — cột ngang để theo dõi được khi xếp hạng >3 người */}
+      {rest.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 14 }}>
+          {rest.map((c, idx) => {
+            const rank = idx + 4;
+            const pct = Math.round((c.votes / total) * 100);
+            const picked = votedId === c.id;
+            const w = Math.max(4, Math.round((c.votes / max) * 100));
+            return (
+              <div key={c.id} onClick={clickable ? (e) => onVote(c.id, e) : undefined} style={{ display: "flex", alignItems: "center", gap: 9, cursor: clickable ? "pointer" : "default", padding: "3px 4px", borderRadius: 8, background: picked ? C.goldSoft : "transparent" }}>
+                <span style={{ width: 24, textAlign: "center", fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: C.textMuted, flexShrink: 0 }}>#{rank}</span>
+                <span style={{ width: 26, height: 26, borderRadius: 7, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", fontSize: 15 }}>
+                  {c.image ? <img src={c.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || <span style={{ width: 8, height: 8, borderRadius: 99, background: c.color, display: "block" }} />)}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12.5, color: C.text, ...ellip }}>{c.label}</span>
+                    <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>{pct}%</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 99, background: C.track || "rgba(0,0,0,.2)", overflow: "hidden" }}>
+                    <div style={{ width: `${w}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${c.color}cc, ${c.color})`, transition: "width .6s cubic-bezier(.2,1,.3,1)" }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 12 }}>{clickable ? "Chạm vào một người để bình chọn" : rest.length > 0 ? `Bục vinh danh · ${sorted.length} hạng` : "Bục vinh danh · Top 3"}</div>
     </div>
   );
 }
@@ -11361,122 +11396,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       </div>
       <div style={{ paddingTop: 0 }}>
 
-        {/* Tiêu đề riêng cho path/deck/exam. Rankie gộp câu hỏi vào khung soạn thảo hợp nhất bên dưới. */}
-        {contentType !== "rankie" && (
-        <div style={field}>
-          <span style={label}>
-            {contentType === "path" ? "Tiêu đề Path" : contentType === "deck" ? "Tiêu đề Survey" : "Tiêu đề Exam"}
-          </span>
-          <input
-            style={input}
-            placeholder={
-              contentType === "path"
-                ? "VD: Con đường sự nghiệp nào hợp với bạn?"
-                : contentType === "deck"
-                ? "VD: Khảo sát mức độ hài lòng / Ý kiến về sự kiện"
-                : "VD: Bài thi Kiến thức Công nghệ"
-            }
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-        )}
-
-        {/* Nội dung/Trình chiếu/Series cho path/deck/exam (Rankie có composer riêng bên dưới) */}
-        {contentType !== "rankie" && (<>
-        {/* Shared post content: caption + media (all content types) */}
-        <div style={field}>
-          <span style={label}>Nội dung bài đăng (tùy chọn)</span>
-          <textarea
-            style={{ ...input, minHeight: 70, resize: "vertical", fontFamily: bodyFont }}
-            placeholder="Viết mô tả, bối cảnh, hoặc lời kêu gọi... (hiển thị trên bảng tin)"
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-          />
-          {media ? (
-            <div style={{ marginTop: 10, position: "relative" }}>
-              <PostMedia media={media} height={150} />
-              <button
-                onClick={() => setMedia(null)}
-                style={{ position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}
-                title="Xóa media"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button
-                onClick={addImageMedia}
-                style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-              >
-                <ImagePlus size={15} /> Thêm ảnh
-              </button>
-              <button
-                onClick={() => addMockMedia("video")}
-                style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-              >
-                <Play size={15} /> Thêm video
-              </button>
-            </div>
-          )}
-          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 11, color: C.textFaint, lineHeight: 1.4 }}>
-            Ảnh được tải lên máy chủ. Video hiện chưa hỗ trợ (sắp có).
-          </div>
-        </div>
-
-        <div style={field}>
-          <span style={label}>Trình chiếu</span>
-          <button
-            onClick={() => setAllowGuestPresent((v) => !v)}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}>
-              <Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu
-            </span>
-            <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}>
-              <span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} />
-            </span>
-          </button>
-          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            Khi bật, người xem cũng thấy nút trình chiếu và tự chạy phiên của riêng họ. Mỗi người tự quản lý phiên của mình.
-          </div>
-        </div>
-
-        <div style={field}>
-          <span style={label}>Series (Chapter)</span>
-          <input
-            value={seriesInput}
-            onChange={(e) => { setSeriesInput(e.target.value); setSelectedSeriesId(null); }}
-            placeholder="Tên series mới (để trống nếu bài đứng độc lập)"
-            style={{ ...input, fontSize: 16 }}
-          />
-          {mySeries.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, alignSelf: "center" }}>Thêm vào series có sẵn:</span>
-              {mySeries.map((s) => {
-                const active = selectedSeriesId === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => { if (active) { setSelectedSeriesId(null); setSeriesInput(""); } else { setSelectedSeriesId(s.id); setSeriesInput(s.name); } }}
-                    style={{ padding: "5px 11px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    {s.name} · {s.postCount}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div style={{ marginTop: 6, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            Gom bài vào một bộ (series). Người đọc sẽ vuốt trái/phải giữa các chapter. Chọn series có sẵn để thêm chapter mới, hoặc gõ tên mới.
-          </div>
-        </div>
-        </>)}
-
-        {contentType === "rankie" && (
+        {/* ===== KHUNG SOẠN THẢO HỢP NHẤT + THANH ICON — DÙNG CHO MỌI LOẠI ===== */}
         <>
-        {draftRestored && (
+        {contentType === "rankie" && draftRestored && (
           <div style={{ ...field, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
             <Save size={15} color={C.gold} />
             <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp</span>
@@ -11488,7 +11410,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           <textarea
             rows={1}
             style={{ width: "100%", border: "none", background: "transparent", outline: "none", resize: "none", color: C.text, fontFamily: displayFont, fontWeight: 600, fontSize: 20, lineHeight: 1.3, padding: 0, display: "block", overflow: "hidden" }}
-            placeholder="VD: Bộ phim hay nhất 2026?"
+            placeholder={contentType === "path" ? "VD: Con đường sự nghiệp nào hợp với bạn?" : contentType === "deck" ? "VD: Khảo sát mức độ hài lòng" : contentType === "exam" ? "VD: Bài thi Kiến thức Công nghệ" : "VD: Bộ phim hay nhất 2026?"}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
@@ -11532,7 +11454,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: openTool && openTool !== "privacy" ? 6 : 18, alignItems: "center" }}>
               <button onClick={() => setOpenTool(openTool === "media" ? null : "media")} title="Ảnh / Video" style={btn("media", !!media)}><ImagePlus size={20} /></button>
               <button onClick={() => { setShowHashtag((v) => !v); setOpenTool(null); }} title="Hashtag" style={btn("hashtag", tags.length > 0 || showHashtag)}><Hash size={20} /></button>
-              <button onClick={() => setOpenTool(openTool === "vote" ? null : "vote")} title={rankieKind === "versus" ? "Bình chọn không giới hạn" : "Kiểu bình chọn"} style={btn("vote", rankieKind === "versus" ? votingType === "unlimited" : votingType !== "single")}>{rankieKind === "versus" ? <Flame size={20} /> : <SlidersHorizontal size={19} />}</button>
+              {contentType === "rankie" && <button onClick={() => setOpenTool(openTool === "vote" ? null : "vote")} title={rankieKind === "versus" ? "Bình chọn không giới hạn" : "Kiểu bình chọn"} style={btn("vote", rankieKind === "versus" ? votingType === "unlimited" : votingType !== "single")}>{rankieKind === "versus" ? <Flame size={20} /> : <SlidersHorizontal size={19} />}</button>}
               {/* Quyền riêng tư: popup NHỎ GỌN neo ngay dưới icon (không mở frame full-width) */}
               <div style={{ position: "relative" }}>
                 <button onClick={() => setOpenTool(openTool === "privacy" ? null : "privacy")} title="Quyền riêng tư" style={btn("privacy", audience !== "public")}>{privacyIcon}</button>
@@ -11546,8 +11468,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                   </div>
                 )}
               </div>
-              {/* Thời gian vote: bấm icon → ĐỔI thành ô nhập giờ điện tử (thay icon); bỏ trống → vô thời hạn */}
-              {timeInline ? (
+              {/* Thời gian vote — CHỈ RANKIE (thời lượng bình chọn) */}
+              {contentType === "rankie" && (timeInline ? (
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", borderRadius: 10, border: `1px solid ${C.gold}`, background: C.goldSoft }}>
                   <Clock size={16} color={C.gold} />
                   <input
@@ -11568,8 +11490,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 </div>
               ) : (
                 <button onClick={() => { setTimeInline(true); setOpenTool(null); }} title="Thời gian vote" style={btn("time", !!closingTime)}><Clock size={19} /></button>
-              )}
-              <button onClick={() => setOpenTool(openTool === "schedule" ? null : "schedule")} title="Hẹn giờ lên sóng" style={btn("schedule", !!openAtLocal)}><CalendarClock size={19} /></button>
+              ))}
+              {contentType === "rankie" && <button onClick={() => setOpenTool(openTool === "schedule" ? null : "schedule")} title="Hẹn giờ lên sóng" style={btn("schedule", !!openAtLocal)}><CalendarClock size={19} /></button>}
               <button onClick={() => setOpenTool(openTool === "present" ? null : "present")} title={allowGuestPresent ? "Cho phép trình chiếu (đang bật)" : "Trình chiếu đang tắt"} style={{ ...btn("present", false), color: allowGuestPresent ? C.gold : C.coral }}>{allowGuestPresent ? <Monitor size={20} /> : <MonitorOff size={20} />}</button>
             </div>
           );
@@ -11638,7 +11560,11 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
           </div>
         )}
         </div>
+        </>
+        {/* ===== HẾT PHẦN DÙNG CHUNG — bên dưới là riêng của Rankie ===== */}
 
+        {contentType === "rankie" && (
+        <>
         <div style={field}>
           <span style={label}>Phương án bình chọn</span>
           {rankieKind === "versus" ? (
