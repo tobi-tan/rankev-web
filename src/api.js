@@ -292,6 +292,8 @@ export const series = {
   mine() { return apiFetch('/series/mine'); }, // → { items: [{ id, name, postCount }] }
   create(name) { return apiFetch('/series', { method: 'POST', body: { name } }); },
   addPost(id, postId) { return apiFetch(`/series/${id}/posts`, { method: 'POST', body: { postId } }); },
+  // Gỡ bài khỏi series (bài vẫn còn, thành độc lập). Trả { removed, seriesDeleted }.
+  removePost(id, postId) { return apiFetch(`/series/${id}/posts/${postId}`, { method: 'DELETE' }); },
 };
 
 export const sessions = {

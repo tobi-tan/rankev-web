@@ -1846,7 +1846,7 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
 // Only rendered for posts the viewer owns (isMine) — read-only visitors never see it.
 // Actions are passed in as callbacks so this component stays a dumb menu shell;
 // ProfileView (and ultimately the root app) own what each action actually does.
-function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, onVisibility, onStats, onExport }) {
+function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, onVisibility, onStats, onExport, onAddToSeries, onRemoveFromSeries }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const rk = useRankieSave();
@@ -1934,6 +1934,9 @@ function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, o
           {item(post.pinned ? PinOff : Pin, post.pinned ? "Bỏ ghim" : "Ghim lên đầu", onPin)}
           {post.type !== "share" && item(Edit3, "Chỉnh sửa", onEdit)}
           {post.type !== "share" && item(Copy, "Nhân bản", onDuplicate)}
+          {post.type !== "share" && (post.seriesId
+            ? item(Layers, "Gỡ khỏi series", onRemoveFromSeries)
+            : item(Layers, "Thêm vào series", onAddToSeries))}
           {item(post.hidden ? Eye : EyeOff, post.hidden ? "Bỏ ẩn" : "Ẩn bài đăng", onHide)}
           <div style={{ height: 1, background: C.border, margin: "4px 0" }} />
           {item(VisIcon, `Quyền riêng tư: ${visibilityLabel}`, onVisibility)}
@@ -1944,6 +1947,33 @@ function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, o
         </div>
       )}
     </div>
+  );
+}
+
+// Bảng chọn series để thêm 1 bài (có sẵn) vào series — chọn series cũ hoặc tạo mới.
+function SeriesPickerModal({ post, mySeries = [], onClose, onAdd }) {
+  const [name, setName] = useState("");
+  return (
+    <ModalShell title="Thêm vào series" onClose={onClose}>
+      <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 14, lineHeight: 1.4 }}>
+        Gom bài <b style={{ color: C.text }}>“{post.title || "này"}”</b> vào một series (chapter). Gỡ ra thì bài vẫn còn, thành bài độc lập.
+      </div>
+      {mySeries.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          {mySeries.map((s) => (
+            <button key={s.id} onClick={() => onAdd(s.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 13px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer", fontFamily: bodyFont }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}><Layers size={15} color={C.gold} /> {s.name}</span>
+              <span style={{ color: C.textFaint, fontSize: 12 }}>{s.postCount} phần</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 6 }}>Hoặc tạo series mới</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên series mới" style={{ flex: 1, padding: "11px 13px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" }} />
+        <button onClick={() => name.trim() && onAdd(null, name)} disabled={!name.trim()} style={{ padding: "0 16px", borderRadius: 10, border: "none", background: name.trim() ? C.gold : C.surfaceRaised, color: name.trim() ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: name.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}>Tạo & thêm</button>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -13323,6 +13353,8 @@ function ProfileView({
   onRestore,
   onPermanentDelete,
   onCycleVisibility,
+  onAddToSeries,
+  onRemoveFromSeries,
   contacts,
   onMessage,
   tournaments = [],
@@ -13424,6 +13456,8 @@ function ProfileView({
         onVisibility={() => onCycleVisibility(item)}
         onStats={() => setStatsPost(item)}
         onExport={() => exportPostToCSV(item)}
+        onAddToSeries={() => onAddToSeries?.(item)}
+        onRemoveFromSeries={() => onRemoveFromSeries?.(item)}
       />
     ) : null;
 
@@ -16134,6 +16168,31 @@ export default function RankevApp() {
     else api.series.create(seriesName).then((s) => addTo(s.id)).catch((err) => showToast(err?.message || "Lưu series thất bại"));
   };
 
+  // ---- Quản lý chapter Ở CHI TIẾT/HỒ SƠ POST (thêm/gỡ bài có sẵn vào series) ----
+  const [seriesPickerPost, setSeriesPickerPost] = useState(null); // post đang mở bảng chọn series
+  // Cập nhật seriesId/seriesName của 1 post ở mọi danh sách cục bộ.
+  const patchPostSeries = (postId, patch) => {
+    const swap = (prev) => prev.map((x) => (x.id === postId ? { ...x, ...patch } : x));
+    setRankies(swap); setUserPaths(swap); setUserDecks(swap);
+  };
+  const openSeriesPicker = (post) => {
+    if (!isApiId(post.id)) { showToast("Bài chưa đồng bộ máy chủ — thử lại sau."); return; }
+    setSeriesPickerPost(post);
+  };
+  // Thêm bài vào series: sid = UUID có sẵn, hoặc newName = tạo series mới rồi thêm.
+  const addPostToSeries = (post, sid, newName) => {
+    const done = (seriesId, seriesName) => { patchPostSeries(post.id, { seriesId, seriesName }); loadMySeries(); setSeriesPickerPost(null); showToast(`Đã thêm vào series “${seriesName}”`); };
+    if (sid) { const nm = (mySeries.find((s) => s.id === sid)?.name) || "series"; api.series.addPost(sid, post.id).then(() => done(sid, nm)).catch((e) => showToast(e?.message || "Thêm series thất bại")); }
+    else if ((newName || "").trim()) { api.series.create(newName.trim()).then((s) => api.series.addPost(s.id, post.id).then(() => done(s.id, s.name))).catch((e) => showToast(e?.message || "Tạo series thất bại")); }
+  };
+  const removePostFromSeries = (post) => {
+    if (!isApiId(post.id) || !isApiId(post.seriesId)) { showToast("Không gỡ được — bài/series chưa đồng bộ."); return; }
+    if (!window.confirm(`Gỡ bài này khỏi series “${post.seriesName || ""}”? Bài vẫn còn (thành bài độc lập).`)) return;
+    api.series.removePost(post.seriesId, post.id)
+      .then((r) => { patchPostSeries(post.id, { seriesId: null, seriesName: null }); loadMySeries(); showToast(r?.seriesDeleted ? "Đã gỡ — series rỗng nên tự xoá." : "Đã gỡ khỏi series."); })
+      .catch((e) => showToast(e?.message || "Gỡ series thất bại"));
+  };
+
   // Sửa cấu trúc path/deck qua CreateView (chế độ sửa). rankie sửa qua EditPostModal.
   const [editStructPost, setEditStructPost] = useState(null);
   const startStructEdit = (post) => {
@@ -16554,6 +16613,7 @@ export default function RankevApp() {
       {FONT_IMPORT}
       <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} basketHidden={basketHidden} setBasketHidden={setBasketHidden} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
       {notifOpen && <NotificationsPanel items={notifItems} onClose={() => setNotifOpen(false)} onOpenItem={onNotifClick} onOpenHandle={openAuthorByHandle} />}
+      {seriesPickerPost && <SeriesPickerModal post={seriesPickerPost} mySeries={mySeries} onClose={() => setSeriesPickerPost(null)} onAdd={(sid, newName) => addPostToSeries(seriesPickerPost, sid, newName)} />}
       {toast && (
         <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(24,20,12,0.96)", color: "#F5F1E6", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 6px 20px rgba(0,0,0,0.35)" }}>
           {toast}
@@ -16822,6 +16882,8 @@ export default function RankevApp() {
               onRestore={restoreFromTrash}
               onPermanentDelete={permanentlyDelete}
               onCycleVisibility={cycleVisibility}
+              onAddToSeries={openSeriesPicker}
+              onRemoveFromSeries={removePostFromSeries}
             />
           )}
           {view === "authorProfile" && (
