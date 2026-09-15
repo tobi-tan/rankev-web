@@ -1515,9 +1515,10 @@ function Pill({ children, tone = "muted" }) {
 
 // Hiển thị hashtag (#tag) của một bài. Nếu chưa có tag thì fallback về danh mục cũ.
 // onTag(tag): tuỳ chọn — bấm vào hashtag để lọc feed.
-function TagPills({ tags, category, onTag, max = 3 }) {
+function TagPills({ tags, onTag, max = 3 }) {
+  // Đã bỏ hệ thống danh mục/chủ đề — chỉ còn hashtag.
   const list = Array.isArray(tags) ? tags.filter(Boolean) : [];
-  if (!list.length) return category ? <Pill tone="muted">{category}</Pill> : null;
+  if (!list.length) return null;
   return (
     <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
       {list.slice(0, max).map((t, i) => (
@@ -3826,7 +3827,6 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, background: C.surfaceRaised, marginBottom: 16 }}>
             <Pill tone="gold">{typeLabel}</Pill>
             <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 14, color: C.text, marginTop: 6 }}>{item.title}</div>
-            {item.category && <div style={{ ...captionText, marginTop: 3 }}>{item.category}</div>}
           </div>
 
           {/* Destination tabs */}
@@ -4122,8 +4122,6 @@ function HeadToHead({ rankie, options, onVote, votedId, isClosed, tapCounts, act
             </span>
           )}
         </div>
-        {/* center divider marker */}
-        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,0.25)" }} />
       </div>
 
       {clickable && (
@@ -5078,7 +5076,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
                         {post.title}
                       </div>
                       <div style={{ ...captionText, marginTop: 2 }}>
-                        {post.category} · {fmt(post.participants || 0)} lượt
+                        {fmt(post.participants || 0)} lượt
                       </div>
                     </div>
                     {post.live && (
@@ -5795,7 +5793,6 @@ function TugViz({ options, onVote, votedId, isClosed }) {
   const totalV = a.votes + b.votes;
   const ra = totalV ? a.votes / totalV : 0.5; // chưa có phiếu → 50/50 trung tính
   const pa = Math.round(ra * 100);
-  const aLead = a.votes >= b.votes;
   const flagRef = useRef(null);
   const tap = (opt) => (e) => {
     if (!clickable) return;
@@ -5803,34 +5800,47 @@ function TugViz({ options, onVote, votedId, isClosed }) {
     const f = flagRef.current;
     if (f) { f.style.animation = "none"; void f.offsetWidth; f.style.animation = "flagYank .28s"; }
   };
-  // Không có emoji do creator đặt → chấm tròn theo màu đội (luôn hiển thị, không "tofu").
-  const face = (o) => o.emoji || "●";
-  const faceStyle = (o) => (o.emoji ? undefined : { color: o.color });
-  const pullers = (o) => [0, 1, 2].map((i) => (
-    <span key={i} style={{ marginLeft: i === 0 ? 0 : -5, filter: "drop-shadow(0 3px 5px rgba(0,0,0,.5))", ...faceStyle(o) }}>{face(o)}</span>
-  ));
+  // Nhân vật CỐ ĐỊNH: team 🐵 khỉ (trái) vs 🐼 gấu trúc (phải). Khăn = màu đội; ảnh
+  // phương án (nếu có) là "bảng" nhân vật giơ lên trên đầu.
+  const char = (emoji, o, side) => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", filter: "drop-shadow(0 4px 6px rgba(0,0,0,.5))" }}>
+      {o.image && (
+        <div style={{ width: 34, height: 34, borderRadius: 8, overflow: "hidden", border: `2px solid ${o.color}`, marginBottom: 1, background: "#000", boxShadow: `0 0 8px ${o.color}88` }}>
+          <img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        </div>
+      )}
+      <span style={{ fontSize: 46, lineHeight: 1, display: "block", transform: `rotate(${side === "left" ? -16 : 16}deg)` }}>{emoji}</span>
+      <div style={{ width: 30, height: 7, borderRadius: 6, background: o.color, marginTop: -5, boxShadow: `0 0 8px ${o.color}` }} />
+    </div>
+  );
+  const banner = (o, pct, side) => (
+    <div style={{ position: "absolute", top: 10, [side === "left" ? "left" : "right"]: 10, zIndex: 4, display: "flex", alignItems: "center", gap: 6, flexDirection: side === "left" ? "row" : "row-reverse", padding: "4px 10px", borderRadius: 10, background: o.color, boxShadow: `0 4px 10px ${o.color}55` }}>
+      <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 13, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.5)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 96 }}>{o.label || (side === "left" ? "Đội 1" : "Đội 2")}</span>
+      <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: "#fff" }}>{pct}%</span>
+    </div>
+  );
   return (
     <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontFamily: displayFont, fontWeight: 800, fontSize: 16 }}>
-        <span style={{ color: a.color }}>{face(a)} {pa}%</span>
-        <span style={{ color: b.color }}>{100 - pa}% {face(b)}</span>
-      </div>
-      <div style={{ position: "relative", height: 176, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.border}`, background: "linear-gradient(180deg,#0e1c15 0%,#0e1c15 60%,#17291f 60%,#132419 100%)" }}>
-        <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "16%", background: `linear-gradient(90deg, ${a.color}28, transparent)` }} />
-        <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "16%", background: `linear-gradient(270deg, ${b.color}28, transparent)` }} />
-        <div style={{ position: "absolute", left: "50%", top: "24%", bottom: "24%", width: 0, borderLeft: "2px dashed rgba(255,255,255,.22)" }} />
-        <div style={{ position: "absolute", left: "7%", right: "7%", top: "50%", height: 7, transform: "translateY(-50%)", background: "linear-gradient(180deg,#C79455,#7c5a30)", borderRadius: 99, boxShadow: "0 2px 4px rgba(0,0,0,.45)" }} />
-        <div style={{ position: "absolute", top: "50%", left: 12, display: "flex", fontSize: 30, transition: "transform .25s ease", transform: `translateY(-58%) rotate(${aLead ? -15 : -8}deg)`, transformOrigin: "center bottom" }}>{pullers(a)}</div>
-        <div style={{ position: "absolute", top: "50%", right: 12, display: "flex", fontSize: 30, transition: "transform .25s ease", transform: `translateY(-58%) rotate(${aLead ? 8 : 15}deg)`, transformOrigin: "center bottom" }}>{pullers(b)}</div>
-        <div style={{ position: "absolute", top: "50%", left: `${85 - ra * 70}%`, transform: "translate(-50%,-50%)", transition: "left .45s cubic-bezier(.34,1.1,.4,1)", zIndex: 3 }}>
-          <span ref={flagRef} style={{ fontSize: 30, display: "block", transformOrigin: "bottom center", animation: "flagSway 2.6s ease-in-out infinite", filter: "drop-shadow(0 3px 5px rgba(0,0,0,.5))" }}>🚩</span>
+      <div style={{ position: "relative", height: 200, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.border}`, background: "linear-gradient(180deg,#0e1c15 0%,#0e1c15 60%,#17291f 60%,#132419 100%)" }}>
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "18%", background: `linear-gradient(90deg, ${a.color}30, transparent)` }} />
+        <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "18%", background: `linear-gradient(270deg, ${b.color}30, transparent)` }} />
+        {banner(a, pa, "left")}
+        {banner(b, 100 - pa, "right")}
+        {/* dây thừng */}
+        <div style={{ position: "absolute", left: "7%", right: "7%", top: "64%", height: 7, transform: "translateY(-50%)", background: "linear-gradient(180deg,#C79455,#7c5a30)", borderRadius: 99, boxShadow: "0 2px 4px rgba(0,0,0,.45)" }} />
+        {/* nhân vật — dịch nhẹ về phía đội mạnh */}
+        <div style={{ position: "absolute", bottom: 22, left: `${9 - (ra - 0.5) * 9}%`, transition: "left .45s cubic-bezier(.34,1.1,.4,1)" }}>{char("🐵", a, "left")}</div>
+        <div style={{ position: "absolute", bottom: 22, right: `${9 + (ra - 0.5) * 9}%`, transition: "right .45s cubic-bezier(.34,1.1,.4,1)" }}>{char("🐼", b, "right")}</div>
+        {/* nút cờ trên dây */}
+        <div style={{ position: "absolute", top: "64%", left: `${85 - ra * 70}%`, transform: "translate(-50%,-50%)", transition: "left .45s cubic-bezier(.34,1.1,.4,1)", zIndex: 3 }}>
+          <span ref={flagRef} style={{ fontSize: 26, display: "block", transformOrigin: "bottom center", animation: "flagSway 2.6s ease-in-out infinite", filter: "drop-shadow(0 3px 5px rgba(0,0,0,.5))" }}>🚩</span>
         </div>
         {clickable && <>
           <div onClick={tap(a)} style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "50%", zIndex: 5, cursor: "pointer" }} />
           <div onClick={tap(b)} style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "50%", zIndex: 5, cursor: "pointer" }} />
         </>}
       </div>
-      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để kéo dây" : "Kéo co · 1v1"}</div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 10 }}>{clickable ? "Chạm một bên để bình chọn" : "Kéo co · 🐵 vs 🐼"}</div>
     </div>
   );
 }
@@ -5945,25 +5955,35 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   }, [a.color, b.color]);
 
   const tap = (opt, color) => (e) => { if (!clickable) return; onVote(opt.id, e); const K = stateRef.current; if (K.surge) K.surge(opt, color); };
-  const sideLabel = (o, i, pct) => (
-    <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", [i === 0 ? "left" : "right"]: 8, textAlign: "center", zIndex: 2, filter: "drop-shadow(0 5px 12px rgba(0,0,0,.55))", pointerEvents: "none" }}>
-      <span style={{ display: "block", fontFamily: displayFont, fontWeight: 800, fontSize: 20, color: o.color, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
-      <span style={{ fontSize: 46, lineHeight: 1, color: o.emoji ? undefined : o.color }}>{o.emoji || "●"}</span>
-      <span style={{ display: "block", fontFamily: bodyFont, fontWeight: 600, fontSize: 11, color: C.text, marginTop: 3, opacity: .9, maxWidth: 92, ...ellip }}>{o.label}</span>
+  // Banner tên đội (đỏ trái / xanh phải) — giống Kéo co.
+  const banner = (o, pct, side) => (
+    <div style={{ position: "absolute", top: 8, [side === "left" ? "left" : "right"]: 8, zIndex: 3, display: "flex", alignItems: "center", gap: 6, flexDirection: side === "left" ? "row" : "row-reverse", padding: "4px 10px", borderRadius: 10, background: o.color, boxShadow: `0 4px 10px ${o.color}66`, pointerEvents: "none" }}>
+      <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 13, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.5)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 92 }}>{o.label || (side === "left" ? "Đội 1" : "Đội 2")}</span>
+      <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: "#fff" }}>{pct}%</span>
+    </div>
+  );
+  // Chân dung "đấu thủ" mỗi bên — lồng ẢNH phương án (fallback emoji/chấm màu).
+  const fighter = (o, i) => (
+    <div style={{ position: "absolute", top: "54%", transform: "translateY(-50%)", [i === 0 ? "left" : "right"]: 12, zIndex: 2, filter: "drop-shadow(0 6px 14px rgba(0,0,0,.6))", pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {o.image
+        ? <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden", border: `2px solid ${o.color}`, boxShadow: `0 0 16px ${o.color}` }}><img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+        : <span style={{ fontSize: 46, lineHeight: 1, color: o.emoji ? undefined : o.color }}>{o.emoji || "●"}</span>}
     </div>
   );
   return (
     <div>
       <div ref={wrapRef} style={{ position: "relative", height: 216, borderRadius: 16, overflow: "hidden", background: "#050507", border: `1px solid ${C.border}` }}>
         <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
-        {sideLabel(a, 0, pa)}
-        {sideLabel(b, 1, 100 - pa)}
+        {banner(a, pa, "left")}
+        {banner(b, 100 - pa, "right")}
+        {fighter(a, 0)}
+        {fighter(b, 1)}
         {clickable && <>
           <div onClick={tap(a, a.color || C.teal)} style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "50%", zIndex: 4, cursor: "pointer" }} />
           <div onClick={tap(b, b.color || C.coral)} style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "50%", zIndex: 4, cursor: "pointer" }} />
         </>}
       </div>
-      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 10 }}>{clickable ? "Chạm nửa sân đội bạn để dồn khí" : "Kamehameha · 1v1"}</div>
+      <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, marginTop: 10 }}>{clickable ? "Chạm một bên để bình chọn" : "Kamehameha · 1v1"}</div>
     </div>
   );
 }
@@ -6838,8 +6858,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
-            {path.category && <Pill tone="muted">{path.category}</Pill>}
-            <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
+                        <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
             <Pill tone="muted">{path.questions.length} câu</Pill>
             <Pill tone="muted">{resultEntries.length} kết quả</Pill>
           </div>
@@ -6888,8 +6907,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
-          {path.category && <Pill tone="muted">{path.category}</Pill>}
-          <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
+                    <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
           <Pill tone="muted">{path.questions.length} câu</Pill>
         </div>
         {(path.caption || path.media) && (
@@ -7968,8 +7986,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
-            {deck.category && <Pill tone="muted">{deck.category}</Pill>}
-            <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
+                        <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
             <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
             {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
           </div>
@@ -8066,8 +8083,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
-          {deck.category && <Pill tone="muted">{deck.category}</Pill>}
-          <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
+                    <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
           <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
           {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
         </div>
@@ -10680,7 +10696,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const [category, setCategory] = useState(editItem?.category || Object.values(CATEGORY_NAMES)[0]); // giữ tương thích ngược
   const [tags, setTags] = useState(editItem?.tags || []); // hashtag tự do (thay danh mục)
   const [audience, setAudience] = useState("public");
-  const [allowGuestPresent, setAllowGuestPresent] = useState(false); // cho phép người khác trình chiếu bài này
+  const [allowGuestPresent, setAllowGuestPresent] = useState(true); // MẶC ĐỊNH cho phép người khác trình chiếu bài này
   // Series (Chapter) — bài này thuộc bộ nào. seriesId = id của series, seriesName = tên
   // hiển thị. Nếu null thì đây là bài độc lập không thuộc series nào.
   const [seriesInput, setSeriesInput] = useState(""); // text người dùng đang gõ
@@ -11091,7 +11107,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           : votingType === "rating"
           ? "Đánh giá"
           : "Chọn 1 phương án",
-      category: tags[0] || category,
+      category: undefined, // đã bỏ hệ thống danh mục — chỉ dùng hashtag
       tags,
       live: true,
       mine: true,
@@ -11179,6 +11195,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   };
   const resumeDraft = () => {
     const d = readDraft(); if (!d) return;
+    setContentType("rankie"); // nháp là rankie → chuyển đúng loại rồi mở builder
     applyDraft(d);
     setDraftRestored(true); setSavedToast(false);
     setBuilding(true);
@@ -11249,7 +11266,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // khi vào trình tạo thật. Sửa bài (editing) thì vào thẳng builder.
   if (!editing && !building) {
     void draftTick; // đọc lại nháp sau khi lưu/xoá
-    const landingDraft = contentType === "rankie" ? readDraft() : null;
+    const landingDraft = readDraft(); // hiện thẻ nháp ở mọi tab để dễ tìm lại
     return (
       <div style={{ padding: 16 }}>
         {contentTabs}
@@ -11523,14 +11540,14 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 <button onClick={() => { setTimeInline(true); setOpenTool(null); }} title="Thời gian vote" style={btn("time", !!closingTime)}><Clock size={19} /></button>
               )}
               <button onClick={() => setOpenTool(openTool === "schedule" ? null : "schedule")} title="Hẹn giờ lên sóng" style={btn("schedule", !!openAtLocal)}><CalendarClock size={19} /></button>
-              <button onClick={() => setOpenTool(openTool === "present" ? null : "present")} title="Trình chiếu" style={btn("present", allowGuestPresent || !!seriesInput)}><Monitor size={20} /></button>
+              <button onClick={() => setOpenTool(openTool === "present" ? null : "present")} title={allowGuestPresent ? "Cho phép trình chiếu (đang bật)" : "Trình chiếu đang tắt"} style={{ ...btn("present", false), color: allowGuestPresent ? C.gold : C.coral }}>{allowGuestPresent ? <Monitor size={20} /> : <MonitorOff size={20} />}</button>
             </div>
           );
         })()}
 
         {timeInline && (
           <div style={{ marginTop: -8, marginBottom: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ color: C.textMuted }}>2430</b> → 24:30 = 24 giờ 30 phút). Đếm ngược quy đổi ngày/giờ hiện ở khung xem trước. Không điền = vote vô thời hạn.
+Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới hạn thời gian.
           </div>
         )}
 
@@ -11558,7 +11575,7 @@ Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ c
                   </div>
                 )}
                 <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-                  <b style={{ color: C.textMuted }}>Không giới hạn</b>: mỗi người được chạm bình chọn nhiều lần để "dồn khí" — hợp cho không khí sôi động, không phải khảo sát chính xác.
+                  <b style={{ color: C.textMuted }}>Bình chọn không giới hạn</b>: mỗi người được bình chọn nhiều lần.
                 </div>
               </div>
             )}
@@ -11594,17 +11611,47 @@ Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ c
 
         <div style={field}>
           <span style={label}>Phương án bình chọn</span>
-          <div style={{ display: "flex", flexDirection: rankieKind === "versus" ? "row" : "column", gap: 10, flexWrap: "wrap" }}>
+          {rankieKind === "versus" ? (
+            // ĐỐI ĐẦU: 2 lá cờ banner lớn (đỏ/xanh khớp thanh đối đầu) + chữ "VS" ở giữa.
+            // Text gõ thẳng vào banner; đính kèm ảnh làm nền banner.
+            <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18, padding: "0 26px" }}>
+              {[0, 1].map((i) => {
+                const o = opts[i] || { label: "", image: null };
+                const col = ["#E23B3B", "#2F6BFF"][i];
+                return (
+                  <div key={i} style={{ position: "relative", flex: 1, minWidth: 0, minHeight: 190, borderRadius: 14, overflow: "hidden", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", display: "flex", flexDirection: "column" }}>
+                    {o.image && <>
+                      <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${col}66, ${col}dd)` }} />
+                    </>}
+                    {/* Nút đính kèm / xoá ảnh */}
+                    <div style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 8, zIndex: 3, display: "flex", gap: 6 }}>
+                      <button onClick={() => mockUpload(i)} title="Ảnh nền banner" style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.5)", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><ImagePlus size={15} /></button>
+                      {o.image && <button onClick={() => updateOpt(i, { image: null })} title="Xoá ảnh" style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.5)", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={15} /></button>}
+                    </div>
+                    <textarea
+                      value={o.label}
+                      onChange={(e) => updateOpt(i, { label: e.target.value })}
+                      placeholder={`Đội ${i + 1}`}
+                      rows={2}
+                      style={{ position: "relative", zIndex: 2, flex: 1, width: "100%", border: "none", background: "transparent", outline: "none", resize: "none", color: "#fff", fontFamily: displayFont, fontWeight: 800, fontSize: 19, lineHeight: 1.2, textAlign: "center", textShadow: "0 1px 8px rgba(0,0,0,0.55)", padding: "80px 8px 44px", boxSizing: "border-box" }}
+                    />
+                  </div>
+                );
+              })}
+              {/* VS cách điệu ở giữa */}
+              <div style={{ position: "absolute", left: "50%", top: "45%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
+            </div>
+          ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {opts.map((o, i) => {
-              const versusFlex = rankieKind === "versus" ? { flex: "1 1 44%", minWidth: 130 } : {};
               return o.refType ? (
-                <div key={i} style={{ ...versusFlex, display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 12, padding: "10px 12px" }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 12, padding: "10px 12px" }}>
                   <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={o} /></div>
                   <button onClick={() => setOpts((prev) => prev.filter((_, idx) => idx !== i))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
                 </div>
               ) : (
-              <div key={i} style={{ ...versusFlex, display: "flex", gap: 8, alignItems: "center" }}>
-                {/* Thumbnail đính kèm (nếu có) — chạm để mở bảng chỉnh */}
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {(o.emoji || o.image) && (
                   <button onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }} title="Đổi ảnh/emoji">
                     <Illustration emoji={o.emoji} image={o.image} size={40} radius={10} />
@@ -11616,7 +11663,6 @@ Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ c
                   value={o.label}
                   onChange={(e) => updateOpt(i, { label: e.target.value })}
                 />
-                {/* Nút đính kèm ảnh/emoji cho phương án */}
                 <button
                   onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)}
                   title="Đính kèm ảnh hoặc emoji (tuỳ chọn)"
@@ -11631,6 +11677,7 @@ Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ c
               );
             })}
           </div>
+          )}
           {/* Bảng đính kèm ảnh/emoji cho phương án đang chọn (full-width, hợp cho cả 2 cột Đối đầu) */}
           {emojiPickerFor != null && opts[emojiPickerFor] && !opts[emojiPickerFor].refType && (
             <div style={{ marginTop: 10, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
@@ -11673,24 +11720,6 @@ Gõ số, tự thêm dấu ":" — 2 số cuối là phút (VD gõ <b style={{ c
 
         {/* Preview TƯƠNG TÁC: chọn skin biểu đồ + thử bình chọn + hiện sticker "đã vote" */}
         <RankieComposerPreview options={opts} votingType={votingType} chartType={chartType} setChartType={setChartType} voteMarker={voteMarker} kind={rankieKind} closingTime={closingTime} />
-
-        {/* Sticker thay chữ "VOTED" — bấm ô để gõ emoji (bàn phím iOS), hoặc chọn ảnh */}
-        <div style={field}>
-          <span style={label}>Sticker thay chữ "VOTED" (tuỳ chọn)</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <label title="Bấm để gõ emoji" style={{ position: "relative", width: 52, height: 52, borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${voteMarker ? C.gold : C.border}`, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", cursor: "text" }}>
-              {voteMarker?.image ? <img src={voteMarker.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : voteMarker?.emoji ? <span style={{ fontSize: 28 }}>{voteMarker.emoji}</span> : <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 800, color: C.gold }}>VOTED</span>}
-              <input
-                value={voteMarker?.image ? "" : (voteMarker?.emoji || "")}
-                onChange={(e) => { const v = e.target.value; let g; try { g = [...new Intl.Segmenter().segment(v)].map((s) => s.segment); } catch { g = Array.from(v); } const em = g.length ? g[g.length - 1] : null; setVoteMarker(em && em.trim() ? { emoji: em, image: null } : null); }}
-                aria-label="Gõ emoji cho sticker"
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", background: "transparent", cursor: "text", textAlign: "center" }}
-              />
-            </label>
-            <button onClick={() => mockUploadVoteMarker()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "11px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Ảnh</button>
-            {voteMarker && <button onClick={() => setVoteMarker(null)} title="Xoá" style={{ padding: "11px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.coral, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Xoá</button>}
-          </div>
-        </div>
 
 
         <button
@@ -13015,7 +13044,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
     const coverUrl = media && urlOK(media.url);
     api.tournaments.create({
       title: title.trim(),
-      category: tags[0] || category,
+      category: undefined, // đã bỏ hệ thống danh mục — chỉ dùng hashtag
       tags,
       caption: caption.trim() || undefined,
       media: coverUrl ? { type: "image", url: coverUrl } : undefined,
@@ -16051,16 +16080,22 @@ export default function RankevApp() {
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, toggle: toggleSave, basket: rankieBasket, openRef, openTournament }), [saveToRankie, toggleSave, rankieBasket, openRef, openTournament]);
 
   const handleCreate = (item) => {
-    // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
-    if (item.type === "path") {
-      setUserPaths((prev) => [item, ...prev]);
-    } else if (item.type === "deck") {
-      setUserDecks((prev) => [item, ...prev]);
-    } else {
-      setRankies((prev) => [item, ...prev]);
+    // HẸN GIỜ: bài rankie có opensAt ở tương lai → KHÔNG hiện ở feed ngay (không "đăng luôn").
+    // Chỉ tạo trên backend + báo toast; bài tự lên sóng đúng giờ (feed backend lọc theo opensAt).
+    const scheduled = item.type === "rankie" && item.opensAt && item.opensAt > Date.now();
+    if (!scheduled) {
+      // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
+      if (item.type === "path") {
+        setUserPaths((prev) => [item, ...prev]);
+      } else if (item.type === "deck") {
+        setUserDecks((prev) => [item, ...prev]);
+      } else {
+        setRankies((prev) => [item, ...prev]);
+      }
+      feedScrollTopRef.current = 0; // bài mới ở đầu feed → về đầu để thấy ngay (không nhảy giữa trang)
     }
-    feedScrollTopRef.current = 0; // bài mới ở đầu feed → về đầu để thấy ngay (không nhảy giữa trang)
     setView("feed");
+    if (scheduled) showToast("🕒 Đang hẹn giờ đăng…");
 
     // Đăng thật lên backend; thành công thì thay item tạm bằng bản có UUID (_api)
     // để mọi thao tác sau (vote/mở chi tiết/sửa) chạy đúng luồng API.
@@ -16068,6 +16103,12 @@ export default function RankevApp() {
     api.posts
       .create(protoToCreatePayload(item))
       .then((full) => {
+        // Gom bài vào series (chapter) — persist lên backend (cho cả bài hẹn giờ).
+        if (item.seriesName) persistSeries(full.id, item.seriesName, item.seriesId);
+        if (scheduled) {
+          showToast(`🕒 Đã hẹn đăng lúc ${new Date(item.opensAt).toLocaleString("vi-VN")} — bài sẽ tự lên sóng.`);
+          return;
+        }
         const real =
           full.type === "path" ? apiPathToProto(full) : full.type === "deck" ? apiDeckToProto(full) : apiRankieToProto(full);
         // Giữ author = currentUser (id="me") để: (1) Hồ sơ hiện bài (lọc theo author.id==="me"),
@@ -16077,8 +16118,6 @@ export default function RankevApp() {
         if (item.type === "path") setUserPaths(swap);
         else if (item.type === "deck") setUserDecks(swap);
         else setRankies(swap);
-        // Gom bài vào series (chapter) — persist lên backend.
-        if (item.seriesName) persistSeries(full.id, item.seriesName, item.seriesId);
       })
       .catch((err) => showToast(err?.message || "Đăng bài thất bại — đang lưu tạm ngoại tuyến"));
   };
@@ -16516,7 +16555,7 @@ export default function RankevApp() {
       <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} basketHidden={basketHidden} setBasketHidden={setBasketHidden} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
       {notifOpen && <NotificationsPanel items={notifItems} onClose={() => setNotifOpen(false)} onOpenItem={onNotifClick} onOpenHandle={openAuthorByHandle} />}
       {toast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(18,14,7,0.95)", color: C.text, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}>
+        <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(24,20,12,0.96)", color: "#F5F1E6", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 6px 20px rgba(0,0,0,0.35)" }}>
           {toast}
         </div>
       )}
