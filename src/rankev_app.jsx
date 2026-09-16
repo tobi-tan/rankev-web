@@ -13373,8 +13373,13 @@ function ProfileView({
     { key: "age", val: demo.age != null ? `${demo.age} tuổi` : null }, { key: "gender", val: demo.gender }, { key: "occupation", val: demo.occupation },
   ].filter((d) => d.val) : [];
 
+  // Nhận diện "bài của tôi" theo CẢ 3 cách: cờ mine (optimistic/mine()), author.id==="me"
+  // (bản cục bộ), và author.id===UUID thật (bản đến từ FEED — allPosts dedup có thể giữ bản
+  // feed thay vì bản "me", nên nếu chỉ so "me" sẽ mất bài vừa đăng khỏi hồ sơ + biểu đồ nhện).
+  const isMinePost = (p) =>
+    !!p.mine || p.author?.id === "me" || (!!currentUser.apiId && p.author?.id === currentUser.apiId);
   const theirPostsAll = posts
-    .filter((p) => (p.author ? p.author.id === targetId : isMe && p.mine))
+    .filter((p) => (isMe ? isMinePost(p) : (p.author ? p.author.id === targetId : false)))
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
   // Trashed (soft-deleted) posts only ever show up in their own tab — everywhere
