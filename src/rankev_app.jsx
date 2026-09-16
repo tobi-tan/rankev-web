@@ -1099,7 +1099,8 @@ function RankieCountdownBox({ closesAt }) {
   const pad = (n) => String(n).padStart(2, "0");
   const text = done ? "00:00" : d > 0 ? `${d}:${pad(h)}:${pad(m)}` : `${pad(h)}:${pad(m)}:${pad(s)}`;
   const urgent = !done && totalSec <= 300; // dưới 5 phút
-  const accent = done ? C.textFaint : urgent ? C.coral : C.gold;
+  // Nền chip TỐI cố định → chữ/icon phải SÁNG cố định (light mode C.text tối sẽ chìm).
+  const accent = done ? "#B9AE97" : urgent ? "#FF9B85" : "#FFD98A";
   return (
     <div
       style={{
@@ -1122,7 +1123,7 @@ function RankieCountdownBox({ closesAt }) {
       }}
     >
       <Clock size={12} color={accent} />
-      <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, lineHeight: 1, color: done ? C.textFaint : urgent ? C.coral : C.text }}>
+      <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, lineHeight: 1, color: done ? "#B9AE97" : urgent ? "#FF9B85" : "#F5F1E6" }}>
         {text}
       </span>
     </div>
@@ -4471,7 +4472,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
   // Vote trực tiếp trên feed: chỉ với Rankie 1-lựa-chọn, ≤4 phương án, không dùng ảnh,
   // và chưa đóng. Vote xong biểu đồ cập nhật tại chỗ (Twitter-poll style).
   const canVoteInline =
-    !!onVote && !closed && rankie.votingType === "single" &&
+    !!onVote && !closed && !scheduled && rankie.votingType === "single" &&
     rankie.options.length <= 4 && rankie.options.every((o) => !o.image);
   const inlineVote = (id, e) => { e?.stopPropagation?.(); onVote?.(id, e); };
 
@@ -6151,7 +6152,8 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Bài THẬT (_api): không giả lập vote ngẫu nhiên — số phiếu chỉ đến từ backend + WebSocket.
-  useLiveTicker(setOptions, !isClosed, rankie.live && !rankie._api, isUnlimited, handleLiveTick);
+  // Chưa tới giờ lên sóng (notYetOpen) → KHÔNG giả lập vote (số phiếu không được tăng).
+  useLiveTicker(setOptions, !isClosed && !notYetOpen, rankie.live && !rankie._api && !notYetOpen, isUnlimited, handleLiveTick);
 
   // Which chart types the viewer can switch between for this rankie.
   // Head-to-head is offered only when there are exactly 2 options.
@@ -6168,7 +6170,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   // Biểu đồ cho phép bình chọn thẳng trên hình (ẩn nút chọn riêng bên dưới). Multiple/
   // rating cần bước xác nhận riêng nên KHÔNG tính là "clickable" dù đang xem skin này.
   const inlineChart = ["bar", "head_to_head", "tug", "beam", "podium"].includes(activeChart);
-  const clickableChart = inlineChart && rankie.votingType !== "multiple" && rankie.votingType !== "rating";
+  const clickableChart = inlineChart && rankie.votingType !== "multiple" && rankie.votingType !== "rating" && !notYetOpen && !isClosed;
 
   const castVote = (optId, e) => {
     if (isClosed || notYetOpen) return;
@@ -6415,14 +6417,13 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             title={isUnlimited ? (resultMetric === "votes" ? "Lượt tương tác — chạm để đổi" : "Người tham gia — chạm để đổi") : "Người tham gia"}
             style={{ position: "absolute", left: 10, bottom: 10, display: "flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}`, cursor: isUnlimited ? "pointer" : "default", zIndex: 3 }}
           >
-            {isUnlimited && resultMetric === "votes" ? <SlidersHorizontal size={12} color={C.teal} /> : <Users size={12} color={C.textMuted} />}
-            {/* displayTotal đã phản ánh đúng metric đang chọn: "voters" → tổng người tham gia,
-                "votes" → tổng lượt tương tác. Dùng chung để số đổi khi toggle (đừng dùng `total`
-                cứng = tổng lượt bấm, sẽ khiến "Người tham gia" giữ nguyên số tương tác). */}
-            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: C.text }}>{fmt(displayTotal)}</span>
+            {isUnlimited && resultMetric === "votes" ? <SlidersHorizontal size={12} color="#5FC9A8" /> : <Users size={12} color="#B9AE97" />}
+            {/* Nền chip TỐI cố định → chữ SÁNG cố định (light mode C.text tối sẽ chìm). */}
+            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: "#F5F1E6" }}>{fmt(displayTotal)}</span>
           </button>
 
-          <RankieCountdownBox closesAt={rankie.closesAt} />
+          {/* Đồng hồ đóng-vote CHỈ hiện khi đã lên sóng (chưa tới giờ thì đã có đếm ngược "sắp lên sóng"). */}
+          {!notYetOpen && <RankieCountdownBox closesAt={rankie.closesAt} />}
         </div>
 
         {notYetOpen ? (
