@@ -127,6 +127,7 @@ const FONT_IMPORT = (
       70% { opacity: 1; }
       100% { opacity: 0; }
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
     @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
     @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
@@ -4709,7 +4710,7 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
   );
 }
 
-function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications }) {
+function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
   // Bộ icon lucide dùng CHUNG toàn hệ thống (khớp bộ lọc hồ sơ).
@@ -4730,14 +4731,17 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
   return (
     <div>
       <div style={{ padding: "20px 16px 4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ fontFamily: displayFont, fontStyle: "italic", fontSize: 30, color: C.text, lineHeight: 1 }}>
-            Rankev
+        <button onClick={onRefresh} title="Làm mới bảng tin" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontFamily: displayFont, fontStyle: "italic", fontSize: 30, color: C.text, lineHeight: 1 }}>
+              Rankev
+            </div>
+            <RefreshCw size={16} color={C.textFaint} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 4, letterSpacing: 0.4 }}>
             RANK EVERYTHING
           </div>
-        </div>
+        </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
           {/* Chuông thông báo — @nhắc tên trong bình luận */}
@@ -6065,7 +6069,15 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
   const isClosed = isRankieClosed(rankie);
-  const notYetOpen = !!(rankie.opensAt && rankie.opensAt > Date.now()); // đã hẹn giờ nhưng chưa lên sóng
+  // Đồng hồ đếm ngược tới giờ lên sóng + TỰ CHUYỂN sang live khi tới giờ (nowTs vượt opensAt).
+  const [nowTs, setNowTs] = useState(Date.now());
+  const notYetOpen = !!(rankie.opensAt && rankie.opensAt > nowTs); // đã hẹn giờ nhưng chưa lên sóng
+  useEffect(() => {
+    if (!notYetOpen) return;
+    const iv = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [notYetOpen]);
+  const openRemainMs = notYetOpen ? Math.max(0, rankie.opensAt - nowTs) : 0;
   const [shareOpen, setShareOpen] = useState(false);
   // Any rankie with exactly two options reads best as a head-to-head comparison —
   // default to that chart on open even if chartType wasn't explicitly set to it
@@ -6314,6 +6326,10 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             <Pill tone="muted">
               <Lock size={11} /> Đã kết thúc
             </Pill>
+          ) : notYetOpen ? (
+            <Pill tone="gold">
+              <Clock size={11} /> Sắp lên sóng
+            </Pill>
           ) : (
             rankie.live && (
               <Pill tone="live">
@@ -6426,8 +6442,11 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             }}
           >
             <Clock size={16} color={C.gold} />
-            <span>
+            <span style={{ flex: 1 }}>
               🔴 Sắp lên sóng — mở bình chọn lúc {new Date(rankie.opensAt).toLocaleString("vi-VN")}. Bạn có thể xem trước các lựa chọn.
+            </span>
+            <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, color: C.gold, whiteSpace: "nowrap" }}>
+              {(() => { let s = Math.floor(openRemainMs / 1000); const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60; const p = (x) => String(x).padStart(2, "0"); return (d > 0 ? `${d}D:` : "") + `${p(h)}:${p(m)}:${p(ss)}`; })()}
             </span>
           </div>
         ) : isClosed ? (
@@ -14015,6 +14034,8 @@ function apiSummaryToProto(s) {
     category: s.category || "Khác", tags: s.tags || [],
     author: apiAuthorToProto(s.author),
     createdAt: Date.parse(s.createdAt) || Date.now(),
+    opensAt: s.opensAt ? Date.parse(s.opensAt) : null,
+    notYetOpen: !!s.notYetOpen,
     media: s.media || null,
     mine: false,
     caption: s.caption || "",
@@ -16286,6 +16307,28 @@ export default function RankevApp() {
     input.click();
   }, []);
 
+  // Làm mới feed (bấm logo Rankev / kéo xuống) — nạp lại từ backend + về đầu trang.
+  const [feedRefreshing, setFeedRefreshing] = useState(false);
+  const refreshFeed = useCallback(async () => {
+    if (!authed || feedRefreshing) return;
+    setFeedRefreshing(true);
+    try {
+      const res = await api.posts.feed();
+      setApiPosts((res.items || []).map(apiSummaryToProto));
+      setApiCursor(res.nextCursor || null);
+    } catch { /* giữ nguyên nếu lỗi */ }
+    setFeedRefreshing(false);
+    window.scrollTo(0, 0);
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+  }, [authed, feedRefreshing]);
+
+  // Kéo-xuống-để-làm-mới (mobile): chỉ khi đang ở feed và đã cuộn lên đầu.
+  const pullStartY = useRef(null);
+  const [pullDist, setPullDist] = useState(0);
+  const onFeedTouchStart = (e) => { pullStartY.current = (view === "feed" && (scrollContainerRef.current?.scrollTop || 0) <= 0) ? e.touches[0].clientY : null; };
+  const onFeedTouchMove = (e) => { if (pullStartY.current == null) return; const d = e.touches[0].clientY - pullStartY.current; setPullDist(d > 0 ? Math.min(90, d * 0.55) : 0); };
+  const onFeedTouchEnd = () => { if (pullDist > 52 && !feedRefreshing) refreshFeed(); setPullDist(0); pullStartY.current = null; };
+
   // --- Nạp feed thật khi đã đăng nhập (Phần 2). Lỗi → giữ mock (fallback). ---
   useEffect(() => {
     if (!authed) return;
@@ -16566,7 +16609,14 @@ export default function RankevApp() {
           position: "relative",
         }}
       >
-        <div ref={scrollContainerRef} onScroll={handleScrollContainer} style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
+        {pullDist > 0 && (
+          <div style={{ position: "absolute", top: 4, left: 0, right: 0, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 20 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 99, background: C.surface, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", transform: `translateY(${Math.max(0, pullDist - 16)}px)`, boxShadow: "0 3px 10px rgba(0,0,0,0.25)" }}>
+              <RefreshCw size={17} color={pullDist > 52 ? C.gold : C.textMuted} style={{ transform: `rotate(${pullDist * 4}deg)`, animation: feedRefreshing ? "spin 0.8s linear infinite" : "none" }} />
+            </div>
+          </div>
+        )}
+        <div ref={scrollContainerRef} onScroll={handleScrollContainer} onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd} style={{ flex: 1, overflowY: "auto", paddingBottom: 8, overscrollBehaviorY: "contain" }}>
           {view === "feed" && (
             <FeedView
               pathUnlocks={pathUnlocks}
@@ -16602,6 +16652,8 @@ export default function RankevApp() {
               onOpenSession={openSessionDetail}
               notifCount={notifCount}
               onOpenNotifications={openNotifications}
+              onRefresh={refreshFeed}
+              refreshing={feedRefreshing}
             />
           )}
           {view === "search" && (
