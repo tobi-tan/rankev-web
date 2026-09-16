@@ -6138,7 +6138,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
     ...(options.length === 2
       ? [{ id: "head_to_head", label: "Đối đầu" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }]
       : []),
-    ...(options.length >= 3 ? [{ id: "podium", label: "Bục vinh danh" }] : []),
+    ...(options.length >= 2 ? [{ id: "podium", label: "Bục vinh danh" }] : []),
     { id: "bar", label: "Cột" },
     { id: "pie", label: "Tròn" },
     { id: "line", label: "Theo thời gian" },
@@ -10689,7 +10689,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
 
   const skins = versus
     ? [{ id: "head_to_head", label: "Đối đầu" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }]
-    : [{ id: "bar", label: "Cột" }, ...(n >= 3 ? [{ id: "podium", label: "Bục" }] : []), { id: "pie", label: "Tròn" }];
+    : [{ id: "bar", label: "Cột" }, { id: "podium", label: "Bục" }, { id: "pie", label: "Tròn" }];
   const active = skins.some((s) => s.id === chartType) ? chartType : skins[0].id;
   useEffect(() => { if (!skins.some((s) => s.id === chartType)) setChartType(skins[0].id); }, [versus, n]); // eslint-disable-line react-hooks/exhaustive-deps
 
