@@ -6083,7 +6083,7 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   );
 }
 
-function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded, onOpenTournament }) {
+function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded, onOpenTournament, bookmarked = false, onToggleBookmark }) {
   const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
   const isClosed = isRankieClosed(rankie);
@@ -6795,13 +6795,15 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         <EngagementBar
           type="rankie"
           joined={!!voted}
-          participants={isUnlimited ? displayTotal : total}
+          participants={total}
           comments={rankie.comments?.length || 0}
           shares={rankie.shares || 0}
           sessionCount={sessions?.length || 0}
           sessionList={sessions || []}
           onOpenSession={onOpenSession}
           onShareClick={() => setShareOpen(true)}
+          bookmarked={bookmarked}
+          onBookmarkClick={onToggleBookmark}
         />
         <div style={{ height: 14 }} />
 
@@ -16721,6 +16723,8 @@ export default function RankevApp() {
                 setView("present");
               }}
               contacts={contacts}
+              bookmarked={!!bookmarks?.[`rankie:${selected.id}`]}
+              onToggleBookmark={() => toggleBookmark(selected)}
             />
             </RankieDetailWithSwipe>
           )}
