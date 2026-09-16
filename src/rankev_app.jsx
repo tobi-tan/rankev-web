@@ -4445,6 +4445,8 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
   const sorted = [...rankie.options].sort((a, b) => b.votes - a.votes);
   const closed = isRankieClosed(rankie);
   const remaining = !closed ? formatRemaining(rankie.closesAt) : null;
+  // Bài HẸN GIỜ chưa tới giờ lên sóng (chủ bài thấy ở Hồ sơ) → nhãn "Sắp đăng".
+  const scheduled = !!(rankie.notYetOpen || (rankie.opensAt && rankie.opensAt > Date.now()));
   // myVoteIds covers every option the viewer picked (multi-select can have several;
   // single/rating/unlimited normally reduce to one). mainVoteId below is the one
   // "representative" pick used to decide which row to swap into the 3rd slot — for
@@ -4486,6 +4488,11 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
         const statusSlot = (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {scheduled ? (
+                <Pill tone="gold">
+                  <Clock size={11} /> Sắp đăng {new Date(rankie.opensAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </Pill>
+              ) : (<>
               {remaining && (
                 <Pill tone="muted">
                   <Clock size={11} /> {remaining}
@@ -4500,6 +4507,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
                   <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE
                 </Pill>
               ) : null}
+              </>)}
             </div>
             {rankie.votingType === "unlimited" && (
               <TapHintPill tone="gold" hint="Không giới hạn">🔥</TapHintPill>
@@ -5930,7 +5938,7 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
     const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
     // Đỏ TRÁI vs xanh PHẢI (khớp ảnh mẫu Kamehameha). Dùng màu option nếu có.
     const RED = a.color || "#E23B3B", BLU = b.color || "#2F6BFF";
-    const hexA = (h, al) => { h = (h || "#5FC9A8").replace("#", ""); return `rgba(${parseInt(h.substr(0, 2), 16)},${parseInt(h.substr(2, 2), 16)},${parseInt(h.substr(4, 2), 16)},${al})`; };
+    const hexA = (h, al) => { if (!/^#?[0-9a-fA-F]{6}$/.test(h || "")) h = "#5FC9A8"; h = h.replace("#", ""); return `rgba(${parseInt(h.substr(0, 2), 16)},${parseInt(h.substr(2, 2), 16)},${parseInt(h.substr(4, 2), 16)},${al})`; };
     // Cảnh nền (đá vụn + mặt đất lởm chởm) tính 1 lần / mỗi kích thước → không giật khung.
     const buildScenery = () => {
       const W = K.W, H = K.H; K.ground = []; let x = -10; const baseY = H - 10;
@@ -6063,7 +6071,8 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   // default to that chart on open even if chartType wasn't explicitly set to it
   // (mirrors the same prioritization used for the feed card).
   const [activeChart, setActiveChart] = useState(
-    options.length === 2 ? "head_to_head" : rankie.chartType
+    // Ưu tiên skin đã lưu (kéo co/kame/bục…); chỉ fallback theo số lựa chọn khi chưa có.
+    rankie.chartType || (options.length === 2 ? "head_to_head" : "bar")
   );
   // Pre-submit local selections for multi-select / rating voting types
   const [multiSelected, setMultiSelected] = useState([]);
@@ -11154,7 +11163,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       image: o.image,
       votes: 0,
       voters: 0,
-      color: [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"][i % 5],
+      // HEX thật (KHÔNG dùng C.teal biến CSS — sẽ lưu "var(--teal)" làm vỡ/crash viz).
+      // Đối đầu = đỏ vs xanh; xếp hạng = palette hex.
+      color: rankieKind === "versus" ? ["#E23B3B", "#2F6BFF"][i % 2] : ["#2E9E7E", "#A9791A", "#CE5238", "#8B7FD1", "#6B4E43", "#5FA8D3"][i % 6],
       // Option "Lưu vào Rankie" — giữ tham chiếu + ảnh chụp preview (hiện ngay trong phiên).
       ...(o.refType ? { refType: o.refType, refId: o.refId, preview: o.preview } : {}),
     }));
@@ -13952,7 +13963,11 @@ function ProfileView({
 }
 
 // ---------- MAP API → SHAPE PROTOTYPE (Phần 2) ----------
-const OPT_FALLBACK = [C.teal, C.gold, C.coral, "#8B7FD1", "#6FB1C7", "#8FBF6A"];
+// PHẢI là HEX thật (viz nối "${color}cc" / parse hex; canvas addColorStop ném lỗi nếu
+// nhận CSS var → crash). KHÔNG dùng C.teal/C.gold (biến CSS) làm màu biểu đồ.
+const OPT_FALLBACK = ["#2E9E7E", "#A9791A", "#CE5238", "#8B7FD1", "#6FB1C7", "#8FBF6A"];
+// Chuẩn hoá màu về HEX; nếu không phải hex hợp lệ (vd "var(--teal)" của bài cũ) → dùng fallback.
+const hexColor = (c, fb) => (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : fb);
 
 function apiAuthorToProto(a) {
   if (!a) return { id: "u_unknown", name: "Ẩn danh", handle: "@unknown", avatarEmoji: "🙂", avatarColor: C.surfaceRaised, followers: 0, verified: false };
@@ -14012,7 +14027,7 @@ function apiSummaryToProto(s) {
   if (s.type === "rankie") {
     const opts = (s.options || []).map((o, i) => ({
       id: "opt" + i, label: o.label || "", emoji: o.emoji || undefined,
-      votes: o.votes || 0, color: o.color || OPT_FALLBACK[i % OPT_FALLBACK.length],
+      votes: o.votes || 0, color: hexColor(o.color, OPT_FALLBACK[i % OPT_FALLBACK.length]),
     }));
     return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: opts.length === 2 ? "head_to_head" : "bar", live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
   }
@@ -14027,7 +14042,7 @@ function apiRankieToProto(r) {
   const opts = (r.options || []).map((o, i) => ({
     id: o.id, label: o.label || "", emoji: o.emoji || undefined, flag: o.flag || undefined,
     image: o.imageUrl || undefined, votes: o.votes || 0, voters: o.voters || 0,
-    color: o.color || OPT_FALLBACK[i % OPT_FALLBACK.length],
+    color: hexColor(o.color, OPT_FALLBACK[i % OPT_FALLBACK.length]),
     // "Lưu vào Rankie": trỏ tới thực thể. preview đầy đủ chỉ có trong phiên tạo; khi nạp lại
     // từ API chỉ còn refType/refId + label (client tự dựng preview tối giản từ label).
     refType: o.refType || undefined, refId: o.refId || undefined,
@@ -16040,22 +16055,21 @@ export default function RankevApp() {
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, toggle: toggleSave, basket: rankieBasket, openRef, openTournament }), [saveToRankie, toggleSave, rankieBasket, openRef, openTournament]);
 
   const handleCreate = (item) => {
-    // HẸN GIỜ: bài rankie có opensAt ở tương lai → KHÔNG hiện ở feed ngay (không "đăng luôn").
-    // Chỉ tạo trên backend + báo toast; bài tự lên sóng đúng giờ (feed backend lọc theo opensAt).
+    // HẸN GIỜ: bài rankie có opensAt tương lai vẫn hiện ngay ở feed/hồ sơ của CHỦ bài
+    // NHƯNG mang nhãn "Sắp đăng" (RankieCard) — người khác KHÔNG thấy (backend feed lọc opensAt),
+    // và không vote được tới giờ. Nhờ vậy chủ bài xem được bài đang chờ đăng.
     const scheduled = item.type === "rankie" && item.opensAt && item.opensAt > Date.now();
-    if (!scheduled) {
-      // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
-      if (item.type === "path") {
-        setUserPaths((prev) => [item, ...prev]);
-      } else if (item.type === "deck") {
-        setUserDecks((prev) => [item, ...prev]);
-      } else {
-        setRankies((prev) => [item, ...prev]);
-      }
-      feedScrollTopRef.current = 0; // bài mới ở đầu feed → về đầu để thấy ngay (không nhảy giữa trang)
+    // Optimistic: hiện ngay bằng item mock (giữ làm fallback nếu API lỗi/offline).
+    if (item.type === "path") {
+      setUserPaths((prev) => [item, ...prev]);
+    } else if (item.type === "deck") {
+      setUserDecks((prev) => [item, ...prev]);
+    } else {
+      setRankies((prev) => [item, ...prev]);
     }
+    feedScrollTopRef.current = 0; // bài mới ở đầu feed → về đầu để thấy ngay (không nhảy giữa trang)
     setView("feed");
-    if (scheduled) showToast("🕒 Đang hẹn giờ đăng…");
+    if (scheduled) showToast(`🕒 Đã hẹn đăng lúc ${new Date(item.opensAt).toLocaleString("vi-VN")} — hiện nhãn "Sắp đăng".`);
 
     // Đăng thật lên backend; thành công thì thay item tạm bằng bản có UUID (_api)
     // để mọi thao tác sau (vote/mở chi tiết/sửa) chạy đúng luồng API.
@@ -16065,10 +16079,6 @@ export default function RankevApp() {
       .then((full) => {
         // Gom bài vào series (chapter) — persist lên backend (cho cả bài hẹn giờ).
         if (item.seriesName) persistSeries(full.id, item.seriesName, item.seriesId);
-        if (scheduled) {
-          showToast(`🕒 Đã hẹn đăng lúc ${new Date(item.opensAt).toLocaleString("vi-VN")} — bài sẽ tự lên sóng.`);
-          return;
-        }
         const real =
           full.type === "path" ? apiPathToProto(full) : full.type === "deck" ? apiDeckToProto(full) : apiRankieToProto(full);
         // Giữ author = currentUser (id="me") để: (1) Hồ sơ hiện bài (lọc theo author.id==="me"),
