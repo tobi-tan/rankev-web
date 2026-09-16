@@ -1085,6 +1085,33 @@ function useLiveRemaining(closesAt) {
   return Math.max(0, closesAt - now);
 }
 
+// Định dạng đồng hồ đếm ngược DÙNG CHUNG toàn app: D HH:MM:SS (bỏ D khi <1 ngày).
+function fmtCountdown(ms) {
+  let s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  const p = (n) => String(n).padStart(2, "0");
+  return d > 0 ? `${d}D ${p(h)}:${p(m)}:${p(ss)}` : `${p(h)}:${p(m)}:${p(ss)}`;
+}
+
+// Đồng hồ đếm ngược DÙNG CHUNG (feed + chi tiết): nền tối cố định, chữ SÁNG mono,
+// icon đồng hồ; đỏ-nhạt khi sắp hết (<5 phút). Thống nhất 1 kiểu trên toàn Rankev.
+function CountdownChip({ toTs, prefix, urgentUnder = 300, style }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!toTs) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv); }, [toTs]);
+  if (!toTs) return null;
+  const ms = Math.max(0, toTs - now);
+  const urgent = Math.floor(ms / 1000) <= urgentUnder;
+  const accent = urgent ? "#FF9B85" : "#FFD98A";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "rgba(18,14,7,0.85)", border: `1px solid ${urgent ? "#FF9B85" : "rgba(255,255,255,0.16)"}`, whiteSpace: "nowrap", ...style }}>
+      <Clock size={12} color={accent} />
+      {prefix && <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: "#F5F1E6" }}>{prefix}</span>}
+      <span style={{ fontFamily: monoFont, fontSize: 12.5, fontWeight: 700, color: urgent ? "#FF9B85" : "#F5F1E6", fontVariantNumeric: "tabular-nums" }}>{fmtCountdown(ms)}</span>
+    </span>
+  );
+}
+
 // Small countdown chip shown in the bottom-right corner of a time-limited Rankie's
 // chart. Numbers only, no unit text. Renders nothing for unlimited rankies.
 function RankieCountdownBox({ closesAt }) {
@@ -1092,12 +1119,7 @@ function RankieCountdownBox({ closesAt }) {
   if (remainMs == null) return null;
   const done = remainMs <= 0;
   const totalSec = Math.floor(remainMs / 1000);
-  const d = Math.floor(totalSec / 86400);
-  const h = Math.floor((totalSec % 86400) / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const pad = (n) => String(n).padStart(2, "0");
-  const text = done ? "00:00" : d > 0 ? `${d}:${pad(h)}:${pad(m)}` : `${pad(h)}:${pad(m)}:${pad(s)}`;
+  const text = done ? "00:00:00" : fmtCountdown(remainMs); // format CHUNG toàn app
   const urgent = !done && totalSec <= 300; // dưới 5 phút
   // Nền chip TỐI cố định → chữ/icon phải SÁNG cố định (light mode C.text tối sẽ chìm).
   const accent = done ? "#B9AE97" : urgent ? "#FF9B85" : "#FFD98A";
@@ -4447,8 +4469,9 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
   const sorted = [...rankie.options].sort((a, b) => b.votes - a.votes);
   const closed = isRankieClosed(rankie);
   const remaining = !closed ? formatRemaining(rankie.closesAt) : null;
-  // Bài HẸN GIỜ chưa tới giờ lên sóng (chủ bài thấy ở Hồ sơ) → nhãn "Sắp đăng".
-  const scheduled = !!(rankie.notYetOpen || (rankie.opensAt && rankie.opensAt > Date.now()));
+  // Bài HẸN GIỜ: CHỈ tính theo giờ hiện tại (KHÔNG dùng cờ notYetOpen của summary — cờ này
+  // chụp lúc fetch nên "kẹt" true kể cả khi đã tới giờ). Đã đóng thì không phải "sắp đăng".
+  const scheduled = !closed && !!(rankie.opensAt && rankie.opensAt > Date.now());
   // myVoteIds covers every option the viewer picked (multi-select can have several;
   // single/rating/unlimited normally reduce to one). mainVoteId below is the one
   // "representative" pick used to decide which row to swap into the 3rd slot — for
@@ -4491,15 +4514,9 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {scheduled ? (
-                <Pill tone="gold">
-                  <Clock size={11} /> Sắp đăng {new Date(rankie.opensAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                </Pill>
+                <CountdownChip toTs={rankie.opensAt} prefix="Sắp đăng" />
               ) : (<>
-              {remaining && (
-                <Pill tone="muted">
-                  <Clock size={11} /> {remaining}
-                </Pill>
-              )}
+              {rankie.closesAt && !closed && <CountdownChip toTs={rankie.closesAt} />}
               {closed ? (
                 <Pill tone="muted">
                   <Lock size={11} /> Đã kết thúc
@@ -6446,8 +6463,8 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             <span style={{ flex: 1 }}>
               🔴 Sắp lên sóng — mở bình chọn lúc {new Date(rankie.opensAt).toLocaleString("vi-VN")}. Bạn có thể xem trước các lựa chọn.
             </span>
-            <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, color: C.gold, whiteSpace: "nowrap" }}>
-              {(() => { let s = Math.floor(openRemainMs / 1000); const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60; const p = (x) => String(x).padStart(2, "0"); return (d > 0 ? `${d}D:` : "") + `${p(h)}:${p(m)}:${p(ss)}`; })()}
+            <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, color: C.gold, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+              {fmtCountdown(openRemainMs)}
             </span>
           </div>
         ) : isClosed ? (
@@ -7199,8 +7216,8 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             )}
           </div>
           <div style={{ position: "absolute", left: 10, bottom: 10, display: "flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}` }}>
-            <Users size={12} color={C.textMuted} />
-            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: C.text }}>{fmt(path.participants)}</span>
+            <Users size={12} color="#B9AE97" />
+            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: "#F5F1E6" }}>{fmt(path.participants)}</span>
           </div>
         </div>
 
