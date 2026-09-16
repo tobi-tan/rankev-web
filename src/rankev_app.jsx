@@ -3115,6 +3115,7 @@ function EditPostModal({ post, onClose, onSave }) {
   const [media, setMedia] = useState(post.media || null);
   const toOpt = (o) => ({ id: isUuid(o.id) ? o.id : undefined, label: o.label || "", emoji: o.emoji || "🔘", image: o.image || o.imageUrl || null, color: o.color });
   const [options, setOptions] = useState(isRankie ? (post.options || []).map(toOpt) : []);
+  const [allowGuestPresent, setAllowGuestPresent] = useState(!!post.allowGuestPresent);
 
   // Rankie THẬT: nạp full để có option id thật (giữ phiếu khi sửa) nếu bản hiện tại là summary.
   useEffect(() => {
@@ -3144,7 +3145,7 @@ function EditPostModal({ post, onClose, onSave }) {
   const delOpt = (i) => setOptions((prev) => (prev.length > 2 ? prev.filter((_, idx) => idx !== i) : prev));
 
   const save = () => {
-    const patch = { title: title.trim() || post.title, caption: caption.trim() || null };
+    const patch = { title: title.trim() || post.title, caption: caption.trim() || null, allowGuestPresent };
     patch.media = media && (media.url || media.emoji || media.color) ? { type: media.type || "image", color: media.color, emoji: media.emoji, url: urlOK(media.url) } : null;
     if (isRankie) {
       const valid = options.filter((o) => (o.label || "").trim() || o.image);
@@ -3211,6 +3212,13 @@ function EditPostModal({ post, onClose, onSave }) {
           Chỉnh sửa câu hỏi/đáp án của {post.type === "path" ? "Path" : "bài Khảo sát/Thi"} sẽ được bổ sung ở bản sau. Hiện có thể sửa tiêu đề, mô tả và ảnh bìa.
         </div>
       )}
+      {/* Quyền cho người khác trình chiếu — sửa được cho bài đã đăng (round-trip lên backend). */}
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
+          <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
+        </button>
+      </div>
       <button
         onClick={save}
         style={{
@@ -14139,7 +14147,7 @@ function apiPathToProto(p) {
   return {
     id: p.id, type: "path", title: p.title,
     subtitle: `${(p.questions || []).length} câu hỏi · ${(p.endings || []).length} kết quả`,
-    category: p.category || "Khác", tags: p.tags || [], mine: false, seriesId: p.seriesId || null, seriesName: p.seriesName || null, author: apiAuthorToProto(p.author),
+    category: p.category || "Khác", tags: p.tags || [], mine: false, allowGuestPresent: !!p.allowGuestPresent, seriesId: p.seriesId || null, seriesName: p.seriesName || null, author: apiAuthorToProto(p.author),
     createdAt: Date.parse(p.createdAt) || Date.now(), caption: p.caption || "", media: p.media || null,
     participants: 0, comments: 0, questions, results, _api: true,
   };
@@ -14208,6 +14216,8 @@ function protoToCreatePayload(item) {
     category: item.category || undefined,
     tags: Array.isArray(item.tags) && item.tags.length ? item.tags : undefined,
     media,
+    // Quyền cho người khác trình chiếu — gửi cho MỌI loại (backend rankie/path/deck đều nhận).
+    allowGuestPresent: !!item.allowGuestPresent,
   };
 
   if (item.type === "path") {
@@ -15747,7 +15757,7 @@ export default function RankevApp() {
     // Optimistic: chỉ áp METADATA (title/caption/media) — options để bản refresh từ API lo
     // (tránh trạng thái trung gian vỡ vì options edit-format thiếu votes).
     const meta = {};
-    ["title", "subtitle", "caption", "category", "media"].forEach((k) => { if (patch[k] !== undefined) meta[k] = patch[k]; });
+    ["title", "subtitle", "caption", "category", "media", "allowGuestPresent"].forEach((k) => { if (patch[k] !== undefined) meta[k] = patch[k]; });
     const applyMeta = (prev) => prev.map((x) => (x.id === post.id ? { ...x, ...meta } : x));
     if (post.type === "rankie") setRankies(applyMeta);
     else if (post.type === "path") setUserPaths(applyMeta);
@@ -15757,7 +15767,7 @@ export default function RankevApp() {
     // Bài THẬT: gửi đầy đủ (kể cả options) → swap bản refresh (options mới + phiếu giữ theo id).
     if (isApiId(post.id)) {
       const body = {};
-      ["title", "subtitle", "caption", "category", "media", "options"].forEach((k) => { if (patch[k] !== undefined) body[k] = patch[k]; });
+      ["title", "subtitle", "caption", "category", "media", "options", "allowGuestPresent"].forEach((k) => { if (patch[k] !== undefined) body[k] = patch[k]; });
       if (Object.keys(body).length) {
         api.posts
           .update(post.id, body)
