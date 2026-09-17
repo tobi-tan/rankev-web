@@ -13026,6 +13026,16 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   const [nameInput, setNameInput] = useState("");
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   const [busy, setBusy] = useState(false);
+  // Composer hợp nhất giống Rankie: khung soạn thảo + thanh icon (media/hashtag/thời gian/trình chiếu).
+  const [showHashtag, setShowHashtag] = useState(false);
+  const [openTool, setOpenTool] = useState(null); // 'time' | null
+  const toolRef = useRef(null);
+  useEffect(() => {
+    if (!openTool) return;
+    const onDown = (e) => { if (toolRef.current && !toolRef.current.contains(e.target)) setOpenTool(null); };
+    document.addEventListener("mousedown", onDown); document.addEventListener("touchstart", onDown);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("touchstart", onDown); };
+  }, [openTool]);
 
   const field = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
   const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 };
@@ -13078,27 +13088,64 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
         <span style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text }}>Tạo giải đấu</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div>
-          <div style={label}>Câu hỏi / Tên giải</div>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="vd: Cầu thủ vĩ đại nhất mọi thời đại?" style={{ ...field, width: "100%" }} />
-        </div>
-
-        <div>
-          <div style={label}>Mô tả (không bắt buộc)</div>
-          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Giới thiệu thể lệ, bối cảnh…" rows={2} style={{ ...field, width: "100%", resize: "vertical" }} />
-        </div>
-
-        <div>
-          <div style={label}>Ảnh bìa (không bắt buộc)</div>
-          {media?.url ? (
-            <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}>
-              <img src={media.url} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "cover", display: "block" }} />
-              <button onClick={() => setMedia(null)} style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={16} /></button>
+        {/* ===== KHUNG SOẠN THẢO HỢP NHẤT (giống Rankie): tên giải + mô tả + ảnh bìa + hashtag ===== */}
+        <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 14px 12px", position: "relative" }}>
+          <textarea
+            rows={1}
+            style={{ width: "100%", border: "none", background: "transparent", outline: "none", resize: "none", color: C.text, fontFamily: displayFont, fontWeight: 600, fontSize: 20, lineHeight: 1.3, padding: 0, display: "block", overflow: "hidden" }}
+            placeholder="VD: Cầu thủ vĩ đại nhất mọi thời đại?"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+          />
+          <div style={{ height: 1, background: C.border, opacity: 0.7, margin: "11px 0" }} />
+          <textarea
+            style={{ width: "100%", border: "none", background: "transparent", outline: "none", resize: "vertical", minHeight: 52, color: C.text, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.5, padding: 0, display: "block" }}
+            placeholder="Mô tả, thể lệ, bối cảnh… (tùy chọn)"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+          />
+          {media?.url && (
+            <div style={{ marginTop: 12, position: "relative" }}>
+              <PostMedia media={media} fit="contain" maxHeight={480} />
+              <button onClick={() => setMedia(null)} title="Xoá ảnh bìa" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center", zIndex: 2 }}><X size={14} /></button>
             </div>
-          ) : (
-            <button onClick={addCover} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px dashed ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}>
-              <ImagePlus size={16} /> Thêm ảnh bìa cho giải
-            </button>
+          )}
+          {showHashtag ? (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+              <HashtagInput tags={tags} onChange={setTags} placeholder="Thêm hashtag: thethao, esports…" />
+            </div>
+          ) : tags.length > 0 && (
+            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {tags.map((t) => (
+                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700 }}>
+                  <Hash size={12} />{t}
+                </span>
+              ))}
+              <button onClick={() => setShowHashtag(true)} title="Sửa hashtag" style={{ padding: "4px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Sửa</button>
+            </div>
+          )}
+        </div>
+
+        {/* Thanh icon (giống Rankie): ảnh bìa · hashtag · thời gian mỗi vòng · trình chiếu */}
+        <div ref={toolRef}>
+          {(() => {
+            const btn = (id, active) => ({ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, border: "none", background: openTool === id ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted });
+            return (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: openTool ? 6 : 4, alignItems: "center" }}>
+                <button onClick={() => { setOpenTool(null); addCover(); }} title="Ảnh bìa" style={btn("media", !!media)}><ImagePlus size={20} /></button>
+                <button onClick={() => { setShowHashtag((v) => !v); setOpenTool(null); }} title="Hashtag" style={btn("hashtag", tags.length > 0 || showHashtag)}><Hash size={20} /></button>
+                <button onClick={() => setOpenTool(openTool === "time" ? null : "time")} title="Thời gian mỗi vòng" style={btn("time", closingTime != null)}><Clock size={20} /></button>
+                <button onClick={() => { setOpenTool(null); setAllowGuestPresent((v) => !v); }} title={allowGuestPresent ? "Đang cho người khác trình chiếu" : "Không cho người khác trình chiếu"} style={btn("present", allowGuestPresent)}><Monitor size={20} /></button>
+              </div>
+            );
+          })()}
+          {/* Thời gian mỗi vòng — mở inline dưới thanh icon (tránh tràn mép trên mobile) */}
+          {openTool === "time" && (
+            <div style={{ marginTop: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+              <div style={{ ...label, marginBottom: 8 }}>Thời gian bình chọn mỗi vòng</div>
+              <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
+            </div>
           )}
         </div>
 
@@ -13179,25 +13226,6 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
             })}
           </div>
         </div>
-
-        <div>
-          <div style={label}>Hashtag</div>
-          <HashtagInput tags={tags} onChange={setTags} placeholder="Ví dụ: thethao, esports…" />
-        </div>
-
-        <div>
-          <div style={label}>Thời gian bình chọn mỗi vòng</div>
-          <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
-        </div>
-
-        <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}>
-            <Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu
-          </span>
-          <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}>
-            <span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} />
-          </span>
-        </button>
 
         <button onClick={create} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: (!canCreate || busy) ? 0.6 : 1 }}>{busy ? "Đang tạo…" : "Tạo giải đấu"}</button>
         {!canCreate && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center" }}>Cần có tên giải và ít nhất 2 đấu thủ.</div>}
