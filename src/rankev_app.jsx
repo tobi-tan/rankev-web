@@ -10794,13 +10794,31 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
   );
 }
 
-function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament, onBack }) {
+// ---- BẢN NHÁP (NHIỀU BẢN) — kho dùng chung cho mọi loại tạo mới (rankie/path/deck/exam/tournament) ----
+// Lưu 1 mảng draft trong localStorage; mỗi draft có id riêng nên giữ được nhiều bản cùng lúc.
+const DRAFTS_KEY = "rankev_drafts";
+function newDraftId() { return "d_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7); }
+function loadDrafts() {
+  try { const a = JSON.parse(localStorage.getItem(DRAFTS_KEY) || "[]"); return Array.isArray(a) ? a.filter((d) => d && d.id) : []; } catch { return []; }
+}
+function persistDrafts(list) { try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(list.slice(0, 50))); } catch {} }
+function upsertDraft(draft) {
+  const list = loadDrafts().filter((d) => d.id !== draft.id);
+  list.unshift(draft);
+  list.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  persistDrafts(list);
+}
+function deleteDraft(id) { persistDrafts(loadDrafts().filter((d) => d.id !== id)); }
+const DRAFT_TYPE_LABEL = { rankie: "Rankie", path: "Path", deck: "Survey", exam: "Exam", tournament: "Giải đấu" };
+
+function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStartTournament, onResumeTournamentDraft, onBack }) {
   // Chế độ SỬA: nạp sẵn cấu trúc cũ (reverse-map). editItem chỉ dùng cho path/deck
   // (rankie sửa qua EditPostModal). emit() gọi onUpdate khi sửa, onCreate khi tạo.
   const editing = !!editItem;
   const pb = editing && editItem.type === "path" ? protoPathToBuilder(editItem) : null;
   const dk = editing && editItem.type === "deck" ? protoDeckToBuilder(editItem) : null;
-  const emit = editing ? (item) => onUpdate?.({ ...item, id: editItem.id }) : onCreate;
+  // Đăng thật → xoá bản nháp tương ứng (draftId là id phiên soạn hiện tại).
+  const emit = editing ? (item) => onUpdate?.({ ...item, id: editItem.id }) : (item) => { try { deleteDraft(draftId); } catch {} onCreate?.(item); };
   const rk = useRankieSave(); // giỏ "Lưu vào Rankie" để thêm bài/user/comment làm lựa chọn
   // rankie | path | deck(survey) | exam. Deck exam → "exam"; survey → "deck".
   const initContentType = editing
@@ -11260,20 +11278,12 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   };
 
   // ---- Bản nháp Rankie (localStorage) ----
-  const DRAFT_KEY = "rankev_draft_rankie";
   const [draftRestored, setDraftRestored] = useState(false);
   const [savedToast, setSavedToast] = useState(false); // "Đã lưu bản nháp" trên màn landing
-  const [draftTick, setDraftTick] = useState(0); // ép đọc lại nháp sau khi lưu/xoá
-  const readDraft = () => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return null;
-      const d = JSON.parse(raw);
-      if (!d || (!(d.title || "").trim() && !(d.opts || []).some((o) => (o.label || "").trim()))) return null;
-      return d;
-    } catch { return null; }
-  };
+  const [draftTick, setDraftTick] = useState(0); // ép đọc lại danh sách nháp sau khi lưu/xoá
+  const [draftId, setDraftId] = useState(() => newDraftId()); // id bản nháp của phiên soạn hiện tại
   const resetRankieForm = () => {
+    setDraftId(newDraftId()); // phiên mới → id nháp mới (không đè nháp cũ)
     setTitle(""); setCaption(""); setOpts([{ label: "", emoji: null, image: null }, { label: "", emoji: null, image: null }]);
     setTags([]); setVotingType("single"); setAudience("public"); setClosingTime(null); setOpenAtLocal("");
     setVoteMarker(null); setMedia(null); setAllowGuestPresent(false); setSeriesInput(""); setSelectedSeriesId(null);
@@ -11326,30 +11336,37 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   };
   const saveDraft = () => {
     try {
-      const draft = { contentType, title, caption, opts, tags, votingType, chartType, rankieKind, audience, closingTime, openAtLocal, voteMarker, media, allowGuestPresent, seriesInput,
-        // Cấu trúc riêng của Path/Survey/Exam để khôi phục đúng bài (không chỉ rankie).
-        pathEndings, pathQuestions, hidePathEndingCount, pathRevealMode,
-        deckMode, deckAnswerMode, examPassingScore, examDurationUnlimited, examDurationValue, examDurationUnit, deckQuestions,
-        savedAt: Date.now() };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      const hasContent = (title || "").trim() || opts.some((o) => (o.label || "").trim())
+        || pathQuestions.some((q) => (q.text || "").trim()) || deckQuestions.some((q) => (q.text || "").trim());
       setHeaderMenuOpen(false);
       if (editing) { onBack?.(); return; }
-      resetRankieForm(); setBuilding(false); setSavedToast(true); setDraftTick((t) => t + 1);
+      if (hasContent) {
+        upsertDraft({ id: draftId, contentType, title, caption, opts, tags, votingType, chartType, rankieKind, audience, closingTime, openAtLocal, voteMarker, media, allowGuestPresent, seriesInput,
+          // Cấu trúc riêng của Path/Survey/Exam để khôi phục đúng bài (không chỉ rankie).
+          pathEndings, pathQuestions, hidePathEndingCount, pathRevealMode,
+          deckMode, deckAnswerMode, examPassingScore, examDurationUnlimited, examDurationValue, examDurationUnit, deckQuestions,
+          savedAt: Date.now() });
+        setSavedToast(true);
+      }
+      resetRankieForm(); setBuilding(false); setDraftTick((t) => t + 1);
     } catch { alert("Không lưu được bản nháp."); }
   };
   const discardCreate = () => {
+    // Hủy tạo = bỏ phiên soạn hiện tại (KHÔNG xoá các bản nháp đã lưu trước đó).
     setHeaderMenuOpen(false);
     if (editing) { onBack?.(); return; }
     resetRankieForm(); setBuilding(false);
   };
-  const resumeDraft = () => {
-    const d = readDraft(); if (!d) return;
+  const resumeDraft = (d) => {
+    if (!d) return;
     setContentType(d.contentType || "rankie"); // khôi phục đúng loại (rankie/path/deck/exam)
+    setDraftId(d.id);
     applyDraft(d);
     setDraftRestored(true); setSavedToast(false);
     setBuilding(true);
   };
-  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} setDraftRestored(false); setDraftTick((t) => t + 1); };
+  // "Bỏ nháp" trên banner khi đang soạn: xoá đúng bản nháp hiện tại khỏi kho.
+  const clearDraft = () => { deleteDraft(draftId); setDraftRestored(false); setDraftTick((t) => t + 1); };
   useEffect(() => { if (!savedToast) return; const id = setTimeout(() => setSavedToast(false), 3500); return () => clearTimeout(id); }, [savedToast]);
 
   const field = { marginBottom: 20 };
@@ -11414,8 +11431,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Trang đệm: khi TẠO MỚI, xem giới thiệu + demo các biến thể của loại đang chọn trước
   // khi vào trình tạo thật. Sửa bài (editing) thì vào thẳng builder.
   if (!editing && !building) {
-    void draftTick; // đọc lại nháp sau khi lưu/xoá
-    const landingDraft = readDraft(); // hiện thẻ nháp ở mọi tab để dễ tìm lại
+    void draftTick; // đọc lại danh sách nháp sau khi lưu/xoá
+    const drafts = loadDrafts(); // TẤT CẢ bản nháp (mọi loại), mới nhất trước
     return (
       <div style={{ padding: 16 }}>
         {contentTabs}
@@ -11425,15 +11442,22 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>Đã lưu bản nháp</span>
           </div>
         )}
-        {landingDraft && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-            <span style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Save size={18} color={C.gold} /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>BẢN NHÁP{landingDraft.contentType && landingDraft.contentType !== "rankie" ? ` · ${({ path: "Path", deck: "Survey", exam: "Exam" })[landingDraft.contentType] || ""}` : ""}</div>
-              <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: C.text, ...ellip }}>{(landingDraft.title || "").trim() || "Chưa có tiêu đề"}</div>
+        {drafts.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3, marginBottom: 8 }}>BẢN NHÁP ({drafts.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {drafts.map((d) => (
+                <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}` }}>
+                  <span style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Save size={18} color={C.gold} /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>{DRAFT_TYPE_LABEL[d.contentType] || "Rankie"}</div>
+                    <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: C.text, ...ellip }}>{(d.title || "").trim() || "Chưa có tiêu đề"}</div>
+                  </div>
+                  <button onClick={() => (d.contentType === "tournament" ? onResumeTournamentDraft?.(d) : resumeDraft(d))} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tiếp tục</button>
+                  <button onClick={() => { deleteDraft(d.id); setDraftTick((t) => t + 1); }} title="Xoá nháp" style={{ flexShrink: 0, background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center", padding: 4 }}><Trash2 size={16} /></button>
+                </div>
+              ))}
             </div>
-            <button onClick={resumeDraft} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tiếp tục</button>
-            <button onClick={clearDraft} title="Xoá nháp" style={{ flexShrink: 0, background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center", padding: 4 }}><Trash2 size={16} /></button>
           </div>
         )}
         <CreateTypeLanding
@@ -13035,7 +13059,7 @@ function pickImageUpload(apply, kind = "image", fallbackSvg = null) {
   input.click();
 }
 
-function CreateTournamentView({ initialContestants = [], onCreate, onBack, showToast }) {
+function CreateTournamentView({ initialContestants = [], initialDraft = null, onCreate, onBack, showToast }) {
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState(Object.values(CATEGORY_NAMES)[0]);
@@ -13070,46 +13094,39 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   // Menu ⋮ (giống Rankie): Hủy tạo / Thêm vào bản nháp.
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const headerMenuRef = useRef(null);
-  // Bản nháp giải đấu (tự chứa, khôi phục khi mở lại trang tạo giải).
-  const DRAFT_KEY = "rankev_draft_tournament";
-  const [draftRestored, setDraftRestored] = useState(false);
+  // Bản nháp giải đấu — dùng chung kho nhiều-bản với CreateView. Khôi phục khi mở từ 1 nháp cụ thể.
+  const [draftId] = useState(() => initialDraft?.id || newDraftId());
+  const [draftRestored, setDraftRestored] = useState(!!initialDraft);
   useEffect(() => {
-    // Ưu tiên đấu thủ truyền vào (từ giỏ); nếu không có mới hỏi khôi phục nháp.
-    if (initialContestants.length) return;
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (!d || (!(d.title || "").trim() && !(d.contestants || []).length)) return;
-      if (d.title != null) setTitle(d.title);
-      if (d.caption != null) setCaption(d.caption);
-      if (Array.isArray(d.tags)) setTags(d.tags);
-      if (d.media !== undefined) setMedia(d.media);
-      if (d.closingTime !== undefined) {
-        setClosingTime(d.closingTime);
-        if (typeof d.closingTime === "number") {
-          const total = Math.round(d.closingTime * 60), H = Math.floor(total / 60), M = total % 60;
-          setDurationInput(`${H}:${String(M).padStart(2, "0")}`); setTimeInline(true);
-        }
+    const d = initialDraft;
+    if (!d) return;
+    if (d.title != null) setTitle(d.title);
+    if (d.caption != null) setCaption(d.caption);
+    if (Array.isArray(d.tags)) setTags(d.tags);
+    if (d.media !== undefined) setMedia(d.media);
+    if (d.closingTime !== undefined) {
+      setClosingTime(d.closingTime);
+      if (typeof d.closingTime === "number") {
+        const total = Math.round(d.closingTime * 60), H = Math.floor(total / 60), M = total % 60;
+        setDurationInput(`${H}:${String(M).padStart(2, "0")}`); setTimeInline(true);
       }
-      if (typeof d.allowGuestPresent === "boolean") setAllowGuestPresent(d.allowGuestPresent);
-      if (d.advanceMode) setAdvanceMode(d.advanceMode);
-      if (Array.isArray(d.contestants)) setContestants(d.contestants);
-      setDraftRestored(true);
-    } catch { /* bỏ qua nháp hỏng */ }
+    }
+    if (typeof d.allowGuestPresent === "boolean") setAllowGuestPresent(d.allowGuestPresent);
+    if (d.advanceMode) setAdvanceMode(d.advanceMode);
+    if (Array.isArray(d.contestants)) setContestants(d.contestants);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const saveDraft = () => {
-    try {
-      const draft = { title, caption, tags, media, closingTime, allowGuestPresent, advanceMode, contestants, savedAt: Date.now() };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-      setHeaderMenuOpen(false);
+    setHeaderMenuOpen(false);
+    const hasContent = (title || "").trim() || contestants.length > 0;
+    if (hasContent) {
+      upsertDraft({ id: draftId, contentType: "tournament", title, caption, tags, media, closingTime, allowGuestPresent, advanceMode, contestants, savedAt: Date.now() });
       showToast?.("Đã lưu bản nháp giải đấu");
-      onBack?.();
-    } catch { showToast?.("Không lưu được bản nháp."); }
+    }
+    onBack?.();
   };
-  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} setDraftRestored(false); };
-  const discardCreate = () => { setHeaderMenuOpen(false); clearDraft(); onBack?.(); };
+  const clearDraft = () => { deleteDraft(draftId); setDraftRestored(false); };
+  const discardCreate = () => { setHeaderMenuOpen(false); onBack?.(); };
   useEffect(() => {
     if (!openTool && !showHashtag && !headerMenuOpen && !timeInline) return;
     const onDown = (e) => {
@@ -13161,7 +13178,7 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
       allowGuestPresent,
       advanceMode,
       contestants: contestants.map((c) => ({ name: c.name, emoji: c.emoji || undefined, color: c.color || undefined, imageUrl: urlOK(c.image), refType: c.refType || undefined, refId: c.refId || undefined })),
-    }).then((t) => onCreate?.(t)).catch((e) => { setBusy(false); showToast?.(e?.message || "Tạo giải đấu thất bại"); });
+    }).then((t) => { try { deleteDraft(draftId); } catch {} onCreate?.(t); }).catch((e) => { setBusy(false); showToast?.(e?.message || "Tạo giải đấu thất bại"); });
   };
 
   return (
@@ -16258,8 +16275,16 @@ export default function RankevApp() {
     setView("tournament");
     loadTournamentFeed(); // giải mới sẽ hiện trên feed
   }, [loadTournamentFeed]);
+  const [tournamentDraft, setTournamentDraft] = useState(null); // bản nháp giải đấu đang khôi phục
   const startCreateTournament = useCallback((seed = []) => {
+    setTournamentDraft(null);
     setCreateTournamentSeed(seed);
+    setBasketOpen(false);
+    setView("createTournament");
+  }, []);
+  const resumeTournamentDraft = useCallback((draft) => {
+    setCreateTournamentSeed([]);
+    setTournamentDraft(draft);
     setBasketOpen(false);
     setView("createTournament");
   }, []);
@@ -17025,7 +17050,7 @@ export default function RankevApp() {
           {view === "livePresent" && selectedDeck && (
             <LivePresenterView deck={selectedDeck} onBack={() => setView("deckDetail")} onSessionEnd={(session) => saveDeckSession(session)} />
           )}
-          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} onStartTournament={startCreateTournament} onBack={() => setView("feed")} />}
+          {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} onStartTournament={startCreateTournament} onResumeTournamentDraft={resumeTournamentDraft} onBack={() => setView("feed")} />}
           {view === "profile" && (
             <ProfileView
               pathUnlocks={pathUnlocks}
@@ -17163,9 +17188,11 @@ export default function RankevApp() {
           )}
           {view === "createTournament" && (
             <CreateTournamentView
+              key={tournamentDraft?.id || "new"}
               initialContestants={createTournamentSeed}
-              onCreate={(t) => openTournament(t.id)}
-              onBack={() => setView("create")}
+              initialDraft={tournamentDraft}
+              onCreate={(t) => { setTournamentDraft(null); openTournament(t.id); }}
+              onBack={() => { setTournamentDraft(null); setView("create"); }}
               showToast={showToast}
             />
           )}
