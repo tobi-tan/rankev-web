@@ -11278,6 +11278,16 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     setTags([]); setVotingType("single"); setAudience("public"); setClosingTime(null); setOpenAtLocal("");
     setVoteMarker(null); setMedia(null); setAllowGuestPresent(false); setSeriesInput(""); setSelectedSeriesId(null);
     setTimeInline(false); setDurationInput(""); setShowHashtag(false); setOpenTool(null); setEmojiPickerFor(null);
+    // Đặt lại cả cấu trúc Path/Survey/Exam về mặc định (để "Hủy tạo" xoá sạch mọi loại).
+    setPathEndings([{ id: "e1", name: "", emoji: "🎯", image: null }, { id: "e2", name: "", emoji: "🌟", image: null }]);
+    setPathQuestions([{ id: "q1", text: "", answers: [
+      { id: "a1", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e1" } },
+      { id: "a2", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e2" } },
+    ] }]);
+    setHidePathEndingCount(false); setPathRevealMode("hidden");
+    setDeckMode("survey"); setDeckAnswerMode("step"); setExamPassingScore(5);
+    setExamDurationUnlimited(false); setExamDurationValue(10); setExamDurationUnit("phut");
+    setDeckQuestions([{ text: "", votingType: "single", points: 1, pointsLocked: false, options: [{ label: "", correct: false }, { label: "", correct: false }] }]);
     setDraftRestored(false);
   };
   const applyDraft = (d) => {
@@ -11301,10 +11311,26 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     if (d.media !== undefined) setMedia(d.media);
     if (typeof d.allowGuestPresent === "boolean") setAllowGuestPresent(d.allowGuestPresent);
     if (d.seriesInput != null) setSeriesInput(d.seriesInput);
+    // Cấu trúc Path/Survey/Exam.
+    if (Array.isArray(d.pathEndings)) setPathEndings(d.pathEndings);
+    if (Array.isArray(d.pathQuestions)) setPathQuestions(d.pathQuestions);
+    if (typeof d.hidePathEndingCount === "boolean") setHidePathEndingCount(d.hidePathEndingCount);
+    if (d.pathRevealMode) setPathRevealMode(d.pathRevealMode);
+    if (d.deckMode) setDeckMode(d.deckMode);
+    if (d.deckAnswerMode) setDeckAnswerMode(d.deckAnswerMode);
+    if (d.examPassingScore != null) setExamPassingScore(d.examPassingScore);
+    if (typeof d.examDurationUnlimited === "boolean") setExamDurationUnlimited(d.examDurationUnlimited);
+    if (d.examDurationValue != null) setExamDurationValue(d.examDurationValue);
+    if (d.examDurationUnit) setExamDurationUnit(d.examDurationUnit);
+    if (Array.isArray(d.deckQuestions)) setDeckQuestions(d.deckQuestions);
   };
   const saveDraft = () => {
     try {
-      const draft = { title, caption, opts, tags, votingType, chartType, rankieKind, audience, closingTime, openAtLocal, voteMarker, media, allowGuestPresent, seriesInput, savedAt: Date.now() };
+      const draft = { contentType, title, caption, opts, tags, votingType, chartType, rankieKind, audience, closingTime, openAtLocal, voteMarker, media, allowGuestPresent, seriesInput,
+        // Cấu trúc riêng của Path/Survey/Exam để khôi phục đúng bài (không chỉ rankie).
+        pathEndings, pathQuestions, hidePathEndingCount, pathRevealMode,
+        deckMode, deckAnswerMode, examPassingScore, examDurationUnlimited, examDurationValue, examDurationUnit, deckQuestions,
+        savedAt: Date.now() };
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       setHeaderMenuOpen(false);
       if (editing) { onBack?.(); return; }
@@ -11318,7 +11344,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   };
   const resumeDraft = () => {
     const d = readDraft(); if (!d) return;
-    setContentType("rankie"); // nháp là rankie → chuyển đúng loại rồi mở builder
+    setContentType(d.contentType || "rankie"); // khôi phục đúng loại (rankie/path/deck/exam)
     applyDraft(d);
     setDraftRestored(true); setSavedToast(false);
     setBuilding(true);
@@ -11403,8 +11429,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}`, marginBottom: 14 }}>
             <span style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Save size={18} color={C.gold} /></span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>BẢN NHÁP</div>
-              <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: C.text, ...ellip }}>{(landingDraft.title || "").trim() || "Rankie chưa có tiêu đề"}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>BẢN NHÁP{landingDraft.contentType && landingDraft.contentType !== "rankie" ? ` · ${({ path: "Path", deck: "Survey", exam: "Exam" })[landingDraft.contentType] || ""}` : ""}</div>
+              <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: C.text, ...ellip }}>{(landingDraft.title || "").trim() || "Chưa có tiêu đề"}</div>
             </div>
             <button onClick={resumeDraft} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tiếp tục</button>
             <button onClick={clearDraft} title="Xoá nháp" style={{ flexShrink: 0, background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center", padding: 4 }}><Trash2 size={16} /></button>
@@ -11434,7 +11460,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         <span style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text }}>
           {editing ? "Chỉnh sửa" : contentType === "rankie" ? (rankieKind === "versus" ? "Tạo đối đầu" : "Tạo xếp hạng") : `Tạo ${({ path: "Path", deck: "Survey", exam: "Exam" })[contentType] || "bài đăng"}`}
         </span>
-        {contentType === "rankie" && (
+        {(
           <div ref={headerMenuRef} style={{ marginLeft: "auto", position: "relative" }}>
             <button onClick={() => setHeaderMenuOpen((v) => !v)} aria-label="Tùy chọn" title="Tùy chọn" style={{ background: headerMenuOpen ? C.goldSoft : "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 6, borderRadius: 8 }}>
               <MoreVertical size={20} />
@@ -11456,7 +11482,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
         {/* ===== KHUNG SOẠN THẢO HỢP NHẤT + THANH ICON — DÙNG CHO MỌI LOẠI ===== */}
         <>
-        {contentType === "rankie" && draftRestored && (
+        {draftRestored && (
           <div style={{ ...field, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
             <Save size={15} color={C.gold} />
             <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp</span>
@@ -13028,14 +13054,73 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
   const [busy, setBusy] = useState(false);
   // Composer hợp nhất giống Rankie: khung soạn thảo + thanh icon (media/hashtag/thời gian/trình chiếu).
   const [showHashtag, setShowHashtag] = useState(false);
-  const [openTool, setOpenTool] = useState(null); // 'time' | null
+  const [openTool, setOpenTool] = useState(null); // 'present' | null (thời gian dùng ô inline riêng)
   const toolRef = useRef(null);
+  const hashtagRef = useRef(null);
+  // Thời gian mỗi vòng: ô nhập giờ điện tử HH:MM (giống Rankie). closingTime = số giờ | null.
+  const [timeInline, setTimeInline] = useState(false);
+  const [durationInput, setDurationInput] = useState("");
+  const parseDurationToHours = (str) => {
+    const m = String(str).trim().match(/^(\d{1,4}):?(\d{0,2})$/);
+    if (!m) return null;
+    const h = parseInt(m[1] || "0", 10); const mm = m[2] ? parseInt(m[2], 10) : 0;
+    if (Number.isNaN(h) || Number.isNaN(mm) || mm > 59) return null;
+    const total = h + mm / 60; return total > 0 ? total : null;
+  };
+  // Menu ⋮ (giống Rankie): Hủy tạo / Thêm vào bản nháp.
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef(null);
+  // Bản nháp giải đấu (tự chứa, khôi phục khi mở lại trang tạo giải).
+  const DRAFT_KEY = "rankev_draft_tournament";
+  const [draftRestored, setDraftRestored] = useState(false);
   useEffect(() => {
-    if (!openTool) return;
-    const onDown = (e) => { if (toolRef.current && !toolRef.current.contains(e.target)) setOpenTool(null); };
+    // Ưu tiên đấu thủ truyền vào (từ giỏ); nếu không có mới hỏi khôi phục nháp.
+    if (initialContestants.length) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d || (!(d.title || "").trim() && !(d.contestants || []).length)) return;
+      if (d.title != null) setTitle(d.title);
+      if (d.caption != null) setCaption(d.caption);
+      if (Array.isArray(d.tags)) setTags(d.tags);
+      if (d.media !== undefined) setMedia(d.media);
+      if (d.closingTime !== undefined) {
+        setClosingTime(d.closingTime);
+        if (typeof d.closingTime === "number") {
+          const total = Math.round(d.closingTime * 60), H = Math.floor(total / 60), M = total % 60;
+          setDurationInput(`${H}:${String(M).padStart(2, "0")}`); setTimeInline(true);
+        }
+      }
+      if (typeof d.allowGuestPresent === "boolean") setAllowGuestPresent(d.allowGuestPresent);
+      if (d.advanceMode) setAdvanceMode(d.advanceMode);
+      if (Array.isArray(d.contestants)) setContestants(d.contestants);
+      setDraftRestored(true);
+    } catch { /* bỏ qua nháp hỏng */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const saveDraft = () => {
+    try {
+      const draft = { title, caption, tags, media, closingTime, allowGuestPresent, advanceMode, contestants, savedAt: Date.now() };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setHeaderMenuOpen(false);
+      showToast?.("Đã lưu bản nháp giải đấu");
+      onBack?.();
+    } catch { showToast?.("Không lưu được bản nháp."); }
+  };
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} setDraftRestored(false); };
+  const discardCreate = () => { setHeaderMenuOpen(false); clearDraft(); onBack?.(); };
+  useEffect(() => {
+    if (!openTool && !showHashtag && !headerMenuOpen && !timeInline) return;
+    const onDown = (e) => {
+      if (openTool && toolRef.current && !toolRef.current.contains(e.target)) setOpenTool(null);
+      if (timeInline && toolRef.current && !toolRef.current.contains(e.target)) setTimeInline(false);
+      if (showHashtag && hashtagRef.current && !hashtagRef.current.contains(e.target) && !e.target.closest?.('[title="Hashtag"]')) setShowHashtag(false);
+      if (headerMenuOpen && headerMenuRef.current && !headerMenuRef.current.contains(e.target)) setHeaderMenuOpen(false);
+    };
     document.addEventListener("mousedown", onDown); document.addEventListener("touchstart", onDown);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("touchstart", onDown); };
-  }, [openTool]);
+  }, [openTool, showHashtag, headerMenuOpen, timeInline]);
 
   const field = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
   const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 };
@@ -13086,8 +13171,30 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
           <ChevronLeft size={22} />
         </button>
         <span style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text }}>Tạo giải đấu</span>
+        <div ref={headerMenuRef} style={{ marginLeft: "auto", position: "relative" }}>
+          <button onClick={() => setHeaderMenuOpen((v) => !v)} aria-label="Tùy chọn" title="Tùy chọn" style={{ background: headerMenuOpen ? C.goldSoft : "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 6, borderRadius: 8 }}>
+            <MoreVertical size={20} />
+          </button>
+          {headerMenuOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 30, minWidth: 180, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+              <button onClick={saveDraft} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", background: "none", border: "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, textAlign: "left" }}>
+                <Save size={16} color={C.textMuted} /> Thêm vào bản nháp
+              </button>
+              <button onClick={discardCreate} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "12px 14px", background: "none", border: "none", borderTop: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.coral, textAlign: "left" }}>
+                <Trash2 size={16} /> Hủy tạo
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {draftRestored && (
+          <div style={{ ...field, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
+            <Save size={15} color={C.gold} />
+            <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp giải đấu</span>
+            <button onClick={clearDraft} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Bỏ nháp</button>
+          </div>
+        )}
         {/* ===== KHUNG SOẠN THẢO HỢP NHẤT (giống Rankie): tên giải + mô tả + ảnh bìa + hashtag ===== */}
         <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 14px 12px", position: "relative" }}>
           <textarea
@@ -13112,8 +13219,9 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
             </div>
           )}
           {showHashtag ? (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+            <div ref={hashtagRef} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
               <HashtagInput tags={tags} onChange={setTags} placeholder="Thêm hashtag: thethao, esports…" />
+              <button onClick={() => setShowHashtag(false)} style={{ marginTop: 8, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Xong</button>
             </div>
           ) : tags.length > 0 && (
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -13135,16 +13243,43 @@ function CreateTournamentView({ initialContestants = [], onCreate, onBack, showT
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: openTool ? 6 : 4, alignItems: "center" }}>
                 <button onClick={() => { setOpenTool(null); addCover(); }} title="Ảnh bìa" style={btn("media", !!media)}><ImagePlus size={20} /></button>
                 <button onClick={() => { setShowHashtag((v) => !v); setOpenTool(null); }} title="Hashtag" style={btn("hashtag", tags.length > 0 || showHashtag)}><Hash size={20} /></button>
-                <button onClick={() => setOpenTool(openTool === "time" ? null : "time")} title="Thời gian mỗi vòng" style={btn("time", closingTime != null)}><Clock size={20} /></button>
-                <button onClick={() => { setOpenTool(null); setAllowGuestPresent((v) => !v); }} title={allowGuestPresent ? "Đang cho người khác trình chiếu" : "Không cho người khác trình chiếu"} style={btn("present", allowGuestPresent)}><Monitor size={20} /></button>
+                {/* Thời gian mỗi vòng: ô nhập giờ điện tử HH:MM (giống Rankie) */}
+                {timeInline ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", borderRadius: 10, border: `1px solid ${C.gold}`, background: C.goldSoft }}>
+                    <Clock size={16} color={C.gold} />
+                    <input
+                      autoFocus
+                      value={durationInput}
+                      onChange={(e) => {
+                        const d = e.target.value.replace(/\D/g, "").slice(0, 4);
+                        const disp = d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`;
+                        setDurationInput(disp);
+                        const h = parseDurationToHours(disp); setClosingTime(h ? h : null);
+                      }}
+                      onBlur={() => setTimeInline(false)}
+                      placeholder="24:30"
+                      inputMode="numeric"
+                      style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 15, fontWeight: 700, padding: 0 }}
+                    />
+                  </div>
+                ) : (
+                  <button onClick={() => { setTimeInline(true); setOpenTool(null); }} title="Thời gian mỗi vòng" style={btn("time", closingTime != null)}><Clock size={19} /></button>
+                )}
+                <button onClick={() => setOpenTool(openTool === "present" ? null : "present")} title={allowGuestPresent ? "Cho phép trình chiếu (đang bật)" : "Trình chiếu đang tắt"} style={{ ...btn("present", false), color: allowGuestPresent ? C.gold : C.coral }}>{allowGuestPresent ? <Monitor size={20} /> : <MonitorOff size={20} />}</button>
               </div>
             );
           })()}
-          {/* Thời gian mỗi vòng — mở inline dưới thanh icon (tránh tràn mép trên mobile) */}
-          {openTool === "time" && (
-            <div style={{ marginTop: 8, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-              <div style={{ ...label, marginBottom: 8 }}>Thời gian bình chọn mỗi vòng</div>
-              <ClosingTimePicker value={closingTime} onChange={setClosingTime} />
+          {timeInline && (
+            <div style={{ marginTop: -8, marginBottom: 4, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
+              Thời lượng bình chọn mỗi vòng (giờ:phút). Bỏ trống = không giới hạn.
+            </div>
+          )}
+          {openTool === "present" && (
+            <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+              <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
+                <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
+              </button>
             </div>
           )}
         </div>
