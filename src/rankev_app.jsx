@@ -4736,9 +4736,90 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
   );
 }
 
-function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
+// Carousel Series trên feed: vuốt ngang qua từng chapter (kiểu bài nhiều ảnh của Instagram).
+// Dùng scroll-snap gốc của trình duyệt → mượt, không cần bắt cử chỉ tay thủ công; chấm tròn
+// (dots) đồng bộ vị trí. Giới hạn maxInline chapter render sẵn; quá số đó → slide cuối mời vào
+// chi tiết series (tránh nặng khi series quá dài — đúng phương án dự phòng).
+function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, maxInline = 6 }) {
+  const [idx, setIdx] = useState(0);
+  const ref = useRef(null);
+  const slides = chapters.slice(0, maxInline);
+  const hasMore = chapters.length > maxInline;
+  const total = chapters.length;
+  const onScroll = () => {
+    const el = ref.current; if (!el) return;
+    const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
+    setIdx((prev) => (i !== prev ? i : prev));
+  };
+  const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
+  const dot = (active) => ({ width: active ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: active ? C.gold : C.border, transition: "width .2s, background .2s" });
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}>
+          <Library size={12} /> {seriesName || "Series"} · {total} phần
+        </span>
+        <span style={{ marginLeft: "auto", fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: C.textFaint }}>{Math.min(idx + 1, total)}/{total}</span>
+      </div>
+      <div
+        ref={ref}
+        onScroll={onScroll}
+        style={{ display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {slides.map((ch) => (
+          <div key={ch.id} style={{ flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
+            {renderCard(ch)}
+          </div>
+        ))}
+        {hasMore && (
+          <div style={{ flex: "0 0 100%", width: "100%", scrollSnapAlign: "start", display: "grid", placeItems: "center", padding: "32px 16px" }}>
+            <button onClick={() => onOpenChapter?.(slides[slides.length - 1] || chapters[0])} style={{ padding: "12px 18px", borderRadius: 12, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              Xem tiếp {total - maxInline} chapter còn lại →
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 8 }}>
+        {slides.map((_, i) => <button key={i} onClick={() => goto(i)} aria-label={`Chapter ${i + 1}`} style={dot(i === idx)} />)}
+        {hasMore && <span style={{ ...dot(idx >= maxInline), cursor: "default" }} />}
+      </div>
+    </div>
+  );
+}
+
+function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
+  // Render 1 thẻ feed theo loại — tách riêng để carousel Series tái dùng cho từng chapter.
+  const renderCard = (it) => (
+    it.type === "tournament" ? (
+      <TournamentFeedCard t={it} onOpen={onOpenTournament} onOpenAuthor={onOpenAuthor} />
+    ) : it.type === "path" ? (
+      <PathCard path={it} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+    ) : it.type === "deck" ? (
+      <DeckCard deck={it} onOpen={() => onOpenDeck(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${it.id}`) || false} sessionCount={deckSessionCounts?.[it.id] || 0} bookmarked={!!bookmarks?.[`deck:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${it.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+    ) : (
+      <RankieCard
+        rankie={liveOptions?.[it.id] ? { ...it, options: liveOptions[it.id] } : it}
+        onOpen={onOpenRankie}
+        onVote={(id, e) => onVoteInline?.(it, id, e)}
+        onOpenAuthor={onOpenAuthor}
+        rankTier={rankTiers?.[it.author?.id] || 0}
+        onSetRank={onSetRank}
+        fanCount={fanCounts?.[it.author?.id] || 0}
+        myVoteIds={votedIdsFor(votedMap?.[it.id])}
+        sessionCount={sessionCounts?.[it.id] || 0}
+        sessionList={presentationHistory?.filter(h => h.type === "rankie" && h.itemId === it.id) || []}
+        onSeeAllSessions={onOpenPresentationHistory}
+        onOpenSession={onOpenSession}
+        hideCategory
+        onShare={setShareTarget}
+        bookmarked={!!bookmarks?.[`rankie:${it.id}`]}
+        onToggleBookmark={onToggleBookmark}
+      />
+    )
+  );
+  const openChapter = (it) => (it.type === "path" ? onOpenPath(it.id) : it.type === "deck" ? onOpenDeck(it.id) : onOpenRankie(it.id));
   // Bộ icon lucide dùng CHUNG toàn hệ thống (khớp bộ lọc hồ sơ).
   const typeOptions = [
     { id: "all", label: "Tất cả", icon: Grid3x3 },
@@ -4892,37 +4973,27 @@ function FeedView({ feedItems, votedMap, participatedKeys, participationByKey, p
             Chưa có bài đăng nào{typeFilter !== "all" ? ` (${currentLabel})` : ""}.
           </div>
         )}
-        {feedItems.map((item) => (
-          <SaveWrap key={item.id} item={item.type === "share" || item.type === "tournament" ? null : postSaveItem(item)}>
-            <FeedSourceLabel source={feedSourceFor(item)} />
-            {item.type === "tournament" ? (
-              <TournamentFeedCard t={item} onOpen={onOpenTournament} onOpenAuthor={onOpenAuthor} />
-            ) : item.type === "path" ? (
-              <PathCard path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[item.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[item.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
-            ) : item.type === "deck" ? (
-              <DeckCard deck={item} onOpen={() => onOpenDeck(item.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[item.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[item.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
-            ) : (
-              <RankieCard
-                rankie={liveOptions?.[item.id] ? { ...item, options: liveOptions[item.id] } : item}
-                onOpen={onOpenRankie}
-                onVote={(id, e) => onVoteInline?.(item, id, e)}
-                onOpenAuthor={onOpenAuthor}
-                rankTier={rankTiers?.[item.author?.id] || 0}
-                onSetRank={onSetRank}
-                fanCount={fanCounts?.[item.author?.id] || 0}
-                myVoteIds={votedIdsFor(votedMap?.[item.id])}
-                sessionCount={sessionCounts?.[item.id] || 0}
-                sessionList={presentationHistory?.filter(h => h.type === "rankie" && h.itemId === item.id) || []}
-                onSeeAllSessions={onOpenPresentationHistory}
-                onOpenSession={onOpenSession}
-                hideCategory
-                onShare={setShareTarget}
-                bookmarked={!!bookmarks?.[`rankie:${item.id}`]}
-                onToggleBookmark={onToggleBookmark}
+        {feedItems.map((item) => {
+          // Series nhiều chapter → carousel vuốt ngang ngay trên feed (kiểu ảnh nhiều slide của IG).
+          const chapters = item.seriesId ? (seriesMap?.[item.seriesId]?.posts || []) : [];
+          if (chapters.length > 1) {
+            return (
+              <SeriesFeedCarousel
+                key={item.seriesId}
+                chapters={chapters}
+                seriesName={item.seriesName}
+                renderCard={renderCard}
+                onOpenChapter={openChapter}
               />
-            )}
-          </SaveWrap>
-        ))}
+            );
+          }
+          return (
+            <SaveWrap key={item.id} item={item.type === "share" || item.type === "tournament" ? null : postSaveItem(item)}>
+              <FeedSourceLabel source={feedSourceFor(item)} />
+              {renderCard(item)}
+            </SaveWrap>
+          );
+        })}
       </div>
       {shareTarget && (
         <ShareModal item={shareTarget} onClose={() => setShareTarget(null)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={() => onBumpShares?.(shareTarget)} />
@@ -16844,6 +16915,7 @@ export default function RankevApp() {
             <FeedView
               pathUnlocks={pathUnlocks}
               feedItems={feedItemsGrouped}
+              seriesMap={allSeries}
               votedMap={votedMap}
               participatedKeys={participatedKeys}
               participationByKey={participationByKey}
