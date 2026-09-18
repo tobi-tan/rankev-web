@@ -4742,6 +4742,9 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
 // chi tiết series (tránh nặng khi series quá dài — đúng phương án dự phòng).
 function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, maxInline = 6 }) {
   const [idx, setIdx] = useState(0);
+  // Lazy-mount: chỉ dựng slide đang xem ± 1 (còn lại là khung rỗng nhẹ) → feed không phải
+  // render sẵn mọi chapter, tránh nặng. Slide đã ghé thì giữ luôn (khỏi dựng lại).
+  const [live, setLive] = useState(() => new Set([0, 1]));
   const ref = useRef(null);
   const slides = chapters.slice(0, maxInline);
   const hasMore = chapters.length > maxInline;
@@ -4750,6 +4753,7 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
     const el = ref.current; if (!el) return;
     const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
     setIdx((prev) => (i !== prev ? i : prev));
+    setLive((prev) => (prev.has(i - 1) && prev.has(i) && prev.has(i + 1) ? prev : new Set([...prev, i - 1, i, i + 1])));
   };
   const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
   const dot = (active) => ({ width: active ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: active ? C.gold : C.border, transition: "width .2s, background .2s" });
@@ -4766,9 +4770,13 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
         onScroll={onScroll}
         style={{ display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        {slides.map((ch) => (
+        {slides.map((ch, i) => (
           <div key={ch.id} style={{ flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
-            {renderCard(ch)}
+            {live.has(i) ? renderCard(ch) : (
+              <div style={{ minHeight: 300, display: "grid", placeItems: "center", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16 }}>
+                <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Chapter {i + 1}…</span>
+              </div>
+            )}
           </div>
         ))}
         {hasMore && (
