@@ -4060,6 +4060,50 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
 // Only ever compares the first two options: head-to-head is a 1v1 chart, so any
 // extra options (which shouldn't exist here, but user-created rankies aren't
 // validated for this) must not be allowed to skew the percentages.
+// Lá cờ VS (banner Đối đầu) — bản HIỂN THỊ + VOTE, tái dùng visual của trình tạo.
+// height: chi tiết dùng ~190 (to, đã mắt); feed sẽ dùng bản thấp hơn.
+function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190 }) {
+  const [a, b] = options;
+  if (!a || !b) return null;
+  const total = (a.votes || 0) + (b.votes || 0) || 1;
+  const pct = (o) => Math.round((o.votes || 0) / total * 100);
+  const colorA = hexColor(rankie.colorA || a.color, "#E23B3B");
+  const colorB = hexColor(rankie.colorB || b.color, "#2F6BFF");
+  const clickable = !!onVote && !isClosed;
+  const flag = (o, col, lead, i) => {
+    const mine = votedId === o.id;
+    const Wrap = clickable ? "button" : "div";
+    return (
+      <Wrap
+        onClick={clickable ? (e) => onVote(o.id, e) : undefined}
+        style={{ position: "relative", flex: 1, minWidth: 0, minHeight: height, border: "none", padding: 0, cursor: clickable ? "pointer" : "default", borderRadius: 14, overflow: "hidden", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", display: "flex", flexDirection: "column", justifyContent: "flex-end", outline: mine ? "3px solid #fff" : "none", outlineOffset: -3 }}
+      >
+        {o.image && <>
+          <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
+        </>}
+        {lead && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
+        <div style={{ position: "relative", zIndex: 2, padding: "8px 10px 14px", textAlign: "center", color: "#fff" }}>
+          <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 18, lineHeight: 1.15, textShadow: "0 1px 8px rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
+          </div>
+          <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, marginTop: 3, textShadow: "0 1px 8px rgba(0,0,0,0.6)" }}>{pct(o)}%</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, opacity: 0.92, textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>{fmt(o.votes || 0)} phiếu</div>
+        </div>
+      </Wrap>
+    );
+  };
+  const leadA = (a.votes || 0) >= (b.votes || 0) && (a.votes || 0) > 0;
+  const leadB = (b.votes || 0) > (a.votes || 0);
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18 }}>
+      {flag(a, colorA, leadA, 0)}
+      {flag(b, colorB, leadB, 1)}
+      <div style={{ position: "absolute", left: "50%", top: "45%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
+    </div>
+  );
+}
+
 function HeadToHead({ rankie, options, onVote, votedId, isClosed, tapCounts, activeTapId }) {
   const [a, b] = options;
   if (!a || !b) return null; // not enough data to render a 1v1 comparison
@@ -6481,15 +6525,20 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           </div>
 
           {activeChart === "head_to_head" && (
-            <HeadToHead
-              rankie={rankie}
-              options={displayOptions}
-              isClosed={isClosed}
-              onVote={chartVoteHandler}
-              votedId={chartVotedId}
-              tapCounts={isUnlimited ? myTapCounts : undefined}
-              activeTapId={isUnlimited ? activeTapOption : undefined}
-            />
+            isUnlimited ? (
+              <HeadToHead
+                rankie={rankie}
+                options={displayOptions}
+                isClosed={isClosed}
+                onVote={chartVoteHandler}
+                votedId={chartVotedId}
+                tapCounts={myTapCounts}
+                activeTapId={activeTapOption}
+              />
+            ) : (
+              // Lá cờ VS to (đã mắt) cho Đối đầu thường — bấm một lá để bình chọn.
+              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} height={200} />
+            )
           )}
           {activeChart === "bar" && (
             <BarViz
