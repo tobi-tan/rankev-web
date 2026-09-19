@@ -4648,8 +4648,13 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Bình chọn để xem kết quả</div>
           </div>
         </div>
-      ) : (rankie.chartType === "head_to_head" || rankie.options.length === 2) ? (
-        <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
+      ) : (rankie.chartType === "head_to_head" || rankie.chartType === "hh_classic" || rankie.options.length === 2) ? (
+        // Đối đầu trên feed: lá cờ VS bản THẤP (~140px) thay thanh ngang cũ; không giới hạn giữ thanh.
+        rankie.votingType === "unlimited" ? (
+          <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
+        ) : (
+          <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} height={140} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} />
+        )
       ) : rankie.votingType === "rating" ? (
         (() => {
           // Rating options are stored star-count-first (id "5" = 5 stars, etc.) with a
