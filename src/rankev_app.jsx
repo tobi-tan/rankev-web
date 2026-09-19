@@ -4622,10 +4622,16 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
           </div>
         );
       })()}
-      {(!hideCategory || rankie.seriesId) && (
+      {(!hideCategory || rankie.seriesId || rankie.tournamentId) && (
         <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           {!hideCategory && <TagPills tags={rankie.tags} category={rankie.category} />}
-          <SeriesBadge item={rankie} />
+          {rankie.tournamentId ? (
+            <span title={rankie.tournamentTitle || "Giải đấu"} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, maxWidth: 220, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              🏆 {rankie.tournamentTitle || "Giải đấu"} · trận đang đấu
+            </span>
+          ) : (
+            <SeriesBadge item={rankie} />
+          )}
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>
@@ -14423,6 +14429,8 @@ function apiSummaryToProto(s) {
     questionCount: s.questionCount ?? 0,
     seriesId: s.seriesId || null,
     seriesName: s.seriesName || null,
+    tournamentId: s.tournamentId || null,
+    tournamentTitle: s.tournamentTitle || null,
     _api: true,
   };
   if (s.type === "rankie") {
@@ -16014,26 +16022,33 @@ export default function RankevApp() {
   const voteOnFeed = (rankie, optId) => {
     if (isRankieClosed(rankie)) return;
     const cur = singleVotedId(votedMap[rankie.id] ?? null) ?? null;
+    const off = cur === optId; // bấm lại lựa chọn đang chọn = bỏ phiếu
+    const newVal = off ? null : optId;
     // Cập nhật số người tham gia trên EngagementBar: bỏ vote -1, vote mới +1, đổi lựa chọn 0.
     const bumpParticipants = (delta) =>
       delta && patchPostEverywhere(rankie.id, (x) => ({ ...x, participants: Math.max(0, (x.participants || 0) + delta) }));
-    if (cur === optId) {
-      setVotedMap((prev) => ({ ...prev, [rankie.id]: null }));
-      setOptionsFor(rankie)((prev) => prev.map((o) => (o.id === optId ? { ...o, votes: Math.max(0, o.votes - 1) } : o)));
-      bumpParticipants(-1);
-      return;
-    }
-    if (cur === null) bumpParticipants(1); // lần đầu vote bài này
-    setVotedMap((prev) => ({ ...prev, [rankie.id]: optId }));
+    setVotedMap((prev) => ({ ...prev, [rankie.id]: newVal }));
     setOptionsFor(rankie)((prev) =>
       prev.map((o) => {
+        if (off) return o.id === optId ? { ...o, votes: Math.max(0, o.votes - 1) } : o;
         if (o.id === optId) return { ...o, votes: o.votes + 1 };
         if (o.id === cur) return { ...o, votes: Math.max(0, o.votes - 1) };
         return o;
       })
     );
-    const opt = getOptions(rankie).find((o) => o.id === optId);
-    addToHistory({ type: "rankie", itemId: rankie.id, title: rankie.title, category: rankie.category, detail: opt?.label });
+    if (off) bumpParticipants(-1); else if (cur === null) bumpParticipants(1);
+    // Bài THẬT: gửi vote lên backend để phiếu được TÍNH THẬT (kể cả trận đấu trong giải,
+    // và không mất khi tải lại). Trước đây feed chỉ cập nhật cục bộ nên phiếu không lưu.
+    if (isApiId(rankie.id) && !off) {
+      api.rankies
+        .vote(rankie.id, toOptionIds(newVal))
+        .then((res) => { if (res && res.options) syncServerVotes(rankie.id, res.options); })
+        .catch((e) => showToast(e?.message || "Bình chọn thất bại"));
+    }
+    if (!off) {
+      const opt = getOptions(rankie).find((o) => o.id === optId);
+      addToHistory({ type: "rankie", itemId: rankie.id, title: rankie.title, category: rankie.category, detail: opt?.label });
+    }
   };
 
   const apiRankies = apiPosts.filter((p) => p.type === "rankie");
