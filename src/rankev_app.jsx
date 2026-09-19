@@ -131,6 +131,7 @@ const FONT_IMPORT = (
     @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
     @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
     @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+    @keyframes flameFlicker { 0% { transform: translateY(0) scale(1) rotate(-3deg); opacity: 0.9; } 100% { transform: translateY(-3px) scale(1.14) rotate(3deg); opacity: 1; } }
   `}</style>
 );
 
@@ -4060,46 +4061,74 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
 // Only ever compares the first two options: head-to-head is a 1v1 chart, so any
 // extra options (which shouldn't exist here, but user-created rankies aren't
 // validated for this) must not be allowed to skew the percentages.
-// Lá cờ VS (banner Đối đầu) — bản HIỂN THỊ + VOTE, tái dùng visual của trình tạo.
-// height: chi tiết dùng ~190 (to, đã mắt); feed sẽ dùng bản thấp hơn.
-function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190 }) {
+// Lá cờ VS (banner Đối đầu) — bản HIỂN THỊ + VOTE. 2 kiểu:
+//  • variant "fire"  : viền màu dày, ẢNH GIỮ MÀU GỐC (dễ nhìn), bên dẫn có LỬA cháy theo % (3 mức).
+//  • variant "overlay": kiểu cổ điển (phủ gradient màu đội lên ảnh) + vương miện 👑 cho bên dẫn.
+// Mức lửa (tự chia theo % bên dẫn): 51–59% nhỏ · 60–74% vừa · ≥75% bùng cháy · 50/50 tắt.
+function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190, variant = "fire" }) {
   const [a, b] = options;
   if (!a || !b) return null;
+  const isFire = variant === "fire";
   const total = (a.votes || 0) + (b.votes || 0) || 1;
-  const pct = (o) => Math.round((o.votes || 0) / total * 100);
+  const pctA = Math.round((a.votes || 0) / total * 100);
+  const pctB = 100 - pctA;
   const colorA = hexColor(rankie.colorA || a.color, "#E23B3B");
   const colorB = hexColor(rankie.colorB || b.color, "#2F6BFF");
   const clickable = !!onVote && !isClosed;
-  const flag = (o, col, lead, i) => {
+  const fireLevel = (pct, leading) => { if (!isFire || !leading || pct <= 50) return 0; if (pct < 60) return 1; if (pct < 75) return 2; return 3; };
+  const Fire = ({ level }) => {
+    if (!level) return null;
+    const n = level === 3 ? 5 : level === 2 ? 3 : 1;
+    const sz = level === 3 ? 24 : level === 2 ? 20 : 17;
+    return (
+      <div style={{ position: "absolute", top: 3, left: 0, right: 0, display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 1, zIndex: 4, pointerEvents: "none" }}>
+        {Array.from({ length: n }).map((_, i) => (
+          <span key={i} style={{ fontSize: i === Math.floor(n / 2) ? sz + 4 : sz, lineHeight: 1, animation: `flameFlicker ${0.42 + (i % 3) * 0.11}s ease-in-out ${i * 0.05}s infinite alternate`, filter: `drop-shadow(0 0 ${3 + level * 3}px #ff7a1a)` }}>🔥</span>
+        ))}
+      </div>
+    );
+  };
+  const flag = (o, col, pct, i) => {
     const mine = votedId === o.id;
+    const leading = i === 0 ? pctA >= pctB && pctA > 0 : pctB > pctA;
+    const level = fireLevel(pct, leading);
     const Wrap = clickable ? "button" : "div";
     return (
       <Wrap
         onClick={clickable ? (e) => onVote(o.id, e) : undefined}
-        style={{ position: "relative", flex: 1, minWidth: 0, minHeight: height, border: "none", padding: 0, cursor: clickable ? "pointer" : "default", borderRadius: 14, overflow: "hidden", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", display: "flex", flexDirection: "column", justifyContent: "flex-end", outline: mine ? "3px solid #fff" : "none", outlineOffset: -3 }}
+        style={{
+          position: "relative", flex: 1, minWidth: 0, minHeight: height, padding: 0, cursor: clickable ? "pointer" : "default",
+          borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "flex-end",
+          border: isFire ? `4px solid ${col}` : "none",
+          clipPath: isFire ? "none" : "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)",
+          background: isFire ? "#0d0d0d" : `linear-gradient(160deg, ${col}, ${col}cc)`,
+          boxShadow: level >= 2 ? `0 0 ${8 + level * 6}px ${level >= 3 ? "#ff5a1a" : "#ff9a3a"}, 0 8px 20px ${col}44` : `0 8px 20px ${col}44`,
+          outline: mine ? "3px solid #fff" : "none", outlineOffset: -3,
+        }}
       >
         {o.image && <>
           <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
+          {/* FIRE: chỉ phủ nhẹ ở ĐÁY để chữ dễ đọc, ảnh vẫn rõ màu gốc. OVERLAY: phủ màu đội toàn khung. */}
+          <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 42%, rgba(0,0,0,0.74))" : `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
         </>}
-        {lead && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
-        <div style={{ position: "relative", zIndex: 2, padding: "8px 10px 14px", textAlign: "center", color: "#fff" }}>
-          <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 18, lineHeight: 1.15, textShadow: "0 1px 8px rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${col}, ${col}bb)` }} />}
+        <Fire level={level} />
+        {!isFire && leading && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
+        <div style={{ position: "relative", zIndex: 2, padding: "8px 10px 12px", textAlign: "center", color: "#fff" }}>
+          <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 18, lineHeight: 1.15, textShadow: "0 1px 8px rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
             {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
           </div>
-          <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, marginTop: 3, textShadow: "0 1px 8px rgba(0,0,0,0.6)" }}>{pct(o)}%</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11, opacity: 0.92, textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>{fmt(o.votes || 0)} phiếu</div>
+          <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, marginTop: 3, textShadow: "0 1px 8px rgba(0,0,0,0.7)" }}>{pct}%</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, opacity: 0.92, textShadow: "0 1px 6px rgba(0,0,0,0.7)" }}>{fmt(o.votes || 0)} phiếu</div>
         </div>
       </Wrap>
     );
   };
-  const leadA = (a.votes || 0) >= (b.votes || 0) && (a.votes || 0) > 0;
-  const leadB = (b.votes || 0) > (a.votes || 0);
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18 }}>
-      {flag(a, colorA, leadA, 0)}
-      {flag(b, colorB, leadB, 1)}
-      <div style={{ position: "absolute", left: "50%", top: "45%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
+      {flag(a, colorA, pctA, 0)}
+      {flag(b, colorB, pctB, 1)}
+      <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
     </div>
   );
 }
@@ -6231,10 +6260,13 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   // Any rankie with exactly two options reads best as a head-to-head comparison —
   // default to that chart on open even if chartType wasn't explicitly set to it
   // (mirrors the same prioritization used for the feed card).
-  const [activeChart, setActiveChart] = useState(
-    // Ưu tiên skin đã lưu (kéo co/kame/bục…); chỉ fallback theo số lựa chọn khi chưa có.
-    rankie.chartType || (options.length === 2 ? "head_to_head" : "bar")
-  );
+  const [activeChart, setActiveChart] = useState(() => {
+    // Đối đầu (2 lựa chọn) nay thống nhất về lá cờ VS; skin cũ (kéo co/kame/tròn/bục) → Cờ lửa.
+    if (options.length === 2) {
+      return rankie.chartType === "hh_classic" ? "hh_classic" : "head_to_head";
+    }
+    return rankie.chartType || "bar";
+  });
   // Pre-submit local selections for multi-select / rating voting types
   const [multiSelected, setMultiSelected] = useState([]);
   const [ratingSelected, setRatingSelected] = useState(0);
@@ -6305,19 +6337,20 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
 
   // Which chart types the viewer can switch between for this rankie.
   // Head-to-head is offered only when there are exactly 2 options.
-  const chartTypes = [
-    ...(options.length === 2
-      ? [{ id: "head_to_head", label: "Đối đầu" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }]
-      : []),
-    ...(options.length >= 2 ? [{ id: "podium", label: "Bục vinh danh" }] : []),
-    { id: "bar", label: "Cột" },
-    { id: "pie", label: "Tròn" },
-    { id: "line", label: "Theo thời gian" },
-  ];
+  // ĐỐI ĐẦU (2 lựa chọn): thống nhất còn lá cờ VS — 2 kiểu (Cờ lửa / Cờ cổ điển) + Cột.
+  // Đã bỏ Kéo co/Kamehameha/Tròn/Bục cho đối đầu (thừa). >2 lựa chọn giữ như cũ.
+  const chartTypes = options.length === 2
+    ? [{ id: "head_to_head", label: "🔥 Cờ lửa" }, { id: "hh_classic", label: "Cờ cổ điển" }, { id: "bar", label: "Cột" }]
+    : [
+        ...(options.length >= 2 ? [{ id: "podium", label: "Bục vinh danh" }] : []),
+        { id: "bar", label: "Cột" },
+        { id: "pie", label: "Tròn" },
+        { id: "line", label: "Theo thời gian" },
+      ];
 
   // Biểu đồ cho phép bình chọn thẳng trên hình (ẩn nút chọn riêng bên dưới). Multiple/
   // rating cần bước xác nhận riêng nên KHÔNG tính là "clickable" dù đang xem skin này.
-  const inlineChart = ["bar", "head_to_head", "tug", "beam", "podium"].includes(activeChart);
+  const inlineChart = ["bar", "head_to_head", "hh_classic", "tug", "beam", "podium"].includes(activeChart);
   const clickableChart = inlineChart && rankie.votingType !== "multiple" && rankie.votingType !== "rating" && !notYetOpen && !isClosed;
 
   const castVote = (optId, e) => {
@@ -6524,7 +6557,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             )}
           </div>
 
-          {activeChart === "head_to_head" && (
+          {(activeChart === "head_to_head" || activeChart === "hh_classic") && (
             isUnlimited ? (
               <HeadToHead
                 rankie={rankie}
@@ -6536,8 +6569,8 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                 activeTapId={activeTapOption}
               />
             ) : (
-              // Lá cờ VS to (đã mắt) cho Đối đầu thường — bấm một lá để bình chọn.
-              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} height={200} />
+              // Lá cờ VS: "head_to_head" = Cờ lửa (viền + lửa); "hh_classic" = kiểu cổ điển (phủ màu).
+              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} height={200} variant={activeChart === "hh_classic" ? "overlay" : "fire"} />
             )
           )}
           {activeChart === "bar" && (
@@ -10872,7 +10905,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
   const votedId = isUnlimited ? null : isMultiple ? null : voted;
 
   const skins = versus
-    ? [{ id: "head_to_head", label: "Đối đầu" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }]
+    ? [{ id: "head_to_head", label: "🔥 Cờ lửa" }, { id: "hh_classic", label: "Cờ cổ điển" }]
     : [{ id: "bar", label: "Cột" }, { id: "podium", label: "Bục" }, { id: "pie", label: "Tròn" }];
   const active = skins.some((s) => s.id === chartType) ? chartType : skins[0].id;
   useEffect(() => { if (!skins.some((s) => s.id === chartType)) setChartType(skins[0].id); }, [versus, n]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -10911,7 +10944,8 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
         })}
       </div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, position: "relative" }}>
-        {active === "head_to_head" && <HeadToHead rankie={rankieObj} {...vp} />}
+        {active === "head_to_head" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusBanner rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} variant="fire" />)}
+        {active === "hh_classic" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusBanner rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} variant="overlay" />)}
         {active === "bar" && <BarViz {...vp} />}
         {active === "tug" && <TugViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
         {active === "beam" && <BeamViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
