@@ -131,7 +131,8 @@ const FONT_IMPORT = (
     @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
     @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
     @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
-    @keyframes flameFlicker { 0% { transform: translateY(0) scale(1) rotate(-3deg); opacity: 0.9; } 100% { transform: translateY(-3px) scale(1.14) rotate(3deg); opacity: 1; } }
+    @keyframes vsFireAura { 0% { opacity: 0.82; transform: scaleY(0.97) scaleX(1.0); } 100% { opacity: 1; transform: scaleY(1.06) scaleX(0.99); } }
+    @keyframes vsFireTongue { 0% { transform: translateX(-50%) scaleY(0.78) scaleX(1.05); opacity: 0.78; } 100% { transform: translateX(-50%) scaleY(1.2) scaleX(0.88); opacity: 1; } }
   `}</style>
 );
 
@@ -4076,18 +4077,6 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
   const colorB = hexColor(rankie.colorB || b.color, "#2F6BFF");
   const clickable = !!onVote && !isClosed;
   const fireLevel = (pct, leading) => { if (!isFire || !leading || pct <= 50) return 0; if (pct < 60) return 1; if (pct < 75) return 2; return 3; };
-  const Fire = ({ level }) => {
-    if (!level) return null;
-    const n = level === 3 ? 5 : level === 2 ? 3 : 1;
-    const sz = level === 3 ? 24 : level === 2 ? 20 : 17;
-    return (
-      <div style={{ position: "absolute", top: 3, left: 0, right: 0, display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 1, zIndex: 4, pointerEvents: "none" }}>
-        {Array.from({ length: n }).map((_, i) => (
-          <span key={i} style={{ fontSize: i === Math.floor(n / 2) ? sz + 4 : sz, lineHeight: 1, animation: `flameFlicker ${0.42 + (i % 3) * 0.11}s ease-in-out ${i * 0.05}s infinite alternate`, filter: `drop-shadow(0 0 ${3 + level * 3}px #ff7a1a)` }}>🔥</span>
-        ))}
-      </div>
-    );
-  };
   const flag = (o, col, pct, i) => {
     const mine = votedId === o.id;
     const leading = i === 0 ? pctA >= pctB && pctA > 0 : pctB > pctA;
@@ -4098,37 +4087,86 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
         onClick={clickable ? (e) => onVote(o.id, e) : undefined}
         style={{
           position: "relative", flex: 1, minWidth: 0, minHeight: height, padding: 0, cursor: clickable ? "pointer" : "default",
-          borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          border: isFire ? `4px solid ${col}` : "none",
-          clipPath: isFire ? "none" : "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)",
-          background: isFire ? "#0d0d0d" : `linear-gradient(160deg, ${col}, ${col}cc)`,
-          boxShadow: level >= 2 ? `0 0 ${8 + level * 6}px ${level >= 3 ? "#ff5a1a" : "#ff9a3a"}, 0 8px 20px ${col}44` : `0 8px 20px ${col}44`,
-          outline: mine ? "3px solid #fff" : "none", outlineOffset: -3,
+          background: "transparent", border: "none",
+          overflow: isFire ? "visible" : "hidden",
+          borderRadius: 14, display: "flex", flexDirection: "column",
+          outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
+          ...(isFire ? {} : { clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, justifyContent: "flex-end" }),
         }}
       >
-        {o.image && <>
-          <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-          {/* FIRE: chỉ phủ nhẹ ở ĐÁY để chữ dễ đọc, ảnh vẫn rõ màu gốc. OVERLAY: phủ màu đội toàn khung. */}
-          <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 42%, rgba(0,0,0,0.74))" : `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
-        </>}
-        {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${col}, ${col}bb)` }} />}
-        <Fire level={level} />
-        {!isFire && leading && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
-        <div style={{ position: "relative", zIndex: 2, padding: "8px 10px 12px", textAlign: "center", color: "#fff" }}>
-          <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 18, lineHeight: 1.15, textShadow: "0 1px 8px rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-            {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
+        {/* KHUNG LỬA cháy động (CSS, không emoji) — chỉ bên đang dẫn */}
+        {isFire && level > 0 && <FireFrame level={level} />}
+        {/* Khung cờ thật (viền màu, ảnh giữ màu gốc) — nằm trên khung lửa */}
+        <div style={isFire ? {
+          position: "relative", zIndex: 1, flex: 1, minHeight: height, borderRadius: 12, overflow: "hidden",
+          border: `4px solid ${col}`, background: "#0d0d0d", display: "flex", flexDirection: "column", justifyContent: "flex-end",
+          boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : "none",
+        } : { position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+          {o.image && <>
+            <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+            {/* FIRE: chỉ phủ nhẹ ĐÁY cho chữ dễ đọc, ảnh giữ màu gốc. OVERLAY: phủ màu đội toàn khung. */}
+            <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 42%, rgba(0,0,0,0.74))" : `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
+          </>}
+          {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${col}, ${col}bb)` }} />}
+          {!isFire && leading && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
+          <div style={{ position: "relative", zIndex: 2, padding: "8px 10px 12px", textAlign: "center", color: "#fff" }}>
+            <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 18, lineHeight: 1.15, textShadow: "0 1px 8px rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
+            </div>
+            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, marginTop: 3, textShadow: "0 1px 8px rgba(0,0,0,0.7)" }}>{pct}%</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 11, opacity: 0.92, textShadow: "0 1px 6px rgba(0,0,0,0.7)" }}>{fmt(o.votes || 0)} phiếu</div>
           </div>
-          <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, marginTop: 3, textShadow: "0 1px 8px rgba(0,0,0,0.7)" }}>{pct}%</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11, opacity: 0.92, textShadow: "0 1px 6px rgba(0,0,0,0.7)" }}>{fmt(o.votes || 0)} phiếu</div>
         </div>
       </Wrap>
     );
   };
   return (
-    <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18 }}>
+    <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18, padding: isFire ? "12px 10px 10px" : 0 }}>
       {flag(a, colorA, pctA, 0)}
       {flag(b, colorB, pctB, 1)}
       <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
+    </div>
+  );
+}
+
+// Khung lửa cháy động bằng CSS (không dùng emoji): quầng lửa nhấp nháy 4 phía + các ngọn
+// lửa liếm quanh viền. Cường độ theo level (1 nhỏ · 2 vừa · 3 bùng cháy). Đặt SAU khung cờ
+// (z-index thấp hơn) nhưng tràn ra ngoài viền → trông như lá cờ đang bốc cháy quanh mép.
+function FireFrame({ level }) {
+  const inset = -(5 + level * 3);
+  const blur = 4 + level * 2;
+  const topN = level === 3 ? 10 : level === 2 ? 7 : 5;
+  // Ngọn lửa: span NGOÀI lo vị trí + xoay; span TRONG lo animation (scale/opacity) → không đè nhau.
+  const tongue = (key, len, dur, delay, posStyle) => (
+    <span key={key} aria-hidden style={{ position: "absolute", ...posStyle }}>
+      <span style={{
+        display: "block", width: 9 + level * 2, height: len,
+        background: "linear-gradient(to top, #e5391a 0%, #ff7a1a 45%, #ffdf6a 100%)",
+        clipPath: "polygon(50% 0, 72% 42%, 62% 100%, 38% 100%, 28% 42%)",
+        filter: "blur(1.1px)", transformOrigin: "bottom center",
+        animation: `vsFireTongue ${dur}s ease-in-out ${delay}s infinite alternate`,
+      }} />
+    </span>
+  );
+  return (
+    <div aria-hidden style={{ position: "absolute", inset, zIndex: 0, pointerEvents: "none", borderRadius: 16 }}>
+      {/* Quầng lửa 4 phía (blur + nhấp nháy) — tạo khung lửa bao quanh */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 16,
+        background:
+          "radial-gradient(92% 55% at 50% 107%, #ffe27a, #ff8a1a 40%, #e5391a 66%, transparent 77%)," +
+          "radial-gradient(55% 92% at -6% 50%, #ffd15a, #ff6a1a 46%, transparent 73%)," +
+          "radial-gradient(55% 92% at 106% 50%, #ffd15a, #ff6a1a 46%, transparent 73%)," +
+          "radial-gradient(95% 55% at 50% -6%, #ffe89a, #ff7a1a 42%, transparent 75%)",
+        filter: `blur(${blur}px) saturate(1.35)`, animation: "vsFireAura .55s ease-in-out infinite alternate",
+      }} />
+      {/* Ngọn lửa liếm cạnh TRÊN */}
+      {Array.from({ length: topN }).map((_, i) => tongue(`t${i}`, 18 + level * 7 + (i % 3) * 5, 0.5 + (i % 4) * 0.11, i * 0.05, {
+        left: `${5 + i * (90 / (topN - 1 || 1))}%`, top: -(11 + level * 5), transform: "translateX(-50%)",
+      }))}
+      {/* Vài ngọn ở góc trên trái/phải cho cảm giác cháy quanh viền */}
+      {tongue("lc", 15 + level * 5, 0.62, 0.08, { left: -(6 + level * 2), top: `${16}%`, transform: "rotate(-60deg)" })}
+      {tongue("rc", 15 + level * 5, 0.66, 0.14, { right: -(6 + level * 2), top: `${16}%`, transform: "rotate(60deg)" })}
     </div>
   );
 }
