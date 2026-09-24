@@ -4861,6 +4861,98 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
   );
 }
 
+// Giải đấu trên feed = 1 carousel kiểu series: slide đầu là BẢNG ĐẤU, các slide sau là
+// từng TRẬN (live + đã kết thúc), vuốt ngang theo dõi được. Nạp trận qua getTournament (lazy,
+// chỉ khi thẻ hiển thị). Thứ tự: bảng đấu → live → sắp diễn ra → đã kết thúc (vòng mới trước).
+function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor }) {
+  const [data, setData] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => { let alive = true; api.tournaments.get(t.id).then((d) => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, [t.id]);
+  const champ = t.championRef;
+  const now = Date.now();
+  const roundsCount = data?.rounds || t.rounds || 1;
+  const roundName = (r) => ({ 2: "Chung kết", 4: "Bán kết", 8: "Tứ kết", 16: "Vòng 1/8", 32: "Vòng 1/16" }[Math.pow(2, roundsCount - r)]) || `Vòng ${r + 1}`;
+  const mState = (m) => {
+    const started = m.opensAt && new Date(m.opensAt).getTime() <= now;
+    const closed = m.closesAt && new Date(m.closesAt).getTime() <= now;
+    if (m.winnerRef || closed) return 3;      // đã kết thúc
+    if (started) return 1;                     // đang live
+    if (m.opensAt) return 2;                   // đã hẹn giờ
+    return 4;                                  // chưa lên sóng → ẩn khỏi carousel
+  };
+  const shown = (data?.matches || [])
+    .filter((m) => m.rankiePostId && m.aRef && m.bRef && mState(m) !== 4)
+    .sort((a, b) => mState(a) - mState(b) || b.round - a.round);
+  const total = 1 + shown.length;
+  const onScroll = () => { const el = ref.current; if (!el) return; const i = Math.round(el.scrollLeft / (el.clientWidth || 1)); setIdx((p) => (i !== p ? i : p)); };
+  const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
+  const dot = (a) => ({ width: a ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: a ? C.gold : C.border, transition: "width .2s, background .2s" });
+  const slideWrap = { flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" };
+
+  const statusChip = (st) => st === 1
+    ? <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE</Pill>
+    : st === 2 ? <Pill tone="gold"><Clock size={11} /> Sắp diễn ra</Pill>
+    : <Pill tone="muted"><Lock size={11} /> Đã kết thúc</Pill>;
+
+  const bracketSlide = (
+    <div onClick={() => onOpenTournament(t.id)} style={{ ...cardSurface, cursor: "pointer" }}>
+      {t.author && <AuthorRow author={t.author} onOpenAuthor={onOpenAuthor} rightSlot={<Pill tone="gold"><Trophy size={11} /> GIẢI ĐẤU</Pill>} />}
+      <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
+      {t.media?.url && <img src={t.media.url} alt="" style={{ width: "100%", maxHeight: 150, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 10 }} />}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 12, background: champ ? C.goldSoft : C.surfaceRaised, border: `1px solid ${champ ? C.gold : C.border}` }}>
+        <div style={{ width: 42, height: 42, borderRadius: 11, background: champ ? "transparent" : C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0, fontSize: champ ? 30 : 20 }}>{champ ? (champ.emoji || "🏆") : <Trophy size={20} color={C.gold} />}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {champ ? (<>
+            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.gold, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>🏆 Vô địch</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>{champ.name}</div>
+          </>) : (<>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>Bảng nhánh đấu</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{t.matchCount ?? "?"} trận · {roundsCount} vòng{shown.length ? ` · ${shown.filter((m) => mState(m) === 1).length} đang live` : ""}</div>
+          </>)}
+        </div>
+        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal, flexShrink: 0 }}>Xem →</span>
+      </div>
+      {!data && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 10 }}>Đang tải các trận…</div>}
+    </div>
+  );
+
+  const matchSlide = (m) => {
+    const st = mState(m);
+    const opts = [
+      { id: "a", label: m.aRef?.name, votes: m.votes?.a || 0, color: m.aRef?.color, image: m.aRef?.imageUrl },
+      { id: "b", label: m.bRef?.name, votes: m.votes?.b || 0, color: m.bRef?.color, image: m.bRef?.imageUrl },
+    ];
+    return (
+      <div onClick={() => onOpenRankie(m.rankiePostId)} style={{ ...cardSurface, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", color: C.textMuted }}>{roundName(m.round)}</span>
+          {statusChip(st)}
+        </div>
+        <VersusBanner rankie={{ id: m.rankiePostId, colorA: m.aRef?.color, colorB: m.bRef?.color }} options={opts} height={140} variant="fire" isClosed={st === 3} />
+        <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.teal, textAlign: "center", marginTop: 10 }}>{st === 1 ? "Vào bình chọn →" : "Xem trận →"}</div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}><Trophy size={12} /> Giải đấu · {total} phần</span>
+        <span style={{ marginLeft: "auto", fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: C.textFaint }}>{Math.min(idx + 1, total)}/{total}</span>
+      </div>
+      <div ref={ref} onScroll={onScroll} style={{ display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        <div style={slideWrap}>{bracketSlide}</div>
+        {shown.map((m) => <div key={`${m.round}-${m.position}`} style={slideWrap}>{matchSlide(m)}</div>)}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 8 }}>
+        <button onClick={() => goto(0)} aria-label="Bảng đấu" style={dot(idx === 0)} />
+        {shown.map((_, i) => <button key={i} onClick={() => goto(i + 1)} aria-label={`Trận ${i + 1}`} style={dot(idx === i + 1)} />)}
+      </div>
+    </div>
+  );
+}
+
 // Carousel Series trên feed: vuốt ngang qua từng chapter (kiểu bài nhiều ảnh của Instagram).
 // Dùng scroll-snap gốc của trình duyệt → mượt, không cần bắt cử chỉ tay thủ công; chấm tròn
 // (dots) đồng bộ vị trí. Giới hạn maxInline chapter render sẵn; quá số đó → slide cuối mời vào
@@ -4926,7 +5018,7 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
   // Render 1 thẻ feed theo loại — tách riêng để carousel Series tái dùng cho từng chapter.
   const renderCard = (it) => (
     it.type === "tournament" ? (
-      <TournamentFeedCard t={it} onOpen={onOpenTournament} onOpenAuthor={onOpenAuthor} />
+      <TournamentCarousel t={it} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} />
     ) : it.type === "path" ? (
       <PathCard path={it} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : it.type === "deck" ? (
