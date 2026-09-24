@@ -13018,7 +13018,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         <div style={{ ...cardSurface, paddingBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Bảng nhánh đấu</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>
+            {isOwner && <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>}
           </div>
           {(() => {
             // Bố cục toạ độ CỐ ĐỊNH (không dùng flex co giãn) để các hộp không bao giờ chồng lên nhau.
@@ -13074,7 +13074,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     const notStarted = hasBoth && !m.winnerRef && !m.opensAt && !closed; // đủ đấu thủ nhưng chủ giải chưa mở
                     const canVote = m.rankiePostId && started && !closed && !m.winnerRef;
                     const isBye = !!m.winnerRef && (!m.aRef || !m.bRef); // 1 bên trống + đã có người thắng = miễn đấu
-                    const needResult = isPrediction && closed && !m.winnerRef && hasBoth;
+                    const tie = hasBoth && (m.votes?.a || 0) === (m.votes?.b || 0);
+                    const needResult = closed && !m.winnerRef && hasBoth && (isPrediction || tie); // dự đoán nhập KQ · bình chọn HOÀ → chủ giải xử lý
                     const onBox = () => {
                       // Chủ giải: trận CHƯA lên sóng → bước đệm setup; ván dự đoán đã đóng chưa có
                       // kết quả → bước nhập kết quả. Còn lại (live/đã đóng/xong) → vào CHI TIẾT ván
@@ -13097,7 +13098,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                         </div>
                       );
                     };
-                    const badge = isLive ? { t: "● LIVE", c: C.teal } : scheduled ? { t: `🕒 ${fmtWhen(m.opensAt)}`, c: C.gold } : notStarted ? { t: isOwner ? "chạm để lên sóng" : "chưa lên sóng", c: C.textFaint } : closed ? { t: "đã đóng", c: C.coral } : null;
+                    const badge = isLive ? { t: "● LIVE", c: C.teal } : scheduled ? { t: `🕒 ${fmtWhen(m.opensAt)}`, c: C.gold } : (isOwner && needResult) ? { t: tie && !isPrediction ? "⚠️ hoà — chọn bên" : "⚠️ chọn kết quả", c: C.coral } : notStarted ? { t: isOwner ? "chạm để lên sóng" : "chưa lên sóng", c: C.textFaint } : closed ? { t: "đã đóng", c: C.coral } : null;
                     return (
                       <div key={`m${r}-${i}`} style={{ position: "absolute", left: colX(r), top: centerY(r, i), width: COLW, transform: "translateY(-50%)" }}>
                         <div onClick={onBox} style={{ position: "relative", background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: (m.rankiePostId || isOwner) ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}>
@@ -13155,7 +13156,9 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
   const [schAt, setSchAt] = useState("");
   const nowMs = Date.now();
   const closed = m.closesAt && new Date(m.closesAt).getTime() <= nowMs;
-  const needResult = isPrediction && closed && !m.winnerRef && m.aRef && m.bRef;
+  const tie = !!(m.aRef && m.bRef) && (m.votes?.a || 0) === (m.votes?.b || 0);
+  // Cần chủ giải xử lý khi: giải dự đoán (nhập kết quả) HOẶC trận bình chọn HOÀ (chọn bên / gia hạn).
+  const needResult = closed && !m.winnerRef && !!(m.aRef && m.bRef) && (isPrediction || tie);
   const ws = m.winnerRef ? (m.aRef && m.winnerRef.name === m.aRef.name ? "a" : "b") : null;
   const dirty = aName !== (m.aRef?.name || "") || bName !== (m.bRef?.name || "") || aImg !== (m.aRef?.imageUrl || null) || bImg !== (m.bRef?.imageUrl || null);
   const parseHHMM = (s) => { const mt = String(s).trim().match(/^(\d{1,4}):?(\d{0,2})$/); if (!mt) return null; const h = parseInt(mt[1] || "0", 10); const mm = mt[2] ? parseInt(mt[2], 10) : 0; if (Number.isNaN(h) || mm > 59) return null; const t = h + mm / 60; return t > 0 ? t : null; };
@@ -13233,15 +13236,25 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
             </div>
           )}
 
-          {/* Bước nhập KẾT QUẢ (giải dự đoán đã đóng) */}
+          {/* Bước xử lý KẾT QUẢ: giải dự đoán nhập kết quả thật; giải bình chọn HOÀ → chọn bên
+              đi tiếp hoặc gia hạn thêm giờ (mở lại bình chọn). */}
           {isOwner && needResult && (
             <div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 10 }}>Chọn đội thắng thật:</div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: tie && !isPrediction ? C.coral : C.textMuted, fontWeight: tie && !isPrediction ? 700 : 400, marginBottom: 10 }}>
+                {isPrediction ? "Chọn đội thắng thật:" : `Hoà ${m.votes?.a || 0}–${m.votes?.b || 0} — chọn bên đi tiếp:`}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: tie && !isPrediction ? 12 : 0 }}>
                 {[["a", m.aRef], ["b", m.bRef]].map(([side, ref]) => (
                   <button key={side} onClick={() => onSetResult(side)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${ws === side ? C.gold : C.border}`, background: ws === side ? C.goldSoft : C.surfaceRaised, color: ws === side ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🏆 {ref?.name}</button>
                 ))}
               </div>
+              {tie && !isPrediction && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, flex: 1 }}>hoặc mở lại bình chọn thêm</span>
+                  <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: monoFont, fontSize: 14, fontWeight: 700, outline: "none" }} />
+                  <button onClick={() => onSchedule({ closesAt: new Date(Date.now() + hrs() * 3600000).toISOString() })} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>Gia hạn</button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -13547,6 +13560,19 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
             <button onClick={addName} style={{ padding: "0 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontWeight: 700, cursor: "pointer", fontFamily: bodyFont }}>+ Thêm</button>
           </div>
         </div>
+
+        {contestants.length >= 2 && (() => {
+          const n = contestants.length; let pow = 1; while (pow < n) pow *= 2; const byes = pow - n; const prev = pow / 2;
+          if (byes === 0) return null;
+          return (
+            <div style={{ display: "flex", gap: 10, padding: "11px 13px", borderRadius: 12, background: "rgba(226,114,91,0.12)", border: `1px solid ${C.coral}` }}>
+              <span style={{ fontSize: 18, lineHeight: 1.2 }}>⚠️</span>
+              <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, lineHeight: 1.45 }}>
+                <b>{n} đấu thủ</b> không phải số chẵn của bảng đấu (2, 4, 8, 16…) → sẽ có <b>{byes} suất miễn đấu</b>, một số đấu thủ <b>vào thẳng vòng trong</b>. Thêm <b>{byes}</b> người (đủ {pow}) hoặc bớt <b>{n - prev}</b> người (còn {prev}) để công bằng. Đấu thủ đứng đầu danh sách được ưu tiên miễn đấu.
+              </div>
+            </div>
+          );
+        })()}
 
         {contestants.length >= 2 && (
           <div>
