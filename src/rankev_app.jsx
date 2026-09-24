@@ -4692,13 +4692,16 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Bình chọn để xem kết quả</div>
           </div>
         </div>
+      ) : (rankie.chartType === "tug" && rankie.options.length === 2) ? (
+        <TugViz options={rankie.options} onVote={canVoteInline ? inlineVote : undefined} votedId={mainVoteId} isClosed={closed} />
+      ) : (rankie.chartType === "beam" && rankie.options.length === 2) ? (
+        <BeamViz options={rankie.options} onVote={canVoteInline ? inlineVote : undefined} votedId={mainVoteId} isClosed={closed} />
+      ) : (rankie.chartType === "h2h_bar" || rankie.votingType === "unlimited") && rankie.options.length === 2 ? (
+        // Thanh đối đầu ngang (và Đối đầu không giới hạn — giữ thanh để có hiệu ứng gõ phiếu).
+        <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
       ) : (rankie.chartType === "head_to_head" || rankie.chartType === "hh_classic" || rankie.options.length === 2) ? (
-        // Đối đầu trên feed: lá cờ VS bản THẤP (~140px) thay thanh ngang cũ; không giới hạn giữ thanh.
-        rankie.votingType === "unlimited" ? (
-          <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
-        ) : (
-          <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} height={140} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} />
-        )
+        // Đối đầu trên feed: lá cờ VS bản THẤP (~140px). Kiểu người tạo đã chọn (lửa / cổ điển).
+        <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} height={140} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} />
       ) : rankie.votingType === "rating" ? (
         (() => {
           // Rating options are stored star-count-first (id "5" = 5 stars, etc.) with a
@@ -6309,11 +6312,11 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   // Any rankie with exactly two options reads best as a head-to-head comparison —
   // default to that chart on open even if chartType wasn't explicitly set to it
   // (mirrors the same prioritization used for the feed card).
+  // Hiển thị ĐÚNG biểu đồ người tạo đã chọn (không cho đổi ở phần xem). Đối đầu (2 lựa chọn):
+  // các skin hợp lệ = cờ lửa/cờ cổ điển/thanh ngang/kéo co/kamehameha; thiếu/không hợp lệ → cờ lửa.
+  const VERSUS_SKINS = ["head_to_head", "hh_classic", "h2h_bar", "tug", "beam"];
   const [activeChart, setActiveChart] = useState(() => {
-    // Đối đầu (2 lựa chọn) nay thống nhất về lá cờ VS; skin cũ (kéo co/kame/tròn/bục) → Cờ lửa.
-    if (options.length === 2) {
-      return rankie.chartType === "hh_classic" ? "hh_classic" : "head_to_head";
-    }
+    if (options.length === 2) return VERSUS_SKINS.includes(rankie.chartType) ? rankie.chartType : "head_to_head";
     return rankie.chartType || "bar";
   });
   // Pre-submit local selections for multi-select / rating voting types
@@ -6584,28 +6587,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
 
         <div ref={resultsAreaRef} style={{ position: "relative" }}>
         <div style={{ ...cardSurface, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
-          {/* Đổi loại biểu đồ bằng icon (tap hiện tên rồi mờ dần) — không dùng dropdown */}
-          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-            {chartTypes.map((ct) => {
-              const active = activeChart === ct.id;
-              return (
-                <button
-                  key={ct.id}
-                  onClick={() => { setActiveChart(ct.id); setChartFlash({ label: ct.label, id: Date.now() }); }}
-                  title={ct.label}
-                  style={{ width: 34, height: 30, display: "grid", placeItems: "center", borderRadius: 8, cursor: "pointer", background: active ? C.goldSoft : "transparent", border: `1px solid ${active ? C.gold : C.border}` }}
-                >
-                  <ChartTypeIcon id={ct.id} size={16} color={active ? C.gold : C.textMuted} />
-                </button>
-              );
-            })}
-            {chartFlash && (
-              <span key={chartFlash.id} style={{ marginLeft: 4, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.gold, pointerEvents: "none", animation: "labelFade 1.4s ease forwards" }}>
-                {chartFlash.label}
-              </span>
-            )}
-          </div>
-
+          {/* Hiển thị ĐÚNG biểu đồ người tạo đã chọn — không có nút đổi skin ở phần xem. */}
           {(activeChart === "head_to_head" || activeChart === "hh_classic") && (
             isUnlimited ? (
               <HeadToHead
@@ -6633,6 +6615,9 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               voteMarker={rankie.voteMarker}
             />
           )}
+          {activeChart === "h2h_bar" && (
+            <HeadToHead rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} tapCounts={isUnlimited ? myTapCounts : undefined} activeTapId={isUnlimited ? activeTapOption : undefined} />
+          )}
           {activeChart === "tug" && (
             <TugViz options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} />
           )}
@@ -6656,6 +6641,11 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             {/* Nền chip TỐI cố định → chữ SÁNG cố định (light mode C.text tối sẽ chìm). */}
             <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: "#F5F1E6" }}>{fmt(displayTotal)}</span>
           </button>
+          {chartFlash && (
+            <span key={chartFlash.id} style={{ position: "absolute", left: 10, bottom: 42, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.gold, pointerEvents: "none", animation: "labelFade 1.4s ease forwards", zIndex: 3 }}>
+              {chartFlash.label}
+            </span>
+          )}
 
           {/* Đồng hồ đóng-vote CHỈ hiện khi đã lên sóng (chưa tới giờ thì đã có đếm ngược "sắp lên sóng"). */}
           {!notYetOpen && <RankieCountdownBox closesAt={rankie.closesAt} />}
@@ -10954,7 +10944,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
   const votedId = isUnlimited ? null : isMultiple ? null : voted;
 
   const skins = versus
-    ? [{ id: "head_to_head", label: "🔥 Cờ lửa" }, { id: "hh_classic", label: "Cờ cổ điển" }]
+    ? [{ id: "head_to_head", label: "🔥 Cờ lửa" }, { id: "hh_classic", label: "Cờ cổ điển" }, { id: "h2h_bar", label: "Thanh ngang" }, { id: "tug", label: "Kéo co" }, { id: "beam", label: "Kamehameha" }]
     : [{ id: "bar", label: "Cột" }, { id: "podium", label: "Bục" }, { id: "pie", label: "Tròn" }];
   const active = skins.some((s) => s.id === chartType) ? chartType : skins[0].id;
   useEffect(() => { if (!skins.some((s) => s.id === chartType)) setChartType(skins[0].id); }, [versus, n]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -10995,6 +10985,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, position: "relative" }}>
         {active === "head_to_head" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusBanner rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} variant="fire" />)}
         {active === "hh_classic" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusBanner rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} variant="overlay" />)}
+        {active === "h2h_bar" && <HeadToHead rankie={rankieObj} {...vp} />}
         {active === "bar" && <BarViz {...vp} />}
         {active === "tug" && <TugViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
         {active === "beam" && <BeamViz options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />}
@@ -14516,7 +14507,7 @@ function apiSummaryToProto(s) {
       id: "opt" + i, label: o.label || "", emoji: o.emoji || undefined,
       votes: o.votes || 0, color: hexColor(o.color, OPT_FALLBACK[i % OPT_FALLBACK.length]),
     }));
-    return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: opts.length === 2 ? "head_to_head" : "bar", live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
+    return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: s.chartType || (opts.length === 2 ? "head_to_head" : "bar"), live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
   }
   if (s.type === "path") {
     return { ...base, type: "path", subtitle: `${s.size} kết quả`, resultCount: s.size || 0, questions: [], results: {}, comments: s.commentsCount || 0 };
