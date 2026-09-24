@@ -4104,17 +4104,17 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
         } : { position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
           {o.image && <>
             <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-            {/* FIRE: chỉ phủ nhẹ ĐÁY cho chữ dễ đọc, ảnh giữ màu gốc. OVERLAY: phủ màu đội toàn khung. */}
-            <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 42%, rgba(0,0,0,0.74))" : `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
+            {/* FIRE: chỉ phủ 1 dải MỎNG sát đáy cho chữ đọc được — ảnh lộ gần hết. OVERLAY: phủ màu đội. */}
+            <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 62%, rgba(0,0,0,0.6) 84%, rgba(0,0,0,0.85))" : `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
           </>}
           {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${col}, ${col}bb)` }} />}
           {!isFire && leading && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
-          <div style={{ position: "relative", zIndex: 2, padding: "8px 10px 12px", textAlign: "center", color: "#fff" }}>
-            <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 18, lineHeight: 1.15, textShadow: "0 1px 8px rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          {/* Chữ gọn 2 dòng NẰM SÁT CHÂN cờ (không che ảnh): tên + "% · số phiếu". */}
+          <div style={{ position: "relative", zIndex: 2, padding: "4px 8px 7px", textAlign: "center", color: "#fff" }}>
+            <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 15, lineHeight: 1.1, textShadow: "0 1px 6px rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
             </div>
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, marginTop: 3, textShadow: "0 1px 8px rgba(0,0,0,0.7)" }}>{pct}%</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, opacity: 0.92, textShadow: "0 1px 6px rgba(0,0,0,0.7)" }}>{fmt(o.votes || 0)} phiếu</div>
+            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12.5, marginTop: 1, textShadow: "0 1px 6px rgba(0,0,0,0.85)" }}>{pct}% · {fmt(o.votes || 0)}</div>
           </div>
         </div>
       </Wrap>
@@ -4917,22 +4917,22 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor })
     </div>
   );
 
+  // Mỗi trận hiển thị như THẺ FEED rankie đầy đủ (tác giả, tiêu đề, lá cờ VS, thanh tương tác).
   const matchSlide = (m) => {
     const st = mState(m);
-    const opts = [
-      { id: "a", label: m.aRef?.name, votes: m.votes?.a || 0, color: m.aRef?.color, image: m.aRef?.imageUrl },
-      { id: "b", label: m.bRef?.name, votes: m.votes?.b || 0, color: m.bRef?.color, image: m.bRef?.imageUrl },
-    ];
-    return (
-      <div onClick={() => onOpenRankie(m.rankiePostId)} style={{ ...cardSurface, cursor: "pointer" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", color: C.textMuted }}>{roundName(m.round)}</span>
-          {statusChip(st)}
-        </div>
-        <VersusBanner rankie={{ id: m.rankiePostId, colorA: m.aRef?.color, colorB: m.bRef?.color }} options={opts} height={140} variant="fire" isClosed={st === 3} />
-        <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.teal, textAlign: "center", marginTop: 10 }}>{st === 1 ? "Vào bình chọn →" : "Xem trận →"}</div>
-      </div>
-    );
+    const rk = {
+      id: m.rankiePostId, type: "rankie", chartType: "head_to_head",
+      author: t.author, title: `${m.aRef?.name || "?"} vs ${m.bRef?.name || "?"}`,
+      colorA: m.aRef?.color, colorB: m.bRef?.color,
+      live: st === 1, closesAt: m.closesAt ? Date.parse(m.closesAt) : null, opensAt: m.opensAt ? Date.parse(m.opensAt) : null,
+      votingType: "single", participants: (m.votes?.a || 0) + (m.votes?.b || 0), comments: [], tags: [], category: null,
+      options: [
+        { id: "a", label: m.aRef?.name, emoji: m.aRef?.emoji, votes: m.votes?.a || 0, color: m.aRef?.color, image: m.aRef?.imageUrl },
+        { id: "b", label: m.bRef?.name, emoji: m.bRef?.emoji, votes: m.votes?.b || 0, color: m.bRef?.color, image: m.bRef?.imageUrl },
+      ],
+      _api: true,
+    };
+    return <RankieCard rankie={rk} onOpen={() => onOpenRankie(m.rankiePostId)} onOpenAuthor={onOpenAuthor} hideCategory bookmarked={false} />;
   };
 
   return (
