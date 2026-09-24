@@ -6298,7 +6298,21 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
 function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack, onPresent, sessions, onParticipate, onShareToProfile, contacts, onOpenSession, onCommentAdded, onOpenTournament, bookmarked = false, onToggleBookmark }) {
   const rk = useRankieSave(); // để mở thực thể (post/user/comment) mà một option tham chiếu
   const isUnlimited = rankie.votingType === "unlimited";
-  const isClosed = isRankieClosed(rankie);
+  // Chủ bài chỉnh giờ đóng ngay tại chi tiết (kết thúc sớm / gia hạn) — áp cho ván giải đấu
+  // lẫn rankie thường của mình. Ghi đè cục bộ để đồng hồ + trạng thái phản hồi ngay.
+  const [closesOverride, setClosesOverride] = useState(null);
+  const effClosesAt = closesOverride ?? rankie.closesAt;
+  const isClosed = closesOverride != null ? new Date(closesOverride).getTime() <= Date.now() : isRankieClosed(rankie);
+  const isRankieOwner = rankie.mine || rankie.author?.id === "me" || (!!currentUser.apiId && rankie.author?.id === currentUser.apiId);
+  const [extendInput, setExtendInput] = useState("00:30");
+  const applyCloses = (iso) => { setClosesOverride(iso); if (isApiId(rankie.id)) api.posts.update(rankie.id, { closesAt: iso }).catch(() => {}); };
+  const endLiveNow = () => applyCloses(new Date().toISOString());
+  const extendLive = () => {
+    const mt = String(extendInput).trim().match(/^(\d{1,4}):?(\d{0,2})$/); if (!mt) return;
+    const mins = parseInt(mt[1] || "0", 10) * 60 + (mt[2] ? parseInt(mt[2], 10) : 0); if (mins <= 0) return;
+    const base = effClosesAt ? Math.max(new Date(effClosesAt).getTime(), Date.now()) : Date.now();
+    applyCloses(new Date(base + mins * 60000).toISOString());
+  };
   // Đồng hồ đếm ngược tới giờ lên sóng + TỰ CHUYỂN sang live khi tới giờ (nowTs vượt opensAt).
   const [nowTs, setNowTs] = useState(Date.now());
   const notYetOpen = !!(rankie.opensAt && rankie.opensAt > nowTs); // đã hẹn giờ nhưng chưa lên sóng
@@ -6648,8 +6662,20 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           )}
 
           {/* Đồng hồ đóng-vote CHỈ hiện khi đã lên sóng (chưa tới giờ thì đã có đếm ngược "sắp lên sóng"). */}
-          {!notYetOpen && <RankieCountdownBox closesAt={rankie.closesAt} />}
+          {!notYetOpen && <RankieCountdownBox closesAt={effClosesAt} />}
         </div>
+
+        {/* Chủ bài điều khiển phiên LIVE ngay tại chi tiết: kết thúc sớm / gia hạn (HH:MM). */}
+        {isRankieOwner && !isClosed && !notYetOpen && (
+          <div style={{ ...cardSurface, marginBottom: 16, padding: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={endLiveNow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}><span style={{ width: 10, height: 10, background: "#fff", borderRadius: 2 }} /> Kết thúc sớm</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+              <Clock size={15} color={C.gold} />
+              <input value={extendInput} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setExtendInput(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: monoFont, fontSize: 14, fontWeight: 700, outline: "none" }} />
+              <button onClick={extendLive} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>+ Gia hạn</button>
+            </div>
+          </div>
+        )}
 
         {notYetOpen ? (
           <div
@@ -13048,12 +13074,14 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     const notStarted = hasBoth && !m.winnerRef && !m.opensAt && !closed; // đủ đấu thủ nhưng chủ giải chưa mở
                     const canVote = m.rankiePostId && started && !closed && !m.winnerRef;
                     const isBye = !!m.winnerRef && (!m.aRef || !m.bRef); // 1 bên trống + đã có người thắng = miễn đấu
+                    const needResult = isPrediction && closed && !m.winnerRef && hasBoth;
                     const onBox = () => {
-                      // Chủ giải: luôn mở bảng điều khiển trận (setup/đóng-mở/kết quả).
-                      // Khách: live thì vào vote, chưa thì mở bảng xem thông tin.
-                      if (isOwner) setSheetKey(`${m.round}-${m.position}`);
-                      else if (canVote) onOpenRankie?.(m.rankiePostId);
-                      else if (m.rankiePostId) setSheetKey(`${m.round}-${m.position}`);
+                      // Chủ giải: trận CHƯA lên sóng → bước đệm setup; ván dự đoán đã đóng chưa có
+                      // kết quả → bước nhập kết quả. Còn lại (live/đã đóng/xong) → vào CHI TIẾT ván
+                      // (điều khiển đóng sớm/gia hạn nằm ở đó). Khách: live → vào vote; khác → chi tiết.
+                      if (isOwner && (notStarted || needResult)) setSheetKey(`${m.round}-${m.position}`);
+                      else if (m.rankiePostId && (started || closed || m.winnerRef)) onOpenRankie?.(m.rankiePostId);
+                      else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId);
                     };
                     const slot = (ref, side) => {
                       const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
@@ -13113,172 +13141,108 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   );
 }
 
-// Bảng chi tiết một trận (mở khi chạm trận trong bảng nhánh). Là "chương" của trận:
-// xem đối đầu + phiếu; với trận CHƯA lên sóng, chủ giải tuỳ chỉnh tên/ảnh đấu thủ và
-// hẹn GIỜ LÊN SÓNG (opensAt) như một rankie đang được dựng.
-function MatchSheet({ match: m, roundName, p, isOwner, isPrediction, onClose, onOpenRankie, onCustomize, onSchedule, onSetResult, fmtWhen, toLocalInput, showToast }) {
+// Bước ĐỆM CHUẨN BỊ trận (mở khi chủ giải chạm trận CHƯA lên sóng trong bảng nhánh):
+// tuỳ chỉnh đấu thủ + đặt thời lượng (HH:MM) rồi Lên sóng ngay / Hẹn giờ. Xong nhiệm vụ
+// (đã live/đã hẹn) thì sheet không mở nữa — điều khiển live (đóng sớm/gia hạn) nằm ở CHI TIẾT
+// rankie. Ván dự đoán đã đóng mà chưa có kết quả → sheet chuyển sang bước nhập kết quả.
+function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCustomize, onSchedule, onSetResult, showToast }) {
   const [aName, setAName] = useState(m.aRef?.name || "");
   const [bName, setBName] = useState(m.bRef?.name || "");
   const [aImg, setAImg] = useState(m.aRef?.imageUrl || null);
   const [bImg, setBImg] = useState(m.bRef?.imageUrl || null);
   const [saving, setSaving] = useState(false);
-  // Trạng thái trận theo opensAt: null = CHƯA lên sóng · >now = đã hẹn · <=now = đang live.
+  const [dur, setDur] = useState("24:00"); // thời lượng bình chọn dạng HH:MM
+  const [schAt, setSchAt] = useState("");
   const nowMs = Date.now();
-  const started = m.opensAt && new Date(m.opensAt).getTime() <= nowMs;
-  const scheduled = m.opensAt && new Date(m.opensAt).getTime() > nowMs;
   const closed = m.closesAt && new Date(m.closesAt).getTime() <= nowMs;
-  const notStarted = !m.opensAt && !closed;
-  const live = started && !closed && !m.winnerRef;
-  const [durH, setDurH] = useState(24); // thời lượng bình chọn (giờ) khi mở trận
-  const [schAt, setSchAt] = useState(toLocalInput(m.opensAt) || ""); // datetime-local cho "Hẹn giờ"
-  const goLiveNow = () => { const o = new Date(); onSchedule({ opensAt: o.toISOString(), closesAt: new Date(o.getTime() + Math.max(0.1, durH) * 3600000).toISOString() }); };
-  const scheduleAt = () => { if (!schAt) { showToast?.("Chọn giờ lên sóng"); return; } const o = new Date(schAt); onSchedule({ opensAt: o.toISOString(), closesAt: new Date(o.getTime() + Math.max(0.1, durH) * 3600000).toISOString() }); };
-  const closeNow = () => onSchedule({ closesAt: new Date().toISOString() });
-  const extendMin = (mins) => { const base = m.closesAt ? Math.max(new Date(m.closesAt).getTime(), nowMs) : nowMs; onSchedule({ closesAt: new Date(base + mins * 60000).toISOString() }); };
-  const cancelSchedule = () => onSchedule({ opensAt: null }); // về "chưa lên sóng"
+  const needResult = isPrediction && closed && !m.winnerRef && m.aRef && m.bRef;
   const ws = m.winnerRef ? (m.aRef && m.winnerRef.name === m.aRef.name ? "a" : "b") : null;
-  const pb = 100 - p;
   const dirty = aName !== (m.aRef?.name || "") || bName !== (m.bRef?.name || "") || aImg !== (m.aRef?.imageUrl || null) || bImg !== (m.bRef?.imageUrl || null);
+  const parseHHMM = (s) => { const mt = String(s).trim().match(/^(\d{1,4}):?(\d{0,2})$/); if (!mt) return null; const h = parseInt(mt[1] || "0", 10); const mm = mt[2] ? parseInt(mt[2], 10) : 0; if (Number.isNaN(h) || mm > 59) return null; const t = h + mm / 60; return t > 0 ? t : null; };
+  const hrs = () => parseHHMM(dur) || 24;
+  const goLiveNow = () => { const o = new Date(); onSchedule({ opensAt: o.toISOString(), closesAt: new Date(o.getTime() + hrs() * 3600000).toISOString() }); };
+  const scheduleAt = () => { if (!schAt) { showToast?.("Chọn giờ lên sóng"); return; } const o = new Date(schAt); onSchedule({ opensAt: o.toISOString(), closesAt: new Date(o.getTime() + hrs() * 3600000).toISOString() }); };
 
-  const av = (ref, img, size) => (img
-    ? <img src={img} alt="" style={{ width: size, height: size, borderRadius: 10, objectFit: "cover", background: C.surfaceRaised, flexShrink: 0 }} />
-    : <div style={{ width: size, height: size, borderRadius: 10, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.5), background: ref?.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref?.color || C.border}` }}>{ref?.emoji || "•"}</div>);
-
+  // Avatar kiểu LÁ CỜ cổ điển (màu đội + notch dưới) — to, dễ nhìn.
+  const flagAv = (ref, img, w) => (
+    <div style={{ width: w, height: Math.round(w * 1.18), borderRadius: 12, overflow: "hidden", position: "relative", flexShrink: 0, clipPath: "polygon(0 0,100% 0,100% 100%,50% 86%,0 100%)", background: ref?.color ? `linear-gradient(160deg, ${ref.color}, ${ref.color}cc)` : C.surfaceRaised, border: `1px solid ${ref?.color || C.border}`, display: "grid", placeItems: "center" }}>
+      {img ? <img src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(w * 0.5) }}>{ref?.emoji || "🏳️"}</span>}
+    </div>
+  );
   const saveCustom = () => {
     if (!dirty) return;
     setSaving(true);
     const patch = {};
     if (m.aRef) patch.a = { name: aName.trim() || m.aRef.name, imageUrl: aImg || null };
     if (m.bRef) patch.b = { name: bName.trim() || m.bRef.name, imageUrl: bImg || null };
-    Promise.resolve(onCustomize(patch)).then(() => showToast?.("Đã lưu tuỳ chỉnh trận")).catch(() => {}).finally(() => setSaving(false));
+    Promise.resolve(onCustomize(patch)).then(() => showToast?.("Đã lưu")).catch(() => {}).finally(() => setSaving(false));
   };
   const uploadFor = (setter, ref) => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%232E5D4E'/><text x='40' y='50' font-size='30' text-anchor='middle' fill='white'>${ref?.emoji || "🏳️"}</text></svg>`;
     pickImageUpload((url) => setter(url), "image", svg);
   };
-  const inp = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", width: "100%" };
-  const dtInp = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 8px", color: C.text, fontFamily: bodyFont, fontSize: 12, outline: "none", colorScheme: "dark" };
+  const inp = { background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", width: "100%" };
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "90vh", overflowY: "auto", borderTop: `1px solid ${C.border}`, animation: "slideUp 0.25s ease" }}>
         <div style={{ position: "sticky", top: 0, background: C.surface, padding: "14px 16px 10px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 1 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold }}>{roundName} · Trận đấu</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold }}>{roundName} · {needResult ? "Kết quả" : "Chuẩn bị trận"}</div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, display: "grid", placeItems: "center", width: 30, height: 30 }}><X size={20} /></button>
         </div>
 
         <div style={{ padding: 16 }}>
-          {/* Đối đầu + phiếu */}
-          <div style={{ display: "flex", alignItems: "stretch", gap: 10, marginBottom: 12 }}>
-            {[["a", m.aRef, aImg, p], ["b", m.bRef, bImg, pb]].map(([side, ref, img, pv]) => {
-              const win = ws === side;
-              return (
-                <div key={side} style={{ flex: 1, background: win ? C.goldSoft : C.bg, border: `1px solid ${win ? C.gold : C.border}`, borderRadius: 12, padding: "14px 10px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                  {av(ref, img, 52)}
-                  <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: win ? C.gold : C.text, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{win && "🏆 "}{ref?.name || "— chờ —"}</div>
-                  {m.aRef && m.bRef && <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textMuted }}>{fmt(side === "a" ? (m.votes?.a || 0) : (m.votes?.b || 0))} phiếu · {pv}%</div>}
+          {/* Hai đấu thủ (avatar cờ lớn) + tên — chủ giải sửa được ngay tại đây */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
+            {[["a", m.aRef, aName, setAName, aImg, setAImg], ["b", m.bRef, bName, setBName, bImg, setBImg]].map(([side, ref, name, setName, img, setImg]) => (
+              <React.Fragment key={side}>
+                {side === "b" && <div style={{ alignSelf: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 16, fontStyle: "italic", color: C.gold }}>VS</div>}
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                  <button onClick={isOwner ? () => uploadFor(setImg, ref) : undefined} title={isOwner ? "Đổi ảnh" : undefined} style={{ border: "none", background: "none", cursor: isOwner ? "pointer" : "default", padding: 0, position: "relative" }}>
+                    {flagAv(ref, img, 74)}
+                    {isOwner && <span style={{ position: "absolute", right: -2, bottom: 4, width: 22, height: 22, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center", border: `2px solid ${C.surface}` }}><ImagePlus size={12} color="#231a05" /></span>}
+                  </button>
+                  {isOwner ? (
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Đấu thủ ${side.toUpperCase()}`} style={{ ...inp, textAlign: "center", fontWeight: 700 }} />
+                  ) : (
+                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, textAlign: "center", ...ellip }}>{ref?.name || "—"}</div>
+                  )}
                 </div>
-              );
-            })}
+              </React.Fragment>
+            ))}
           </div>
-          {m.aRef && m.bRef && (
-            <div style={{ height: 10, borderRadius: 99, overflow: "hidden", display: "flex", border: `1px solid ${C.border}`, background: C.track, marginBottom: 10 }}>
-              <div style={{ width: `${p}%`, background: m.aRef?.color || C.teal }} />
-              <div style={{ width: `${pb}%`, background: m.bRef?.color || C.coral }} />
+          {isOwner && dirty && (
+            <button onClick={saveCustom} disabled={saving} style={{ width: "100%", padding: "10px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, cursor: "pointer", marginBottom: 16, opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu đấu thủ"}</button>
+          )}
+
+          {/* Bước ĐỆM: đặt thời lượng + lên sóng / hẹn giờ (chỉ khi chưa lên sóng) */}
+          {isOwner && !needResult && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: C.bg, border: `1px solid ${C.border}` }}>
+                <Clock size={17} color={C.gold} />
+                <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, flex: 1 }}>Thời lượng</span>
+                <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="24:00" style={{ width: 74, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 0", color: C.gold, fontFamily: monoFont, fontSize: 15, fontWeight: 700, outline: "none" }} />
+              </div>
+              <button onClick={goLiveNow} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "13px", borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
+                <span style={{ width: 10, height: 10, borderRadius: 99, background: "#fff" }} /> Lên sóng ngay
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="datetime-local" value={schAt} onChange={(e) => setSchAt(e.target.value)} style={{ flex: 1, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", colorScheme: "dark" }} />
+                <button onClick={scheduleAt} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", whiteSpace: "nowrap" }}><CalendarClock size={16} /> Hẹn giờ</button>
+              </div>
             </div>
           )}
-          <div style={{ fontFamily: bodyFont, fontSize: 12, color: live ? C.teal : (scheduled || notStarted) ? C.gold : C.coral, fontWeight: 600, marginBottom: 14 }}>
-            {notStarted ? "⚪ Chưa lên sóng — chủ giải chưa mở bình chọn" : scheduled ? `🕒 Sẽ lên sóng lúc ${fmtWhen(m.opensAt)}` : live ? "🟢 Đang mở bình chọn" : closed ? "⏰ Đã đóng bình chọn" : m.winnerRef ? "🏆 Đã có kết quả" : "⏳ Chưa có đấu thủ"}
-          </div>
 
-          {/* Vào trận (chapter) — chỉ mở vote khi đang live */}
-          {m.rankiePostId && live && (
-            <button onClick={() => onOpenRankie(m.rankiePostId)} style={{ width: "100%", padding: "12px", borderRadius: 12, background: C.teal, border: "none", color: "#08130d", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: isOwner ? 16 : 4 }}>
-              {isPrediction ? "Vào trận để dự đoán →" : "Vào trận để bình chọn →"}
-            </button>
-          )}
-
-          {/* Kết quả dự đoán cho người xem */}
-          {isPrediction && m.winnerRef && m.myPick && !isOwner && (
-            <div style={{ fontFamily: bodyFont, fontSize: 13, marginBottom: 8 }}>
-              <span style={{ color: C.gold, fontWeight: 700 }}>Kết quả thật: {m.winnerRef.name}</span>{" "}
-              {m.myPick === ws ? <span style={{ color: C.teal, fontWeight: 700 }}>· Bạn đoán ĐÚNG ✓</span> : <span style={{ color: C.coral, fontWeight: 700 }}>· Bạn đoán sai ✗</span>}
+          {/* Bước nhập KẾT QUẢ (giải dự đoán đã đóng) */}
+          {isOwner && needResult && (
+            <div>
+              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 10 }}>Chọn đội thắng thật:</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {[["a", m.aRef], ["b", m.bRef]].map(([side, ref]) => (
+                  <button key={side} onClick={() => onSetResult(side)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${ws === side ? C.gold : C.border}`, background: ws === side ? C.goldSoft : C.surfaceRaised, color: ws === side ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🏆 {ref?.name}</button>
+                ))}
+              </div>
             </div>
-          )}
-
-          {isOwner && (
-            <>
-              {/* Tuỳ chỉnh đấu thủ */}
-              {(m.aRef || m.bRef) && (
-                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 4 }}>Tuỳ chỉnh đấu thủ</div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>Đổi tên & ảnh đại diện của mỗi đấu thủ cho trận này. Áp dụng ngay vào bảng nhánh và bài bình chọn của trận.</div>
-                  {[["a", m.aRef, aName, setAName, aImg, setAImg], ["b", m.bRef, bName, setBName, bImg, setBImg]].filter(([, ref]) => ref).map(([side, ref, name, setName, img, setImg]) => (
-                    <div key={side} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <button onClick={() => uploadFor(setImg, ref)} title="Đổi ảnh" style={{ border: "none", background: "none", cursor: "pointer", padding: 0, position: "relative" }}>
-                        {av(ref, img, 44)}
-                        <span style={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center" }}><ImagePlus size={11} color="#231a05" /></span>
-                      </button>
-                      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Tên đấu thủ ${side.toUpperCase()}`} style={{ ...inp, flex: 1 }} />
-                    </div>
-                  ))}
-                  <button onClick={saveCustom} disabled={!dirty || saving} style={{ width: "100%", padding: "9px", borderRadius: 9, background: dirty ? C.gold : C.surfaceRaised, border: "none", color: dirty ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: dirty ? "pointer" : "default", opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu tuỳ chỉnh"}</button>
-                </div>
-              )}
-
-              {/* Điều khiển trận theo trạng thái (setup → live → đóng) */}
-              {m.rankiePostId && m.aRef && m.bRef && (
-                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
-                  {(notStarted || scheduled) && (
-                    <>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 4 }}>🔴 Lên sóng trận</div>
-                      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>Chọn thời lượng bình chọn, rồi lên sóng ngay hoặc hẹn giờ. Trước khi lên sóng, không ai bình chọn được.</div>
-                      <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginBottom: 10 }}>
-                        <span>⏱️ Thời lượng (giờ)</span>
-                        <input type="number" min={0.5} step={0.5} value={durH} onChange={(e) => setDurH(Math.max(0.5, Number(e.target.value) || 0.5))} style={{ ...inp, width: 90, textAlign: "center" }} />
-                      </label>
-                      <button onClick={goLiveNow} style={{ width: "100%", padding: "11px", borderRadius: 10, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>🔴 Lên sóng ngay ({durH}h)</button>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <input type="datetime-local" value={schAt} onChange={(e) => setSchAt(e.target.value)} style={{ ...dtInp, flex: 1 }} />
-                        <button onClick={scheduleAt} style={{ padding: "8px 12px", borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}>🕒 Hẹn giờ</button>
-                      </div>
-                      {scheduled && (
-                        <button onClick={cancelSchedule} style={{ marginTop: 10, background: "none", border: "none", color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Huỷ hẹn (về chưa lên sóng)</button>
-                      )}
-                    </>
-                  )}
-                  {live && (
-                    <>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 4 }}>🟢 Đang live</div>
-                      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 10, lineHeight: 1.4 }}>{m.closesAt ? `Đóng lúc ${fmtWhen(m.closesAt)}.` : "Chưa đặt giờ đóng."} Có thể đóng sớm hoặc gia hạn.</div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button onClick={closeNow} style={{ flex: 1, minWidth: 110, padding: "10px", borderRadius: 9, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>⏰ Đóng sớm</button>
-                        <button onClick={() => extendMin(30)} style={{ flex: 1, minWidth: 90, padding: "10px", borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>➕ 30 phút</button>
-                        <button onClick={() => extendMin(60)} style={{ flex: 1, minWidth: 90, padding: "10px", borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>➕ 1 giờ</button>
-                      </div>
-                    </>
-                  )}
-                  {closed && !m.winnerRef && (
-                    <>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 8 }}>⏰ Đã đóng bình chọn</div>
-                      <button onClick={() => extendMin(30)} style={{ width: "100%", padding: "10px", borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>↻ Mở lại 30 phút</button>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Nhập kết quả thật (giải dự đoán) */}
-              {isPrediction && m.aRef && m.bRef && (
-                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 8 }}>🏆 Kết quả thật</div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {[["a", m.aRef], ["b", m.bRef]].map(([side, ref]) => (
-                      <button key={side} onClick={() => onSetResult(side)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${ws === side ? C.gold : C.border}`, background: ws === side ? C.goldSoft : C.surfaceRaised, color: ws === side ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{ref?.name}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
           )}
         </div>
       </div>
