@@ -4738,9 +4738,13 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
           )}
         </div>
       )}
-      <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>
-        {rankie.title}
-      </div>
+      {/* #13: ẩn tiêu đề tự tạo "A vs B" (trùng đúng tên 2 phương án) — lá cờ VS đã nói lên
+          đối đầu; chỉ hiện tiêu đề khi chủ post đặt tiêu đề riêng. */}
+      {!(rankie.options?.length === 2 && rankie.title === `${rankie.options[0]?.label} vs ${rankie.options[1]?.label}`) && (
+        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>
+          {rankie.title}
+        </div>
+      )}
 
       {/* Results lead the card — this is what viewers scan for first.
           Any rankie with exactly two options reads better as a head-to-head
@@ -4988,7 +4992,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor })
     const st = mState(m);
     const rk = {
       id: m.rankiePostId, type: "rankie", chartType: "head_to_head",
-      author: t.author, title: `${m.aRef?.name || "?"} vs ${m.bRef?.name || "?"}`,
+      author: t.author, title: m.title || `${m.aRef?.name || "?"} vs ${m.bRef?.name || "?"}`, caption: m.caption || "",
       colorA: m.aRef?.color, colorB: m.bRef?.color,
       live: st === 1, closesAt: m.closesAt ? Date.parse(m.closesAt) : null, opensAt: m.opensAt ? Date.parse(m.opensAt) : null,
       votingType: "single", participants: (m.votes?.a || 0) + (m.votes?.b || 0), comments: [], tags: [], category: null,
@@ -6724,9 +6728,12 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         {rankie.author && (
           <AuthorRow author={rankie.author} onOpenAuthor={undefined} />
         )}
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
-          {rankie.title}
-        </div>
+        {/* #13: ẩn tiêu đề tự tạo "A vs B" (trùng tên 2 phương án) — chỉ hiện tiêu đề riêng của chủ post. */}
+        {!(rankie.options?.length === 2 && rankie.title === `${rankie.options[0]?.label} vs ${rankie.options[1]?.label}`) && (
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
+            {rankie.title}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <TagPills tags={rankie.tags} category={rankie.category} max={5} />
           {isClosed ? (
@@ -13061,6 +13068,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const [shareOpen, setShareOpen] = useState(false);
   const [sheetKey, setSheetKey] = useState(null); // "round-position" trận đang mở bảng chi tiết
   const bracketScrollRef = useRef(null); // #3: tự cuộn bracket tới vòng đang diễn ra
+  const [editDescName, setEditDescName] = useState(null); // #14: đấu thủ đang sửa mô tả
+  const [descDraft, setDescDraft] = useState("");
   const load = useCallback(() => { api.tournaments.get(tournamentId).then(setData).catch(() => {}); }, [tournamentId]);
   useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
   // #3: khi tải giải / chuyển vòng → cuộn ngang bảng nhánh để vòng đang diễn ra vào giữa màn hình.
@@ -13086,6 +13095,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const customize = (m, patch) => {
     return api.tournaments.customizeMatch(tournamentId, m.round, m.position, patch).then(setData).catch((e) => { showToast?.(e?.message || "Lỗi tuỳ chỉnh"); throw e; });
   };
+  const saveContestantDesc = (name, desc) => // #14: mô tả 1 đấu thủ → áp dụng toàn giải
+    api.tournaments.setContestantDesc(tournamentId, name, desc).then((d) => { setData(d); setEditDescName(null); showToast?.("Đã lưu mô tả"); }).catch((e) => showToast?.(e?.message || "Lỗi lưu mô tả"));
   const toggleBookmark = () => {
     setData((d) => (d ? { ...d, bookmarked: !d.bookmarked } : d)); // lạc quan
     api.tournaments.toggleBookmark(tournamentId)
@@ -13350,10 +13361,26 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
                   </div>
                 );
+                const editing = editDescName === c.name;
                 const text = (
                   <div style={{ flex: 1, minWidth: 0, textAlign: left ? "left" : "right", paddingTop: 4 }}>
-                    <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: c.desc ? C.textMuted : C.textFaint, marginTop: 4, lineHeight: 1.5, fontStyle: c.desc ? "normal" : "italic" }}>{c.desc || (isOwner ? "Chưa có mô tả — thêm sau" : "—")}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: left ? "row" : "row-reverse" }}>
+                      <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.name}</span>
+                      {isOwner && !editing && (
+                        <button onClick={() => { setEditDescName(c.name); setDescDraft(c.desc || ""); }} title="Sửa mô tả" style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, display: "grid", placeItems: "center", padding: 2, flexShrink: 0 }}><Edit3 size={13} /></button>
+                      )}
+                    </div>
+                    {editing ? (
+                      <div style={{ marginTop: 6 }}>
+                        <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Mô tả đấu thủ…" rows={2} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", resize: "vertical", textAlign: "left" }} />
+                        <div style={{ display: "flex", gap: 8, marginTop: 6, justifyContent: left ? "flex-start" : "flex-end" }}>
+                          <button onClick={() => setEditDescName(null)} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Huỷ</button>
+                          <button onClick={() => saveContestantDesc(c.name, descDraft)} style={{ padding: "6px 14px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>Lưu</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: c.desc ? C.textMuted : C.textFaint, marginTop: 4, lineHeight: 1.5, fontStyle: c.desc ? "normal" : "italic" }}>{c.desc || (isOwner ? "Chạm ✎ để thêm mô tả" : "—")}</div>
+                    )}
                   </div>
                 );
                 return (
@@ -13372,8 +13399,10 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           <CommentsSection
             postId={data.id}
             initialComments={[]}
-            supportOptions={[]}
             placeholder="Thảo luận, dự đoán về giải đấu…"
+            // #5: cho phép "nhắc" đấu thủ giống rankie — gắn thẻ bình luận ủng hộ đấu thủ nào.
+            supportOptions={roster.map((c) => ({ id: c.name, label: c.name, color: c.color || C.gold }))}
+            getSupportLabel={(id) => { const c = rosterMap.get(id); return c ? { label: c.name, color: c.color || C.gold } : null; }}
             commentApi={{ list: (id, opts) => api.tournaments.listComments(id, opts), create: (id, body) => api.tournaments.createComment(id, body) }}
           />
         </div>
@@ -13394,13 +13423,15 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
   const [saving, setSaving] = useState(false);
   const [dur, setDur] = useState("24:00"); // thời lượng bình chọn dạng HH:MM
   const [schAt, setSchAt] = useState("");
+  const [mTitle, setMTitle] = useState(m.title || ""); // #13: tiêu đề trận (tuỳ chọn)
+  const [mCaption, setMCaption] = useState(m.caption || ""); // #13: mô tả trận (tuỳ chọn)
   const nowMs = Date.now();
   const closed = m.closesAt && new Date(m.closesAt).getTime() <= nowMs;
   const tie = !!(m.aRef && m.bRef) && (m.votes?.a || 0) === (m.votes?.b || 0);
   // Cần chủ giải xử lý khi: giải dự đoán (nhập kết quả) HOẶC trận bình chọn HOÀ (chọn bên / gia hạn).
   const needResult = closed && !m.winnerRef && !!(m.aRef && m.bRef) && (isPrediction || tie);
   const ws = m.winnerRef ? (m.aRef && m.winnerRef.name === m.aRef.name ? "a" : "b") : null;
-  const dirty = aName !== (m.aRef?.name || "") || bName !== (m.bRef?.name || "") || aImg !== (m.aRef?.imageUrl || null) || bImg !== (m.bRef?.imageUrl || null);
+  const dirty = aName !== (m.aRef?.name || "") || bName !== (m.bRef?.name || "") || aImg !== (m.aRef?.imageUrl || null) || bImg !== (m.bRef?.imageUrl || null) || mTitle !== (m.title || "") || mCaption !== (m.caption || "");
   const parseHHMM = (s) => { const mt = String(s).trim().match(/^(\d{1,4}):?(\d{0,2})$/); if (!mt) return null; const h = parseInt(mt[1] || "0", 10); const mm = mt[2] ? parseInt(mt[2], 10) : 0; if (Number.isNaN(h) || mm > 59) return null; const t = h + mm / 60; return t > 0 ? t : null; };
   const hrs = () => parseHHMM(dur) || 24;
   const goLiveNow = () => { const o = new Date(); onSchedule({ opensAt: o.toISOString(), closesAt: new Date(o.getTime() + hrs() * 3600000).toISOString() }); };
@@ -13418,6 +13449,8 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
     const patch = {};
     if (m.aRef) patch.a = { name: aName.trim() || m.aRef.name, imageUrl: aImg || null };
     if (m.bRef) patch.b = { name: bName.trim() || m.bRef.name, imageUrl: bImg || null };
+    if (mTitle !== (m.title || "")) patch.title = mTitle.trim() || null; // #13
+    if (mCaption !== (m.caption || "")) patch.caption = mCaption.trim() || null; // #13
     Promise.resolve(onCustomize(patch)).then(() => showToast?.("Đã lưu")).catch(() => {}).finally(() => setSaving(false));
   };
   const uploadFor = (setter, ref) => {
@@ -13454,8 +13487,15 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
               </React.Fragment>
             ))}
           </div>
+          {/* #13: tiêu đề + mô tả trận (tuỳ chọn) — ảnh đã nói lên đối đầu, tiêu đề/mô tả để chủ post tự thêm */}
+          {isOwner && !needResult && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+              <input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="Tiêu đề trận (tuỳ chọn)" style={{ ...inp }} />
+              <textarea value={mCaption} onChange={(e) => setMCaption(e.target.value)} placeholder="Mô tả trận (tuỳ chọn)" rows={2} style={{ ...inp, resize: "vertical" }} />
+            </div>
+          )}
           {isOwner && dirty && (
-            <button onClick={saveCustom} disabled={saving} style={{ width: "100%", padding: "10px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, cursor: "pointer", marginBottom: 16, opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu đấu thủ"}</button>
+            <button onClick={saveCustom} disabled={saving} style={{ width: "100%", padding: "10px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, cursor: "pointer", marginBottom: 16, opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu thay đổi"}</button>
           )}
 
           {/* Bước ĐỆM: đặt thời lượng + lên sóng / hẹn giờ (chỉ khi chưa lên sóng) */}
