@@ -13060,8 +13060,19 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sheetKey, setSheetKey] = useState(null); // "round-position" trận đang mở bảng chi tiết
+  const bracketScrollRef = useRef(null); // #3: tự cuộn bracket tới vòng đang diễn ra
   const load = useCallback(() => { api.tournaments.get(tournamentId).then(setData).catch(() => {}); }, [tournamentId]);
   useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, [load]);
+  // #3: khi tải giải / chuyển vòng → cuộn ngang bảng nhánh để vòng đang diễn ra vào giữa màn hình.
+  useEffect(() => {
+    const el = bracketScrollRef.current;
+    if (!el || !data) return;
+    const COLW = 152, GAP = 30, maxRound = (data.rounds || 1) - 1;
+    const activeCol = Math.min(data.currentRound ?? 0, maxRound); // cột nhánh trái của vòng hiện tại
+    const targetX = activeCol * (COLW + GAP) + COLW / 2;
+    const to = Math.max(0, targetX - el.clientWidth / 2);
+    requestAnimationFrame(() => { try { el.scrollTo({ left: to, behavior: "smooth" }); } catch { el.scrollLeft = to; } });
+  }, [data?.id, data?.currentRound, data?.rounds]);
   const advance = () => {
     setBusy(true);
     api.tournaments.advance(tournamentId).then((t) => setData(t)).catch((e) => showToast?.(e?.message || "Chốt vòng thất bại")).finally(() => setBusy(false));
@@ -13240,7 +13251,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             const hseg = (xa, xb, y, col) => <div style={{ position: "absolute", left: Math.min(xa, xb), top: y - 1, width: Math.abs(xa - xb) || 2, height: 2, background: col }} />;
             const vseg = (x, ya, yb, col) => <div style={{ position: "absolute", left: x - 1, top: Math.min(ya, yb), width: 2, height: Math.abs(ya - yb) || 2, background: col }} />;
             return (
-              <div style={{ overflowX: "auto", paddingBottom: 6 }}>
+              <div ref={bracketScrollRef} style={{ overflowX: "auto", paddingBottom: 6 }}>
                 <div style={{ position: "relative", width: totalW, height: containerH, minWidth: totalW }}>
                   {/* Tiêu đề mỗi cột (2 bên + giữa) */}
                   {Array.from({ length: totalCols }).map((_, c) => {
