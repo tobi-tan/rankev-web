@@ -16404,14 +16404,15 @@ export default function RankevApp() {
             // Áp dữ liệu thật vào post dù nó nằm ở apiPosts (feed) hay rankies (bài của mình).
             // Giữ mine/author của bản cũ để bài của mình không bị đẩy khỏi Hồ sơ.
             const patch = (p) => (p.id === id ? { ...proto, mine: p.mine, author: p.mine ? currentUser : proto.author } : p);
-            // Nếu bài chưa có trong feed/bài-của-tôi (vd: ván đấu trong giải, mở qua
-            // link/openRef) thì chèn vào apiPosts để màn chi tiết tìm thấy & render.
-            const known = apiPosts.some((p) => p.id === id) || rankies.some((p) => p.id === id);
+            const known = apiPosts.some((p) => p.id === id) || rankies.some((p) => p.id === id) || extraAuthorPosts.some((p) => p.id === id);
             if (known) {
               setApiPosts((prev) => prev.map(patch));
               setRankies((prev) => prev.map(patch));
+              setExtraAuthorPosts((prev) => prev.map(patch));
             } else {
-              setApiPosts((prev) => [{ ...proto, mine: proto.author?.id === currentUser.apiId }, ...prev]);
+              // Bài KHÔNG thuộc feed (vd: ván đấu trong giải mở từ carousel) → giữ ở kho PHỤ để
+              // màn chi tiết tìm thấy, KHÔNG chèn vào apiPosts (tránh nó hiện thành thẻ lẻ trên feed).
+              setExtraAuthorPosts((prev) => [{ ...proto, mine: proto.author?.id === currentUser.apiId }, ...prev]);
             }
             setLiveOptions((prev) => ({ ...prev, [id]: proto.options }));
           }
@@ -17076,7 +17077,7 @@ export default function RankevApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, selectedPath]);
 
-  const selected = [...rankies, ...apiRankies].find((r) => r.id === selectedId);
+  const selected = [...rankies, ...apiRankies, ...extraAuthorPosts].find((r) => r.id === selectedId);
   const isOverlay =
     view === "detail" ||
     view === "pathDetail" ||
