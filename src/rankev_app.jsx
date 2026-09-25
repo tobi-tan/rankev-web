@@ -14644,6 +14644,7 @@ function apiSummaryToProto(s) {
     category: s.category || "Khác", tags: s.tags || [],
     author: apiAuthorToProto(s.author),
     createdAt: Date.parse(s.createdAt) || Date.now(),
+    deletedAt: s.deletedAt ? (Date.parse(s.deletedAt) || Date.now()) : null, // thùng rác (persist)
     opensAt: s.opensAt ? Date.parse(s.opensAt) : null,
     notYetOpen: !!s.notYetOpen,
     media: s.media || null,
@@ -16302,18 +16303,26 @@ export default function RankevApp() {
   };
   // Soft-delete: marks deletedAt so the post moves to Thùng rác instead of vanishing
   // immediately. Permanently removed only when emptied from the trash (or after 30 days).
-  const softDelete = (post) => updateMeta(post.id, { deletedAt: Date.now() });
-  const restoreFromTrash = (post) => updateMeta(post.id, { deletedAt: null });
+  // Xoá MỀM (vào thùng rác) — persist lên backend để F5 không hiện lại. Optimistic + revert khi lỗi.
+  const softDelete = (post) => {
+    updateMeta(post.id, { deletedAt: Date.now() });
+    if (isApiId(post.id)) api.posts.remove(post.id).catch((e) => { updateMeta(post.id, { deletedAt: null }); showToast(e?.message || "Xoá thất bại"); });
+  };
+  const restoreFromTrash = (post) => {
+    updateMeta(post.id, { deletedAt: null });
+    if (isApiId(post.id)) api.posts.restore(post.id).catch((e) => { updateMeta(post.id, { deletedAt: Date.now() }); showToast(e?.message || "Khôi phục thất bại"); });
+  };
   const permanentlyDelete = (post) => {
-    if (post.type === "rankie") setRankies((prev) => prev.filter((r) => r.id !== post.id));
-    else if (post.type === "path") setUserPaths((prev) => prev.filter((p) => p.id !== post.id));
-    else if (post.type === "deck") setUserDecks((prev) => prev.filter((d) => d.id !== post.id));
-    else if (post.type === "share") setSharedPosts((prev) => prev.filter((s) => s.id !== post.id));
-    setPostMeta((prev) => {
-      const next = { ...prev };
-      delete next[post.id];
-      return next;
-    });
+    const doLocal = () => {
+      if (post.type === "rankie") setRankies((prev) => prev.filter((r) => r.id !== post.id));
+      else if (post.type === "path") setUserPaths((prev) => prev.filter((p) => p.id !== post.id));
+      else if (post.type === "deck") setUserDecks((prev) => prev.filter((d) => d.id !== post.id));
+      else if (post.type === "share") setSharedPosts((prev) => prev.filter((s) => s.id !== post.id));
+      setApiPosts((prev) => prev.filter((p) => p.id !== post.id));
+      setPostMeta((prev) => { const next = { ...prev }; delete next[post.id]; return next; });
+    };
+    if (isApiId(post.id)) api.posts.purge(post.id).then(doLocal).catch((e) => showToast(e?.message || "Xoá vĩnh viễn thất bại"));
+    else doLocal();
   };
   const duplicatePost = (post) => {
     // Re-sharing a "share" doesn't make sense to duplicate the same way as content —

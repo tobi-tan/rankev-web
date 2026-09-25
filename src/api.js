@@ -167,7 +167,9 @@ export const posts = {
   get(id) { return apiFetch(`/posts/${id}`); },
   create(body) { return apiFetch('/posts', { method: 'POST', body }); },
   update(id, body) { return apiFetch(`/posts/${id}`, { method: 'PATCH', body }); },
-  remove(id) { return apiFetch(`/posts/${id}`, { method: 'DELETE' }); },
+  remove(id) { return apiFetch(`/posts/${id}`, { method: 'DELETE' }); }, // xoá mềm (vào thùng rác)
+  restore(id) { return apiFetch(`/posts/${id}/restore`, { method: 'POST' }); }, // khôi phục
+  purge(id) { return apiFetch(`/posts/${id}/purge`, { method: 'DELETE' }); }, // xoá vĩnh viễn
   byUser(userId) { return apiFetch(`/users/${userId}/posts`); },
   mine() { return apiFetch('/users/me/posts'); },
 };
