@@ -4077,10 +4077,18 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
   const colorB = hexColor(rankie.colorB || b.color, "#2F6BFF");
   const clickable = !!onVote && !isClosed;
   const fireLevel = (pct, leading) => { if (!isFire || !leading || pct <= 50) return 0; if (pct < 60) return 1; if (pct < 75) return 2; return 3; };
+  // Đã kết thúc + có bên thắng rõ ràng: KHOE bên thắng (ảnh full màu + huy hiệu),
+  // bên thua làm mờ (blur) + xám. Hoà thì không quyết định → giữ như đang mở.
+  const decided = isClosed && pctA !== pctB;
+  const winnerIdx = decided ? (pctA > pctB ? 0 : 1) : -1;
   const flag = (o, col, pct, i) => {
     const mine = votedId === o.id;
     const leading = i === 0 ? pctA >= pctB && pctA > 0 : pctB > pctA;
-    const level = fireLevel(pct, leading);
+    const isWinner = decided && i === winnerIdx;
+    const isLoser = decided && i !== winnerIdx;
+    const level = isClosed ? 0 : fireLevel(pct, leading);
+    const sideCol = isLoser ? "#5b5b5b" : col;
+    const imgFx = isLoser ? "grayscale(1) blur(2.5px) brightness(0.72)" : "none";
     const Wrap = clickable ? "button" : "div";
     return (
       <Wrap
@@ -4091,7 +4099,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
           overflow: isFire ? "visible" : "hidden",
           borderRadius: 14, display: "flex", flexDirection: "column",
           outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
-          ...(isFire ? {} : { clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, justifyContent: "flex-end" }),
+          ...(isFire ? {} : { clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", background: `linear-gradient(160deg, ${sideCol}, ${sideCol}cc)`, boxShadow: `0 8px 20px ${sideCol}44`, justifyContent: "flex-end" }),
         }}
       >
         {/* KHUNG LỬA cháy động (CSS, không emoji) — chỉ bên đang dẫn */}
@@ -4099,18 +4107,20 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
         {/* Khung cờ thật (viền màu, ảnh giữ màu gốc) — nằm trên khung lửa */}
         <div style={isFire ? {
           position: "relative", zIndex: 1, flex: 1, minHeight: height, borderRadius: 12, overflow: "hidden",
-          border: `4px solid ${col}`, background: "#0d0d0d", display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : "none",
+          border: `4px solid ${sideCol}`, background: "#0d0d0d", display: "flex", flexDirection: "column", justifyContent: "flex-end",
+          boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : (isWinner ? `0 0 16px ${C.gold}88` : "none"),
         } : { position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
           {o.image && <>
-            <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+            <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
             {/* FIRE: chỉ phủ 1 dải MỎNG sát đáy cho chữ đọc được — ảnh lộ gần hết. OVERLAY: phủ màu đội. */}
-            <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 62%, rgba(0,0,0,0.6) 84%, rgba(0,0,0,0.85))" : `linear-gradient(180deg, ${col}55, ${col}ee)` }} />
+            <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 62%, rgba(0,0,0,0.6) 84%, rgba(0,0,0,0.85))" : `linear-gradient(180deg, ${sideCol}55, ${sideCol}ee)` }} />
           </>}
-          {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${col}, ${col}bb)` }} />}
-          {!isFire && leading && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
+          {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)` }} />}
+          {/* Huy hiệu bên THẮNG (đã kết thúc) */}
+          {isWinner && <div style={{ position: "absolute", top: 7, left: "50%", transform: "translateX(-50%)", zIndex: 4, width: 36, height: 36, borderRadius: 99, background: C.gold, border: "2px solid rgba(255,255,255,0.75)", display: "grid", placeItems: "center", fontSize: 19, boxShadow: "0 2px 10px rgba(0,0,0,0.55)" }}>🏆</div>}
+          {!isFire && leading && !isClosed && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
           {/* Chữ gọn 2 dòng NẰM SÁT CHÂN cờ (không che ảnh): tên + "% · số phiếu". */}
-          <div style={{ position: "relative", zIndex: 2, padding: "4px 8px 7px", textAlign: "center", color: "#fff" }}>
+          <div style={{ position: "relative", zIndex: 2, padding: "4px 8px 7px", textAlign: "center", color: isLoser ? "#cfcfcf" : "#fff" }}>
             <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 15, lineHeight: 1.1, textShadow: "0 1px 6px rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
             </div>
@@ -4124,7 +4134,8 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
     <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18, padding: isFire ? "12px 10px 10px" : 0 }}>
       {flag(a, colorA, pctA, 0)}
       {flag(b, colorB, pctB, 1)}
-      <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
+      {/* Badge VS chỉ khi CHƯA có kết quả — đã kết thúc thì bỏ để khoe bên thắng. */}
+      {!decided && <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
     </div>
   );
 }
