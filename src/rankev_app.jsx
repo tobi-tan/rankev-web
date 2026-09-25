@@ -4625,7 +4625,9 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
         ...cardSurface,
         cursor: "pointer",
         animation: "popIn 0.3s ease",
-        opacity: closed ? 0.75 : 1,
+        // Bài đã kết thúc: KHÔNG làm mờ (khó nhìn). Thay bằng viền trái vàng nhạt + nhãn
+        // "Đã kết thúc" để vẫn nhận biết rõ mà thẻ vẫn sáng, dễ đọc.
+        ...(closed ? { borderLeft: `3px solid ${C.gold}` } : {}),
       }}
     >
       {(() => {
