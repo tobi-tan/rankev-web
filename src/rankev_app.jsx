@@ -13002,6 +13002,9 @@ function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
         padding: "8px 4px",
         position: "sticky",
         bottom: 0,
+        // z-index cao hơn nội dung có z-index trong thẻ (lá cờ VS z5, khung lửa) để nav
+        // không bị đè khi cuộn; vẫn thấp hơn modal/sheet (zIndex ≥ 60).
+        zIndex: 40,
         transform: hidden ? "translateY(130%)" : "translateY(0)",
         transition: "transform .28s ease",
         willChange: "transform",
@@ -13066,7 +13069,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
     api.tournaments.advance(tournamentId).then((t) => setData(t)).catch((e) => showToast?.(e?.message || "Chốt vòng thất bại")).finally(() => setBusy(false));
   };
   const setResult = (m, winner) => {
-    api.tournaments.setResult(tournamentId, m.round, m.position, winner).then(setData).catch((e) => showToast?.(e?.message || "Lỗi nhập kết quả"));
+    return api.tournaments.setResult(tournamentId, m.round, m.position, winner).then(setData).catch((e) => { showToast?.(e?.message || "Lỗi nhập kết quả"); throw e; });
   };
   const setSchedule = (m, sched) => {
     return api.tournaments.setSchedule(tournamentId, m.round, m.position, sched).then(setData).catch((e) => { showToast?.(e?.message || "Lỗi đặt lịch"); throw e; });
@@ -13106,8 +13109,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           <button onClick={toggleBookmark} title={data.bookmarked ? "Bỏ lưu" : "Lưu giải"} aria-label={data.bookmarked ? "Bỏ lưu" : "Lưu giải"} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
             <IconBookmark filled={!!data.bookmarked} />
           </button>
-          <button onClick={() => setShareOpen(true)} title="Chia sẻ" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
-            <Share2 size={19} color={C.teal} />
+          <button onClick={() => setShareOpen(true)} title="Chia sẻ" aria-label="Chia sẻ" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
+            <Share2 size={19} color={C.text} />
           </button>
         </div>
       } />
@@ -13127,8 +13130,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             onClose={() => setSheetKey(null)}
             onOpenRankie={(id) => { setSheetKey(null); onOpenRankie?.(id); }}
             onCustomize={(patch) => customize(sm, patch)}
-            onSchedule={(sched) => setSchedule(sm, sched)}
-            onSetResult={(w) => setResult(sm, w)}
+            // Lên sóng / hẹn giờ / gia hạn / chọn kết quả xong → ĐÓNG sheet (bước đệm hoàn thành).
+            onSchedule={(sched) => setSchedule(sm, sched).then((d) => { setSheetKey(null); return d; })}
+            onSetResult={(w) => setResult(sm, w).then(() => setSheetKey(null)).catch(() => {})}
             fmtWhen={fmtWhen}
             toLocalInput={toLocalInput}
             showToast={showToast}
