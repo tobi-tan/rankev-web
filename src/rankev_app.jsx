@@ -3633,7 +3633,7 @@ function FbShareIcon({ size = 16, color = "currentColor" }) {
 // tham gia), giống hệt việc bấm vào thẻ bài.
 // Icon theo loại nội dung — bộ ĐÃ CHỐT dùng nhất quán toàn app (Rankie=biểu đồ cột,
 // Path=nhánh, Survey=lớp, Exam=bút).
-const ENGAGEMENT_TYPE_ICON = { rankie: BarChart3, path: GitBranch, survey: Layers, exam: Edit3 };
+const ENGAGEMENT_TYPE_ICON = { rankie: BarChart3, path: GitBranch, survey: Layers, exam: Edit3, tournament: BarChart3 };
 
 function IconCommentBubble({ size = 20, color = C.textMuted }) {
   return (
@@ -4934,11 +4934,53 @@ function TournamentFeedCard({ t, onOpen, onOpenAuthor }) {
 // Giải đấu trên feed = 1 carousel kiểu series: slide đầu là BẢNG ĐẤU, các slide sau là
 // từng TRẬN (live + đã kết thúc), vuốt ngang theo dõi được. Nạp trận qua getTournament (lazy,
 // chỉ khi thẻ hiển thị). Thứ tự: bảng đấu → live → sắp diễn ra → đã kết thúc (vòng mới trước).
-function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor }) {
-  const [data, setData] = useState(null);
+// Cache giải theo id: carousel feed đã nạp → mở chi tiết giải hiện NGAY, không chờ mạng.
+const tournamentCache = new Map();
+
+// Dựng thẻ rankie tạm từ dữ liệu trận (đã có trong getTournament) → mở chi tiết ván hiện NGAY,
+// bản đầy đủ (option id thật, bình luận…) nạp nền rồi thay vào.
+function matchToRankieProto(m, author) {
+  const now = Date.now();
+  const opensAt = m.opensAt ? Date.parse(m.opensAt) : null;
+  const closesAt = m.closesAt ? Date.parse(m.closesAt) : null;
+  return {
+    id: m.rankiePostId, type: "rankie", chartType: "head_to_head", author,
+    title: m.title || `${m.aRef?.name || "?"} vs ${m.bRef?.name || "?"}`, caption: m.caption || "",
+    colorA: m.aRef?.color, colorB: m.bRef?.color,
+    live: !!opensAt && opensAt <= now && !(closesAt && closesAt <= now), closesAt, opensAt,
+    votingType: "single", participants: (m.votes?.a || 0) + (m.votes?.b || 0), comments: [], tags: [], category: null,
+    options: [
+      { id: "a", label: m.aRef?.name, emoji: m.aRef?.emoji, votes: m.votes?.a || 0, color: m.aRef?.color, image: m.aRef?.imageUrl },
+      { id: "b", label: m.bRef?.name, emoji: m.bRef?.emoji, votes: m.votes?.b || 0, color: m.bRef?.color, image: m.bRef?.imageUrl },
+    ],
+    _api: true,
+  };
+}
+
+function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, onShare }) {
+  const [data, setData] = useState(() => tournamentCache.get(t.id) || null);
   const [idx, setIdx] = useState(0);
+  const [bm, setBm] = useState(!!t.bookmarked);
+  useEffect(() => { setBm(!!t.bookmarked); }, [t.bookmarked]);
   const ref = useRef(null);
-  useEffect(() => { let alive = true; api.tournaments.get(t.id).then((d) => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, [t.id]);
+  // Chiều cao carousel BÁM THEO slide đang xem (slide ngắn không bị kéo dài bằng slide cao nhất
+  // → không còn khoảng trống, thanh tương tác nằm sát ngay dưới).
+  const slideRefs = useRef([]);
+  const [boxH, setBoxH] = useState(null);
+  useEffect(() => {
+    const el = slideRefs.current[idx];
+    if (!el) return;
+    const measure = () => setBoxH(el.offsetHeight || null);
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [idx, data]);
+  useEffect(() => { let alive = true; api.tournaments.get(t.id).then((d) => { tournamentCache.set(t.id, d); if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, [t.id]);
+  const toggleBm = () => {
+    setBm((v) => !v); // lạc quan
+    api.tournaments.toggleBookmark(t.id).then((r) => setBm(!!r.bookmarked)).catch(() => setBm((v) => !v));
+  };
   const champ = t.championRef;
   const now = Date.now();
   const roundsCount = data?.rounds || t.rounds || 1;
@@ -4989,21 +5031,13 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor })
 
   // Mỗi trận hiển thị như THẺ FEED rankie đầy đủ (tác giả, tiêu đề, lá cờ VS, thanh tương tác).
   const matchSlide = (m) => {
-    const st = mState(m);
-    const rk = {
-      id: m.rankiePostId, type: "rankie", chartType: "head_to_head",
-      author: t.author, title: m.title || `${m.aRef?.name || "?"} vs ${m.bRef?.name || "?"}`, caption: m.caption || "",
-      colorA: m.aRef?.color, colorB: m.bRef?.color,
-      live: st === 1, closesAt: m.closesAt ? Date.parse(m.closesAt) : null, opensAt: m.opensAt ? Date.parse(m.opensAt) : null,
-      votingType: "single", participants: (m.votes?.a || 0) + (m.votes?.b || 0), comments: [], tags: [], category: null,
-      options: [
-        { id: "a", label: m.aRef?.name, emoji: m.aRef?.emoji, votes: m.votes?.a || 0, color: m.aRef?.color, image: m.aRef?.imageUrl },
-        { id: "b", label: m.bRef?.name, emoji: m.bRef?.emoji, votes: m.votes?.b || 0, color: m.bRef?.color, image: m.bRef?.imageUrl },
-      ],
-      _api: true,
-    };
-    return <RankieCard rankie={rk} onOpen={() => onOpenRankie(m.rankiePostId)} onOpenAuthor={onOpenAuthor} hideCategory bookmarked={false} />;
+    const rk = matchToRankieProto(m, t.author);
+    return <RankieCard rankie={rk} onOpen={() => onOpenRankie(m.rankiePostId, rk)} onOpenAuthor={onOpenAuthor} hideCategory bookmarked={false} />;
   };
+  // Thanh tương tác CỦA GIẢI (giống EngagementBar của rankie/path): tổng phiếu · bình luận · chia sẻ · lưu.
+  const totalVotes = data ? data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0) : (t.totalVotes || 0);
+  const commentCount = data?.commentCount ?? t.commentCount ?? 0;
+  const joined = !!data?.matches?.some((m) => m.myPick);
 
   return (
     <div style={{ position: "relative" }}>
@@ -5011,14 +5045,26 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor })
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}><Trophy size={12} /> Giải đấu · {total} phần</span>
         <span style={{ marginLeft: "auto", fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: C.textFaint }}>{Math.min(idx + 1, total)}/{total}</span>
       </div>
-      <div ref={ref} onScroll={onScroll} style={{ display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
-        <div style={slideWrap}>{bracketSlide}</div>
-        {shown.map((m) => <div key={`${m.round}-${m.position}`} style={slideWrap}>{matchSlide(m)}</div>)}
+      <div ref={ref} onScroll={onScroll} style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none", height: boxH || "auto", transition: "height .25s ease" }}>
+        <div ref={(el) => { slideRefs.current[0] = el; }} style={slideWrap}>{bracketSlide}</div>
+        {shown.map((m, i) => <div key={`${m.round}-${m.position}`} ref={(el) => { slideRefs.current[i + 1] = el; }} style={slideWrap}>{matchSlide(m)}</div>)}
       </div>
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 8 }}>
         <button onClick={() => goto(0)} aria-label="Bảng đấu" style={dot(idx === 0)} />
         {shown.map((_, i) => <button key={i} onClick={() => goto(i + 1)} aria-label={`Trận ${i + 1}`} style={dot(idx === i + 1)} />)}
       </div>
+      <EngagementBar
+        type="tournament"
+        joined={joined}
+        participants={totalVotes}
+        comments={commentCount}
+        shares={0}
+        bookmarked={bm}
+        onJoinClick={() => onOpenTournament(t.id)}
+        onCommentClick={() => onOpenTournament(t.id)}
+        onShareClick={() => onShare?.(t)}
+        onBookmarkClick={toggleBm}
+      />
     </div>
   );
 }
@@ -5088,7 +5134,7 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
   // Render 1 thẻ feed theo loại — tách riêng để carousel Series tái dùng cho từng chapter.
   const renderCard = (it) => (
     it.type === "tournament" ? (
-      <TournamentCarousel t={it} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} />
+      <TournamentCarousel t={it} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
     ) : it.type === "path" ? (
       <PathCard path={it} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : it.type === "deck" ? (
@@ -13063,7 +13109,18 @@ function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
 // Xem một giải: vòng đang bình chọn (mỗi ván là Rankie thật, mở ra để vote) + sơ đồ
 // phân nhánh (phiếu/%), tự làm mới ~4s. Chủ giải có nút "Chốt vòng".
 function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, showToast, contacts, onShareToProfile }) {
-  const [data, setData] = useState(null);
+  // Có sẵn trong cache (carousel feed đã nạp) → hiện NGAY, rồi làm mới ngầm.
+  const [data, setData] = useState(() => tournamentCache.get(tournamentId) || null);
+  useEffect(() => { if (data?.id) tournamentCache.set(data.id, data); }, [data]);
+  const [rosterOpen, setRosterOpen] = useState(false); // roster: lưới rút gọn ↔ danh sách chi tiết
+  const [focusName, setFocusName] = useState(null); // đấu thủ vừa chạm trong lưới
+  const rosterRowRefs = useRef({});
+  useEffect(() => {
+    if (!rosterOpen || !focusName) return;
+    const el = rosterRowRefs.current[focusName];
+    requestAnimationFrame(() => el?.scrollIntoView?.({ behavior: "smooth", block: "center" }));
+  }, [rosterOpen, focusName]);
+  const commentsRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sheetKey, setSheetKey] = useState(null); // "round-position" trận đang mở bảng chi tiết
@@ -13127,30 +13184,11 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   for (const m of data.matches) for (const ref of [m.aRef, m.bRef]) { if (ref && ref.name && !rosterMap.has(ref.name)) rosterMap.set(ref.name, ref); }
   const roster = [...rosterMap.values()];
   const totalVotes = data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0);
-  const realMatches = data.matches.filter((m) => m.rankiePostId).length;
-  // Thẻ số liệu: ICON outline + SỐ (đồng bộ phong cách EngagementBar). Dùng lại icon lucide sẵn có.
-  const statChip = (Icon, value, label) => (
-    <div key={label} style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface }}>
-      <Icon size={16} color={C.gold} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, color: C.text, lineHeight: 1 }}>{fmt(value)}</div>
-        <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textMuted, marginTop: 2 }}>{label}</div>
-      </div>
-    </div>
-  );
+  const joinedAny = data.matches.some((m) => m.myPick);
 
   return (
     <div>
-      <TopBar title={data.title} onBack={onBack} right={
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <button onClick={toggleBookmark} title={data.bookmarked ? "Bỏ lưu" : "Lưu giải"} aria-label={data.bookmarked ? "Bỏ lưu" : "Lưu giải"} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
-            <IconBookmark filled={!!data.bookmarked} />
-          </button>
-          <button onClick={() => setShareOpen(true)} title="Chia sẻ" aria-label="Chia sẻ" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36 }}>
-            <Share2 size={19} color={C.text} />
-          </button>
-        </div>
-      } />
+      <TopBar title={data.title} onBack={onBack} />
       {shareOpen && (
         <ShareModal item={{ id: data.id, title: data.title, type: "tournament", category: data.category }} onClose={() => setShareOpen(false)} onShareToProfile={onShareToProfile || (() => {})} contacts={contacts ?? []} />
       )}
@@ -13186,14 +13224,69 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         {(data.tags?.length || data.category) && (
           <div style={{ marginBottom: 14 }}><TagPills tags={data.tags} category={data.category} max={6} /></div>
         )}
-        {/* #12 — Số liệu tổng giải (icon + số, viền outline) */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-          {statChip(Users, roster.length, "Đấu thủ")}
-          {statChip(BarChart3, totalVotes, "Tổng phiếu")}
-          {statChip(Flame, realMatches, "Trận đấu")}
-          {statChip(GitBranch, data.rounds, "Vòng")}
-          {statChip(MessageCircle, data.commentCount || 0, "Thảo luận")}
-        </div>
+        {/* ĐẤU THỦ — mặc định LƯỚI RÚT GỌN 4 cột (ảnh + tên). Chạm đấu thủ / nút ⌄ → danh sách
+            chi tiết (cờ đuôi nheo so le + mô tả; chủ giải sửa mô tả tại đây). */}
+        {roster.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Đấu thủ</div>
+              <button onClick={() => { setRosterOpen((v) => !v); setFocusName(null); }} aria-label={rosterOpen ? "Thu gọn" : "Xem chi tiết"} title={rosterOpen ? "Thu gọn" : "Xem chi tiết"} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 30, height: 30, color: C.textMuted }}>
+                <ChevronDown size={18} style={{ transform: rosterOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+              </button>
+            </div>
+            {!rosterOpen ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }}>
+                {roster.map((c) => (
+                  <button key={c.name} onClick={() => { setFocusName(c.name); setRosterOpen(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", minWidth: 0, textAlign: "center" }}>
+                    <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, border: `1px solid ${c.color || C.border}`, display: "grid", placeItems: "center" }}>
+                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
+                    </div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, color: C.text, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {roster.map((c, idx) => {
+                  const left = idx % 2 === 0;
+                  const editing = editDescName === c.name;
+                  const focused = focusName === c.name;
+                  const pennant = (
+                    <div style={{ width: 58, height: 74, flexShrink: 0, clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
+                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
+                    </div>
+                  );
+                  const text = (
+                    <div style={{ flex: 1, minWidth: 0, textAlign: left ? "left" : "right", paddingTop: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: left ? "row" : "row-reverse" }}>
+                        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: focused ? C.gold : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.name}</span>
+                        {isOwner && !editing && (
+                          <button onClick={() => { setEditDescName(c.name); setDescDraft(c.desc || ""); }} title="Sửa mô tả" aria-label="Sửa mô tả" style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, display: "grid", placeItems: "center", padding: 2, flexShrink: 0 }}><Edit3 size={13} /></button>
+                        )}
+                      </div>
+                      {editing ? (
+                        <div style={{ marginTop: 6 }}>
+                          <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Mô tả đấu thủ…" rows={2} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", resize: "vertical", textAlign: "left" }} />
+                          <div style={{ display: "flex", gap: 8, marginTop: 6, justifyContent: left ? "flex-start" : "flex-end" }}>
+                            <button onClick={() => setEditDescName(null)} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Huỷ</button>
+                            <button onClick={() => saveContestantDesc(c.name, descDraft)} style={{ padding: "6px 14px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>Lưu</button>
+                          </div>
+                        </div>
+                      ) : c.desc ? (
+                        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>{c.desc}</div>
+                      ) : null}
+                    </div>
+                  );
+                  return (
+                    <div key={c.name + idx} ref={(el) => { rosterRowRefs.current[c.name] = el; }} style={{ display: "flex", flexDirection: left ? "row" : "row-reverse", alignItems: "flex-start", gap: 14 }}>
+                      {pennant}{text}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {champ && (
           <div style={{ ...cardSurface, textAlign: "center", padding: "22px 16px", marginBottom: 16 }}>
             <div style={{ fontSize: 46 }}>{champ.emoji || "🏆"}</div>
@@ -13209,7 +13302,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             </div>
             {isOwner && (
               <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 6, lineHeight: 1.4 }}>
-                “Kết thúc vòng” = đóng vòng hiện tại, {isPrediction ? "lấy kết quả thật bạn nhập" : "lấy bên nhiều phiếu hơn"} làm người thắng và tạo các trận vòng sau. Chạm một trận trong bảng nhánh để mở chi tiết{isOwner ? ", tuỳ chỉnh đấu thủ hay hẹn giờ lên sóng" : ""}.
+                {isPrediction ? "Nhập kết quả thật cho từng trận — người thắng tự vào vòng trong." : "Trận hết giờ tự chốt bên nhiều phiếu và điền vào vòng trong."} “Kết thúc vòng” = đóng sớm mọi trận đang live của vòng này.
               </div>
             )}
             {isPrediction && (
@@ -13253,7 +13346,19 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             const finalX = maxRound * (COLW + GAP);
             const champTop = HEADER + H / 2 + 46;
             const containerH = Math.max(HEADER + H, champTop + 78) + 6;
-            const isPhantom = (m, r) => r === 0 && !m.aRef && !m.bRef && !m.winnerRef;
+            // Nhánh "chết" (không bao giờ có đấu thủ): vòng 0 trống cả 2 bên, vòng sau = cả 2 nhánh con
+            // đều chết → ẩn (không để ô "— chờ —" treo mãi). Khớp logic đối soát ở backend.
+            const deadMemo = {};
+            const isDeadAt = (r, p) => {
+              const k = `${r}-${p}`;
+              if (k in deadMemo) return deadMemo[k];
+              let v;
+              if (r === 0) { const m0 = rounds[0]?.find((x) => x.position === p); v = !m0 || (!m0.aRef && !m0.bRef && !m0.winnerRef); }
+              else v = isDeadAt(r - 1, 2 * p) && isDeadAt(r - 1, 2 * p + 1);
+              deadMemo[k] = v;
+              return v;
+            };
+            const isPhantom = (m, r) => isDeadAt(r, m.position ?? 0);
             const av = (ref, size) => ref
               ? (ref.imageUrl
                   ? <img src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
@@ -13297,14 +13402,14 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     const scheduled = m.opensAt && new Date(m.opensAt) > new Date();
                     const closed = m.closesAt && new Date(m.closesAt) <= new Date();
                     const hasBoth = m.aRef && m.bRef;
-                    const isLive = r === ar && !m.winnerRef && hasBoth && started && !closed;
+                    const isLive = !m.winnerRef && hasBoth && started && !closed;
                     const notStarted = hasBoth && !m.winnerRef && !m.opensAt && !closed; // đủ đấu thủ nhưng chủ giải chưa mở
                     const isBye = !!m.winnerRef && (!m.aRef || !m.bRef); // 1 bên trống + đã có người thắng = miễn đấu
                     const tie = hasBoth && (m.votes?.a || 0) === (m.votes?.b || 0);
                     const needResult = closed && !m.winnerRef && hasBoth && (isPrediction || tie);
                     const onBox = () => {
                       if (isOwner && (notStarted || needResult)) setSheetKey(`${m.round}-${m.position}`);
-                      else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId);
+                      else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId, matchToRankieProto(m)); // hiện ngay, nạp đầy đủ ngầm
                     };
                     const slot = (ref, side) => {
                       const win = m.winnerRef && ref && m.winnerRef.name === ref.name;
@@ -13349,53 +13454,24 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           })()}
         </div>
 
-        {/* ROSTER ĐẤU THỦ — cờ đuôi nheo (pennant) so le trái/phải + Tên + Mô tả. */}
-        {roster.length > 0 && (
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 12 }}>Đấu thủ ({roster.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {roster.map((c, idx) => {
-                const left = idx % 2 === 0;
-                const pennant = (
-                  <div style={{ width: 58, height: 74, flexShrink: 0, clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, border: `1px solid ${c.color || C.border}`, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
-                    {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
-                  </div>
-                );
-                const editing = editDescName === c.name;
-                const text = (
-                  <div style={{ flex: 1, minWidth: 0, textAlign: left ? "left" : "right", paddingTop: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: left ? "row" : "row-reverse" }}>
-                      <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.name}</span>
-                      {isOwner && !editing && (
-                        <button onClick={() => { setEditDescName(c.name); setDescDraft(c.desc || ""); }} title="Sửa mô tả" style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, display: "grid", placeItems: "center", padding: 2, flexShrink: 0 }}><Edit3 size={13} /></button>
-                      )}
-                    </div>
-                    {editing ? (
-                      <div style={{ marginTop: 6 }}>
-                        <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Mô tả đấu thủ…" rows={2} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", resize: "vertical", textAlign: "left" }} />
-                        <div style={{ display: "flex", gap: 8, marginTop: 6, justifyContent: left ? "flex-start" : "flex-end" }}>
-                          <button onClick={() => setEditDescName(null)} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Huỷ</button>
-                          <button onClick={() => saveContestantDesc(c.name, descDraft)} style={{ padding: "6px 14px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>Lưu</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: c.desc ? C.textMuted : C.textFaint, marginTop: 4, lineHeight: 1.5, fontStyle: c.desc ? "normal" : "italic" }}>{c.desc || (isOwner ? "Chạm ✎ để thêm mô tả" : "—")}</div>
-                    )}
-                  </div>
-                );
-                return (
-                  <div key={c.name + idx} style={{ display: "flex", flexDirection: left ? "row" : "row-reverse", alignItems: "flex-start", gap: 14 }}>
-                    {pennant}{text}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Thanh tương tác của giải — CÙNG EngagementBar & vị trí như chi tiết rankie/path. */}
+        <div style={{ marginTop: 14 }}>
+          <EngagementBar
+            type="tournament"
+            joined={joinedAny}
+            participants={totalVotes}
+            comments={data.commentCount || 0}
+            shares={0}
+            bookmarked={!!data.bookmarked}
+            onCommentClick={() => commentsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+            onShareClick={() => setShareOpen(true)}
+            onBookmarkClick={toggleBookmark}
+          />
+        </div>
 
         {/* Bình luận trên thẻ đấu — như một bài rankie. */}
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 10 }}>Thảo luận{data.commentCount ? ` (${data.commentCount})` : ""}</div>
+        <div ref={commentsRef} style={{ marginTop: 20 }}>
+          <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 10 }}>Thảo luận</div>
           <CommentsSection
             postId={data.id}
             initialComments={[]}
@@ -16343,6 +16419,8 @@ export default function RankevApp() {
     });
 
   const setVotedFor = (rankieId) => (val) => {
+    // Bài thật đang hiện bằng THẺ TẠM (option id chưa phải UUID thật) → chờ bản đầy đủ rồi mới vote.
+    if (isApiId(rankieId) && toOptionIds(val).some((x) => !isApiId(x))) { showToast("Đang tải bài, thử lại sau giây lát"); return; }
     // Optimistic local (giữ nguyên hành vi mock/demo).
     setVotedMap((prev) => ({ ...prev, [rankieId]: val }));
     // Bài thật: gửi vote lên backend; lỗi → toast; thành công → đồng bộ số phiếu.
@@ -16526,7 +16604,7 @@ export default function RankevApp() {
     id: t.id, type: "tournament", title: t.title, category: t.category || "Khác", tags: t.tags || [],
     author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
     status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
-    media: t.media || null, commentCount: t.commentCount || 0,
+    media: t.media || null, commentCount: t.commentCount || 0, bookmarked: !!t.bookmarked,
     participants: t.totalVotes || 0, // để xếp trending hợp lý
   }));
   const feedDedup = new Map();
@@ -16587,7 +16665,12 @@ export default function RankevApp() {
   }, [participationHistory, allPosts]);
   const FAN_REQUIRED = 10; // số bài tối thiểu phải tham gia để mở Fan cuồng
 
-  const openRankie = (id) => {
+  const openRankie = (id, stub) => {
+    // Có thẻ tạm (vd ván đấu dựng từ dữ liệu giải) mà bài chưa nằm trong danh sách nào →
+    // chèn ngay vào kho phụ để màn chi tiết HIỆN LIỀN, không chờ tải mạng.
+    if (stub && isApiId(id) && !apiPosts.some((p) => p.id === id) && !rankies.some((p) => p.id === id)) {
+      setExtraAuthorPosts((prev) => (prev.some((p) => p.id === id) ? prev : [{ ...stub, id, _stub: true }, ...prev]));
+    }
     setSelectedId(id);
     setPrevAfterDetail(view); // "feed" | "profile" | "search" — wherever the user opened this from
     setView("detail");
@@ -16601,16 +16684,17 @@ export default function RankevApp() {
             // Áp dữ liệu thật vào post dù nó nằm ở apiPosts (feed) hay rankies (bài của mình).
             // Giữ mine/author của bản cũ để bài của mình không bị đẩy khỏi Hồ sơ.
             const patch = (p) => (p.id === id ? { ...proto, mine: p.mine, author: p.mine ? currentUser : proto.author } : p);
-            const known = apiPosts.some((p) => p.id === id) || rankies.some((p) => p.id === id) || extraAuthorPosts.some((p) => p.id === id);
-            if (known) {
+            const inMain = apiPosts.some((p) => p.id === id) || rankies.some((p) => p.id === id);
+            if (inMain) {
               setApiPosts((prev) => prev.map(patch));
               setRankies((prev) => prev.map(patch));
-              setExtraAuthorPosts((prev) => prev.map(patch));
-            } else {
-              // Bài KHÔNG thuộc feed (vd: ván đấu trong giải mở từ carousel) → giữ ở kho PHỤ để
-              // màn chi tiết tìm thấy, KHÔNG chèn vào apiPosts (tránh nó hiện thành thẻ lẻ trên feed).
-              setExtraAuthorPosts((prev) => [{ ...proto, mine: proto.author?.id === currentUser.apiId }, ...prev]);
             }
+            // Bài KHÔNG thuộc feed (vd: ván đấu trong giải) → giữ ở kho PHỤ (thay thẻ tạm nếu có),
+            // KHÔNG chèn vào apiPosts (tránh nó hiện thành thẻ lẻ trên feed).
+            setExtraAuthorPosts((prev) => {
+              if (prev.some((p) => p.id === id)) return prev.map((p) => (p.id === id ? { ...proto, mine: proto.author?.id === currentUser.apiId } : p));
+              return inMain ? prev : [{ ...proto, mine: proto.author?.id === currentUser.apiId }, ...prev];
+            });
             setLiveOptions((prev) => ({ ...prev, [id]: proto.options }));
           }
         })
