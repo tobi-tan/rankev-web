@@ -13208,6 +13208,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
 
                   {/* Nhánh nối (vẽ trước, nằm dưới hộp) */}
                   {rounds.map((round, r) => round.map((m, i) => {
+                    // #9: ẩn ô "trống vs trống" (phantom) — match vòng 0 không có đấu thủ nào
+                    // và không có người thắng (do số đấu thủ không là luỹ thừa 2). Bỏ cả đường nối.
+                    if (r === 0 && !m.aRef && !m.bRef && !m.winnerRef) return null;
                     const single = round.length === 1;
                     const sib = single ? null : round[i % 2 === 0 ? i + 1 : i - 1];
                     const selfCol = m.winnerRef ? C.gold : C.border;
@@ -13227,6 +13230,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
 
                   {/* Hộp trận */}
                   {rounds.map((round, r) => round.map((m, i) => {
+                    // #9: ẩn ô "trống vs trống" (phantom) khỏi bảng nhánh.
+                    if (r === 0 && !m.aRef && !m.bRef && !m.winnerRef) return null;
                     // opensAt = null → CHƯA lên sóng (không auto-live); >now → đã hẹn; <=now → đang live.
                     const started = m.opensAt && new Date(m.opensAt) <= new Date();
                     const scheduled = m.opensAt && new Date(m.opensAt) > new Date();
