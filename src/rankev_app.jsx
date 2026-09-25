@@ -10953,18 +10953,16 @@ const CATEGORY_NAMES = {
 //   - comment bonus: engagement depth
 function trendingScore(item) {
   const ageHours = (Date.now() - (item.createdAt || 0)) / (1000 * 60 * 60);
-  // A post fresh off the press (first couple of minutes) always tops the feed,
-  // even the "Đang thịnh hành" tab — otherwise a brand-new post with 0
-  // engagement would sort below older, already-popular content.
-  const freshBoost = ageHours < (2 / 60) ? 1e6 : 0;
-  const decay = Math.exp(-ageHours / 12); // half-life ≈ 12 h
+  // Bài MỚI nổi mạnh rồi MỜ DẦN theo hàm mũ (không "rơi vực" như cắt cứng 2 phút):
+  // ~0h ≈ 3e5 (đứng đầu kể cả tab Thịnh hành), ~1h ≈ 4e4, ~2h ≈ 5.5e3 (ngang bài đông
+  // phiếu), sau đó nhường chỗ cho tương tác. Nhờ vậy bài vừa tạo của người dùng luôn
+  // THẤY ĐƯỢC ở đầu feed một thời gian thay vì chìm xuống cuối.
+  const freshBoost = 3e5 * Math.exp(-ageHours / 0.5);
+  const decay = Math.exp(-ageHours / 12); // half-life ≈ 12 h cho phần tương tác
   const participants = item.participants || 0;
   const comments = (Array.isArray(item.comments) ? item.comments.length : item.comments) || 0;
   const liveBonus = item.live && !isRankieClosed?.(item) ? 1.4 : 1;
-  // Nền theo độ mới: bài mới (dù chưa có tương tác) vẫn nổi trên bài cũ đã "chết".
-  // Sau ~2 phút freshBoost hết, decay*3 giữ bài mới ở trên rồi mờ dần khi cũ đi.
-  const recencyBase = decay * 3;
-  return freshBoost + recencyBase + (participants * 0.6 + comments * 2) * decay * liveBonus;
+  return freshBoost + (participants * 0.6 + comments * 2) * decay * liveBonus;
 }
 
 // Distribute a fixed 10-point budget across exam questions. Questions the host
