@@ -4151,7 +4151,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
             {/* Ruy băng "THẮNG" vắt chéo góc trên-phải bên thắng (không che giữa ảnh) */}
             {isWinner && (
               <div style={{ position: "absolute", top: 0, right: 0, width: 82, height: 82, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
-                <div style={{ position: "absolute", top: 14, right: -26, transform: "rotate(45deg)", width: 112, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 10, letterSpacing: 0.8, padding: "3px 0", boxShadow: "0 1px 5px rgba(0,0,0,0.45)" }}>THẮNG</div>
+                <div style={{ position: "absolute", top: 14, right: -26, transform: "rotate(45deg)", width: 112, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 10, letterSpacing: 1, padding: "3px 0", boxShadow: "0 1px 5px rgba(0,0,0,0.45)" }}>WINNER</div>
               </div>
             )}
             {/* Vương miện bên đang DẪN (chỉ khi còn mở, biến thể cổ điển) */}
@@ -4668,6 +4668,20 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
     rankie.options.length <= 4 && rankie.options.every((o) => !o.image);
   const inlineVote = (id, e) => { e?.stopPropagation?.(); onVote?.(id, e); };
 
+  // Thẻ đối đầu (VersusBanner) — khớp điều kiện nhánh render biểu đồ bên dưới.
+  const isVersusBanner = !hideResults && rankie.votingType !== "rating" &&
+    !(rankie.chartType === "tug" && rankie.options.length === 2) &&
+    !(rankie.chartType === "beam" && rankie.options.length === 2) &&
+    !((rankie.chartType === "h2h_bar" || rankie.votingType === "unlimited") && rankie.options.length === 2) &&
+    (rankie.chartType === "head_to_head" || rankie.chartType === "hh_classic" || rankie.options.length === 2);
+  // Đối đầu đã có bên thắng: ruy băng "WINNER" đã báo trạng thái → BỎ nhãn "Đã kết thúc"
+  // ở header (tránh thừa). Hoà (chưa phân định) vẫn giữ nhãn.
+  const versusDecided = closed && isVersusBanner && rankie.options.length >= 2 && (() => {
+    const t = (rankie.options[0].votes || 0) + (rankie.options[1].votes || 0) || 1;
+    const pa = Math.round((rankie.options[0].votes || 0) / t * 100);
+    return pa !== 100 - pa;
+  })();
+
   return (
     <div
       onClick={() => onOpen(rankie.id)}
@@ -4688,11 +4702,11 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
                 <CountdownChip toTs={rankie.opensAt} prefix="Sắp đăng" />
               ) : (<>
               {rankie.closesAt && !closed && <CountdownChip toTs={rankie.closesAt} />}
-              {closed ? (
+              {closed ? (versusDecided ? null : (
                 <Pill tone="muted">
                   <Lock size={11} /> Đã kết thúc
                 </Pill>
-              ) : rankie.live ? (
+              )) : rankie.live ? (
                 <Pill tone="live">
                   <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE
                 </Pill>
