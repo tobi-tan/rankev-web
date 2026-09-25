@@ -962,6 +962,34 @@ const otherExam = {
 // ---------- HELPERS ----------
 const fmt = (n) => n.toLocaleString("en-US");
 
+// ---------- CHẾ ĐỘ THỐNG KÊ: số phiếu ↔ % (toàn app) ----------
+// Mọi con số vote hiển thị mặc định là SỐ PHIẾU; chạm vào bất kỳ số nào để đổi
+// TOÀN BỘ sang %, chạm lần nữa quay lại. Dùng store ngoài + useSyncExternalStore để
+// không phải bọc Provider quanh cây (kể cả modal/portal đều đồng bộ).
+let _statMode = "count"; // "count" | "pct"
+const _statSubs = new Set();
+function _setStatMode(m) { if (m !== _statMode) { _statMode = m; _statSubs.forEach((fn) => fn()); } }
+function useStatMode() {
+  const subscribe = useCallback((fn) => { _statSubs.add(fn); return () => _statSubs.delete(fn); }, []);
+  const mode = React.useSyncExternalStore(subscribe, () => _statMode, () => _statMode);
+  const toggle = useCallback(() => _setStatMode(_statMode === "count" ? "pct" : "count"), []);
+  return { mode, toggle };
+}
+// Con số vote bấm-để-đổi (số phiếu ↔ %). total để tính %. Bấm KHÔNG kích hoạt vote/mở thẻ.
+function VoteStat({ votes = 0, total = 0, style, title }) {
+  const { mode, toggle } = useStatMode();
+  const pct = total > 0 ? Math.round((votes / total) * 100) : 0;
+  const text = mode === "pct" ? `${pct}%` : fmt(votes);
+  return (
+    <span
+      role="button"
+      title={title || (mode === "pct" ? "Chạm để xem số phiếu" : "Chạm để xem %")}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault?.(); toggle(); }}
+      style={{ fontFamily: monoFont, cursor: "pointer", ...style }}
+    >{text}</span>
+  );
+}
+
 // Compact follower-style counter: 128 -> "128", 4021 -> "4,0K", 284000 -> "284K"
 function fmtCompact(n) {
   if (n == null) return "0";
@@ -2042,7 +2070,7 @@ function SessionResultCard({ session }) {
                 <div key={o.id}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
                     <span style={{ color: C.text, fontWeight: 600 }}>{`#${i + 1} `}{o.label}</span>
-                    <span style={{ color: C.textMuted, fontFamily: monoFont }}>{pct}% · {fmt(o.votes)}</span>
+                    <VoteStat votes={o.votes} total={total} style={{ color: C.textMuted }} />
                   </div>
                   <div style={{ height: 8, borderRadius: 4, background: C.surfaceRaised, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${pct}%`, background: o.color || C.teal, borderRadius: 4 }} />
@@ -3278,7 +3306,7 @@ function PostStatsModal({ post, onClose, onExport }) {
                   {o.label}
                 </span>
                 <span style={{ color: C.textMuted, fontFamily: monoFont }}>
-                  {pct}% · {fmt(o.votes || 0)}
+                  <VoteStat votes={o.votes || 0} total={total} style={{ color: C.textMuted }} />
                   {isUnlimited && o.voters != null && ` (${fmt(o.voters)} người)`}
                 </span>
               </div>
@@ -4087,55 +4115,66 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
     const isWinner = decided && i === winnerIdx;
     const isLoser = decided && i !== winnerIdx;
     const level = isClosed ? 0 : fireLevel(pct, leading);
-    const sideCol = isLoser ? "#5b5b5b" : col;
-    const imgFx = isLoser ? "grayscale(1) blur(2.5px) brightness(0.72)" : "none";
+    const sideCol = isLoser ? "#6b6b6b" : col;
+    // Bên thua: CHỈ xám (bỏ blur) để vẫn nhận ra ảnh.
+    const imgFx = isLoser ? "grayscale(1) brightness(0.9)" : "none";
     const Wrap = clickable ? "button" : "div";
+    // Khung ảnh trong (viền màu ở kiểu lửa / cắt hình cờ ở kiểu cổ điển).
+    const frameStyle = isFire ? {
+      position: "relative", zIndex: 1, height, borderRadius: 12, overflow: "hidden",
+      border: `4px solid ${sideCol}`, background: "#0d0d0d",
+      boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : (isWinner ? `0 0 16px ${C.gold}aa` : "none"),
+      outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
+    } : {
+      position: "relative", zIndex: 1, height, overflow: "hidden",
+      clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)",
+      background: `linear-gradient(160deg, ${sideCol}, ${sideCol}cc)`, boxShadow: `0 8px 20px ${sideCol}44`,
+      outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
+    };
     return (
       <Wrap
         onClick={clickable ? (e) => onVote(o.id, e) : undefined}
         style={{
-          position: "relative", flex: 1, minWidth: 0, minHeight: height, padding: 0, cursor: clickable ? "pointer" : "default",
-          background: "transparent", border: "none",
-          overflow: isFire ? "visible" : "hidden",
-          borderRadius: 14, display: "flex", flexDirection: "column",
-          outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
-          ...(isFire ? {} : { clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", background: `linear-gradient(160deg, ${sideCol}, ${sideCol}cc)`, boxShadow: `0 8px 20px ${sideCol}44`, justifyContent: "flex-end" }),
+          flex: 1, minWidth: 0, padding: 0, cursor: clickable ? "pointer" : "default",
+          background: "transparent", border: "none", display: "flex", flexDirection: "column", gap: 6,
         }}
       >
-        {/* KHUNG LỬA cháy động (CSS, không emoji) — chỉ bên đang dẫn */}
-        {isFire && level > 0 && <FireFrame level={level} />}
-        {/* Khung cờ thật (viền màu, ảnh giữ màu gốc) — nằm trên khung lửa */}
-        <div style={isFire ? {
-          position: "relative", zIndex: 1, flex: 1, minHeight: height, borderRadius: 12, overflow: "hidden",
-          border: `4px solid ${sideCol}`, background: "#0d0d0d", display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : (isWinner ? `0 0 16px ${C.gold}88` : "none"),
-        } : { position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-          {o.image && <>
-            <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
-            {/* FIRE: chỉ phủ 1 dải MỎNG sát đáy cho chữ đọc được — ảnh lộ gần hết. OVERLAY: phủ màu đội. */}
-            <div style={{ position: "absolute", inset: 0, background: isFire ? "linear-gradient(180deg, transparent 62%, rgba(0,0,0,0.6) 84%, rgba(0,0,0,0.85))" : `linear-gradient(180deg, ${sideCol}55, ${sideCol}ee)` }} />
-          </>}
-          {!o.image && isFire && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)` }} />}
-          {/* Huy hiệu bên THẮNG (đã kết thúc) */}
-          {isWinner && <div style={{ position: "absolute", top: 7, left: "50%", transform: "translateX(-50%)", zIndex: 4, width: 36, height: 36, borderRadius: 99, background: C.gold, border: "2px solid rgba(255,255,255,0.75)", display: "grid", placeItems: "center", fontSize: 19, boxShadow: "0 2px 10px rgba(0,0,0,0.55)" }}>🏆</div>}
-          {!isFire && leading && !isClosed && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
-          {/* Chữ gọn 2 dòng NẰM SÁT CHÂN cờ (không che ảnh): tên + "% · số phiếu". */}
-          <div style={{ position: "relative", zIndex: 2, padding: "4px 8px 7px", textAlign: "center", color: isLoser ? "#cfcfcf" : "#fff" }}>
-            <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 15, lineHeight: 1.1, textShadow: "0 1px 6px rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
-            </div>
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12.5, marginTop: 1, textShadow: "0 1px 6px rgba(0,0,0,0.85)" }}>{pct}% · {fmt(o.votes || 0)}</div>
+        {/* Vùng ảnh (có thể bốc lửa khi đang dẫn) — CHỮ nằm ngoài, không che ảnh */}
+        <div style={{ position: "relative" }}>
+          {isFire && level > 0 && <FireFrame level={level} />}
+          <div style={frameStyle}>
+            {o.image ? (
+              <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
+            ) : (
+              <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)` }} />
+            )}
+            {/* Ruy băng "THẮNG" vắt chéo góc trên-phải bên thắng (không che giữa ảnh) */}
+            {isWinner && (
+              <div style={{ position: "absolute", top: 0, right: 0, width: 82, height: 82, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
+                <div style={{ position: "absolute", top: 14, right: -26, transform: "rotate(45deg)", width: 112, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 10, letterSpacing: 0.8, padding: "3px 0", boxShadow: "0 1px 5px rgba(0,0,0,0.45)" }}>THẮNG</div>
+              </div>
+            )}
+            {/* Vương miện bên đang DẪN (chỉ khi còn mở, biến thể cổ điển) */}
+            {!isFire && leading && !isClosed && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
           </div>
+        </div>
+        {/* Tên + thống kê NẰM NGOÀI khung ảnh */}
+        <div style={{ textAlign: "center", minWidth: 0 }}>
+          <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 15, lineHeight: 1.15, color: isLoser ? C.textMuted : C.text, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
+          </div>
+          <VoteStat votes={o.votes || 0} total={total} style={{ fontWeight: 800, fontSize: 13, color: isWinner ? C.gold : C.textMuted }} />
         </div>
       </Wrap>
     );
   };
+  const vsTop = (isFire ? 12 : 0) + height / 2; // căn badge VS vào giữa vùng ẢNH (chữ nằm dưới)
   return (
-    <div style={{ position: "relative", display: "flex", alignItems: "stretch", justifyContent: "center", gap: 18, padding: isFire ? "12px 10px 10px" : 0 }}>
+    <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 18, padding: isFire ? "12px 10px 10px" : 0 }}>
       {flag(a, colorA, pctA, 0)}
       {flag(b, colorB, pctB, 1)}
       {/* Badge VS chỉ khi CHƯA có kết quả — đã kết thúc thì bỏ để khoe bên thắng. */}
-      {!decided && <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
+      {!decided && <div style={{ position: "absolute", left: "50%", top: vsTop, transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
     </div>
   );
 }
@@ -4402,7 +4441,7 @@ function BarViz({ options, onVote, votedId, isClosed, tapCounts, activeTapId, vo
                   {o.label}
                   {!hasIllus && (isMine || tapCount > 0) && <VotedMarker voteMarker={voteMarker} />}
                 </span>
-                <span style={{ color: C.textMuted, fontFamily: monoFont }}>{pct}% · {fmt(o.votes)}</span>
+                <VoteStat votes={o.votes} total={total} style={{ color: C.textMuted }} />
               </div>
               <div style={{ height: 14, borderRadius: 7, background: C.surface, border: `1px solid ${C.border}`, overflow: "hidden" }}>
                 <div
@@ -4762,7 +4801,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
                     {o.label}
                     {isMine && <VotedMarker voteMarker={rankie.voteMarker} />}
                   </span>
-                  <span style={{ color: i === 0 ? C.gold : C.textMuted, fontFamily: monoFont, fontWeight: 700 }}>{pct}%</span>
+                  <VoteStat votes={o.votes} total={total} style={{ color: i === 0 ? C.gold : C.textMuted, fontWeight: 700 }} />
                 </div>
                 <div style={{ height: 8, borderRadius: 5, background: C.surface, overflow: "hidden" }}>
                   <div
