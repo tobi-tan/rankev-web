@@ -2312,12 +2312,17 @@ function makeCompanions(seed, howMany = 5) {
 // không đổi giữa các lần render/mở lại.
 function generateRankieTimeline(rankie, options) {
   if (!options || options.length < 2) return [];
+  // Chưa có phiếu nào → không có "cạnh tranh" để kể (tránh câu kiểu "A dẫn đầu suốt 21 ngày" khi 0:0).
+  if (options.reduce((s, o) => s + (o.votes || 0), 0) === 0) return [];
   const seedBase = sdHash(rankie.id || rankie.title || "rankie");
   const now = Date.now();
   // Khoảng thời gian mô phỏng dao động 15-45 ngày theo từng Rankie — đủ để đôi khi
   // xuất hiện mốc "giữ vững #1" mà không cố định cứng 30 ngày cho mọi bài.
+  // KHÔNG vượt tuổi thật của bài (bài mới tạo hôm nay thì không thể "suốt 21 ngày").
   const rSpan = sdRng(seedBase ^ 0x51);
-  const daySpan = 15 + Math.round(rSpan() * 30);
+  const ageDays = rankie.createdAt ? Math.max(0, (now - rankie.createdAt) / 86400000) : null;
+  const daySpan = Math.min(15 + Math.round(rSpan() * 30), ageDays ?? Infinity);
+  if (daySpan < 1 / 24) return []; // bài chưa tới 1 giờ tuổi → chưa có diễn biến để kể
   const snapCount = 7;
   const snapTimes = Array.from({ length: snapCount }, (_, i) => now - Math.round(((snapCount - 1 - i) / (snapCount - 1)) * daySpan * 86400000));
 
@@ -4098,8 +4103,10 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
   const [a, b] = options;
   if (!a || !b) return null;
   const isFire = variant === "fire";
-  const total = (a.votes || 0) + (b.votes || 0) || 1;
-  const pctA = Math.round((a.votes || 0) / total * 100);
+  const sumVotes = (a.votes || 0) + (b.votes || 0);
+  const total = sumVotes || 1;
+  // Chưa có phiếu → 50/50 (trước đây 0:0 thành 0%/100% → bên B bốc lửa và tự thành WINNER).
+  const pctA = sumVotes ? Math.round((a.votes || 0) / sumVotes * 100) : 50;
   const pctB = 100 - pctA;
   const colorA = hexColor(rankie.colorA || a.color, "#E23B3B");
   const colorB = hexColor(rankie.colorB || b.color, "#2F6BFF");
@@ -5007,6 +5014,10 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
     : st === 2 ? <Pill tone="gold"><Clock size={11} /> Sắp diễn ra</Pill>
     : <Pill tone="muted"><Lock size={11} /> Đã kết thúc</Pill>;
 
+  // Thanh tương tác CỦA GIẢI (đúng EngagementBar của rankie/path) — nằm TRONG thẻ bảng nhánh.
+  const totalVotes = data ? data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0) : (t.totalVotes || 0);
+  const commentCount = data?.commentCount ?? t.commentCount ?? 0;
+  const joined = !!data?.matches?.some((m) => m.myPick);
   const bracketSlide = (
     <div onClick={() => onOpenTournament(t.id)} style={{ ...cardSurface, cursor: "pointer" }}>
       {t.author && <AuthorRow author={t.author} onOpenAuthor={onOpenAuthor} rightSlot={<Pill tone="gold"><Trophy size={11} /> GIẢI ĐẤU</Pill>} />}
@@ -5026,6 +5037,20 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
         <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.teal, flexShrink: 0 }}>Xem →</span>
       </div>
       {!data && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 10 }}>Đang tải các trận…</div>}
+      <div style={{ marginTop: 10 }}>
+        <EngagementBar
+          type="tournament"
+          joined={joined}
+          participants={totalVotes}
+          comments={commentCount}
+          shares={0}
+          bookmarked={bm}
+          onJoinClick={() => onOpenTournament(t.id)}
+          onCommentClick={() => onOpenTournament(t.id)}
+          onShareClick={() => onShare?.(t)}
+          onBookmarkClick={toggleBm}
+        />
+      </div>
     </div>
   );
 
@@ -5034,10 +5059,6 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
     const rk = matchToRankieProto(m, t.author);
     return <RankieCard rankie={rk} onOpen={() => onOpenRankie(m.rankiePostId, rk)} onOpenAuthor={onOpenAuthor} hideCategory bookmarked={false} />;
   };
-  // Thanh tương tác CỦA GIẢI (giống EngagementBar của rankie/path): tổng phiếu · bình luận · chia sẻ · lưu.
-  const totalVotes = data ? data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0) : (t.totalVotes || 0);
-  const commentCount = data?.commentCount ?? t.commentCount ?? 0;
-  const joined = !!data?.matches?.some((m) => m.myPick);
 
   return (
     <div style={{ position: "relative" }}>
@@ -5053,18 +5074,6 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
         <button onClick={() => goto(0)} aria-label="Bảng đấu" style={dot(idx === 0)} />
         {shown.map((_, i) => <button key={i} onClick={() => goto(i + 1)} aria-label={`Trận ${i + 1}`} style={dot(idx === i + 1)} />)}
       </div>
-      <EngagementBar
-        type="tournament"
-        joined={joined}
-        participants={totalVotes}
-        comments={commentCount}
-        shares={0}
-        bookmarked={bm}
-        onJoinClick={() => onOpenTournament(t.id)}
-        onCommentClick={() => onOpenTournament(t.id)}
-        onShareClick={() => onShare?.(t)}
-        onBookmarkClick={toggleBm}
-      />
     </div>
   );
 }
@@ -6508,18 +6517,29 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   const isUnlimited = rankie.votingType === "unlimited";
   // Chủ bài chỉnh giờ đóng ngay tại chi tiết (kết thúc sớm / gia hạn) — áp cho ván giải đấu
   // lẫn rankie thường của mình. Ghi đè cục bộ để đồng hồ + trạng thái phản hồi ngay.
-  const [closesOverride, setClosesOverride] = useState(null);
+  const [closesOverride, setClosesOverride] = useState(null); // ms (số) — cùng kiểu với rankie.closesAt
   const effClosesAt = closesOverride ?? rankie.closesAt;
-  const isClosed = closesOverride != null ? new Date(closesOverride).getTime() <= Date.now() : isRankieClosed(rankie);
+  const isClosed = closesOverride != null ? closesOverride <= Date.now() : isRankieClosed(rankie);
   const isRankieOwner = rankie.mine || rankie.author?.id === "me" || (!!currentUser.apiId && rankie.author?.id === currentUser.apiId);
   const [extendInput, setExtendInput] = useState("00:30");
-  const applyCloses = (iso) => { setClosesOverride(iso); if (isApiId(rankie.id)) api.posts.update(rankie.id, { closesAt: iso }).catch(() => {}); };
-  const endLiveNow = () => applyCloses(new Date().toISOString());
+  // Ghi giờ đóng mới lên server (isUuid ở phạm vi module — isApiId chỉ có trong RankevApp nên
+  // trước đây gọi ở đây bị ReferenceError, PATCH không bao giờ gửi đi). Lỗi → hoàn tác.
+  const applyCloses = (ms) => {
+    const prev = closesOverride;
+    setClosesOverride(ms);
+    if (isUuid(rankie.id)) {
+      api.posts.update(rankie.id, { closesAt: new Date(ms).toISOString() }).catch((e) => {
+        setClosesOverride(prev);
+        window.alert(e?.message || "Không cập nhật được giờ kết thúc");
+      });
+    }
+  };
+  const endLiveNow = () => applyCloses(Date.now());
   const extendLive = () => {
     const mt = String(extendInput).trim().match(/^(\d{1,4}):?(\d{0,2})$/); if (!mt) return;
     const mins = parseInt(mt[1] || "0", 10) * 60 + (mt[2] ? parseInt(mt[2], 10) : 0); if (mins <= 0) return;
     const base = effClosesAt ? Math.max(new Date(effClosesAt).getTime(), Date.now()) : Date.now();
-    applyCloses(new Date(base + mins * 60000).toISOString());
+    applyCloses(base + mins * 60000);
   };
   // Đồng hồ đếm ngược tới giờ lên sóng + TỰ CHUYỂN sang live khi tới giờ (nowTs vượt opensAt).
   const [nowTs, setNowTs] = useState(Date.now());
@@ -6930,7 +6950,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           >
             <Lock size={16} color={C.textFaint} />
             <span>
-              Bình chọn đã kết thúc {rankie.closesAt ? `lúc ${new Date(rankie.closesAt).toLocaleString("vi-VN")}` : ""}. Bạn vẫn xem được kết quả ở trên.
+              Bình chọn đã kết thúc {effClosesAt ? `lúc ${new Date(effClosesAt).toLocaleString("vi-VN")}` : ""}. Bạn vẫn xem được kết quả ở trên.
             </span>
           </div>
         ) : isUnlimited ? (
