@@ -13100,6 +13100,23 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
   const decided = data.matches.filter((m) => m.rankiePostId && m.winnerRef && m.myPick);
   const myCorrect = decided.filter((m) => m.myPick === winnerSide(m)).length;
 
+  // #12 + roster: gom số liệu tổng giải + danh sách đấu thủ (khử trùng theo tên) từ các trận.
+  const rosterMap = new Map();
+  for (const m of data.matches) for (const ref of [m.aRef, m.bRef]) { if (ref && ref.name && !rosterMap.has(ref.name)) rosterMap.set(ref.name, ref); }
+  const roster = [...rosterMap.values()];
+  const totalVotes = data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0);
+  const realMatches = data.matches.filter((m) => m.rankiePostId).length;
+  // Thẻ số liệu: ICON outline + SỐ (đồng bộ phong cách EngagementBar). Dùng lại icon lucide sẵn có.
+  const statChip = (Icon, value, label) => (
+    <div key={label} style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface }}>
+      <Icon size={16} color={C.gold} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, color: C.text, lineHeight: 1 }}>{fmt(value)}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textMuted, marginTop: 2 }}>{label}</div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       <TopBar title={data.title} onBack={onBack} right={
@@ -13147,6 +13164,14 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         {(data.tags?.length || data.category) && (
           <div style={{ marginBottom: 14 }}><TagPills tags={data.tags} category={data.category} max={6} /></div>
         )}
+        {/* #12 — Số liệu tổng giải (icon + số, viền outline) */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          {statChip(Users, roster.length, "Đấu thủ")}
+          {statChip(BarChart3, totalVotes, "Tổng phiếu")}
+          {statChip(Flame, realMatches, "Trận đấu")}
+          {statChip(GitBranch, data.rounds, "Vòng")}
+          {statChip(MessageCircle, data.commentCount || 0, "Thảo luận")}
+        </div>
         {champ && (
           <div style={{ ...cardSurface, textAlign: "center", padding: "22px 16px", marginBottom: 16 }}>
             <div style={{ fontSize: 46 }}>{champ.emoji || "🏆"}</div>
@@ -13181,55 +13206,70 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             {isOwner && <div style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.textFaint }}>Chạm một trận để mở →</div>}
           </div>
           {(() => {
-            // Bố cục toạ độ CỐ ĐỊNH (không dùng flex co giãn) để các hộp không bao giờ chồng lên nhau.
-            const ROW = 92, COLW = 168, GAP = 38, HEADER = 26, CHAMPW = 128, HG = GAP / 2;
+            // BỐ CỤC HỘI TỤ: 2 nhánh (nửa trên trận → chảy phải, nửa dưới → chảy trái) dồn vào
+            // CHUNG KẾT ở giữa, nhà VÔ ĐỊCH ngay dưới. Chiều cao chỉ bằng ~½ kiểu 1 chiều nên
+            // dễ theo dõi trên điện thoại (theo mẫu bảng nhánh thể thao).
+            const ROW = 92, COLW = 152, GAP = 30, HEADER = 26, CHAMPW = 132;
+            const maxRound = rounds.length - 1;
             const n0 = rounds[0]?.length || 1;
-            const H = n0 * ROW;
-            const colX = (r) => r * (COLW + GAP);
-            const centerY = (r, i) => HEADER + (i + 0.5) * (ROW * Math.pow(2, r));
-            const champX = rounds.length * (COLW + GAP);
-            const champCY = HEADER + H / 2;
-            const totalW = champX + CHAMPW + 4;
+            const halfN0 = Math.max(1, n0 / 2);
+            const H = halfN0 * ROW;
+            const hOf = (r) => Math.max(1, (rounds[r]?.length || 1) / 2); // số trận mỗi bên ở vòng r
+            const colIndexOf = (r, position) => (r === maxRound ? maxRound : (position < hOf(r) ? r : (2 * maxRound - r)));
+            const sideLocal = (r, position) => { const h = hOf(r); return position < h ? { side: "L", localI: position } : { side: "R", localI: position - h }; };
+            const xOf = (r, position) => colIndexOf(r, position) * (COLW + GAP);
+            const yOf = (r, position) => (r === maxRound ? HEADER + H / 2 : HEADER + (sideLocal(r, position).localI + 0.5) * ROW * Math.pow(2, r));
+            const parentOf = (r, position) => {
+              if (r >= maxRound) return null;
+              const { side, localI } = sideLocal(r, position);
+              const parentR = r + 1, parentLocalI = Math.floor(localI / 2);
+              const parentPos = parentR === maxRound ? 0 : (side === "L" ? parentLocalI : hOf(parentR) + parentLocalI);
+              return { r: parentR, position: parentPos, side };
+            };
+            const totalCols = 2 * maxRound + 1;
+            const totalW = totalCols * COLW + (totalCols - 1) * GAP + 4;
+            const finalX = maxRound * (COLW + GAP);
+            const champTop = HEADER + H / 2 + 46;
+            const containerH = Math.max(HEADER + H, champTop + 78) + 6;
+            const isPhantom = (m, r) => r === 0 && !m.aRef && !m.bRef && !m.winnerRef;
             const av = (ref, size) => ref
               ? (ref.imageUrl
                   ? <img src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
                   : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || "•"}</div>)
               : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
+            const hseg = (xa, xb, y, col) => <div style={{ position: "absolute", left: Math.min(xa, xb), top: y - 1, width: Math.abs(xa - xb) || 2, height: 2, background: col }} />;
+            const vseg = (x, ya, yb, col) => <div style={{ position: "absolute", left: x - 1, top: Math.min(ya, yb), width: 2, height: Math.abs(ya - yb) || 2, background: col }} />;
             return (
               <div style={{ overflowX: "auto", paddingBottom: 6 }}>
-                <div style={{ position: "relative", width: totalW, height: HEADER + H, minWidth: totalW }}>
-                  {/* Tiêu đề vòng */}
-                  {rounds.map((round, r) => (
-                    <div key={`h${r}`} style={{ position: "absolute", left: colX(r), top: 0, width: COLW, textAlign: "center", fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, fontWeight: 700 }}>{roundName(r)}</div>
-                  ))}
-                  <div style={{ position: "absolute", left: champX, top: 0, width: CHAMPW, textAlign: "center", fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: C.gold, fontWeight: 700 }}>Vô địch</div>
+                <div style={{ position: "relative", width: totalW, height: containerH, minWidth: totalW }}>
+                  {/* Tiêu đề mỗi cột (2 bên + giữa) */}
+                  {Array.from({ length: totalCols }).map((_, c) => {
+                    const r = c <= maxRound ? c : (2 * maxRound - c);
+                    return <div key={`h${c}`} style={{ position: "absolute", left: c * (COLW + GAP), top: 0, width: COLW, textAlign: "center", fontFamily: bodyFont, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", color: r === ar ? C.gold : C.textFaint, fontWeight: 700 }}>{roundName(r)}</div>;
+                  })}
 
-                  {/* Nhánh nối (vẽ trước, nằm dưới hộp) */}
+                  {/* Đường nối con → cha (elbow), vẽ trước để nằm dưới hộp */}
                   {rounds.map((round, r) => round.map((m, i) => {
-                    // #9: ẩn ô "trống vs trống" (phantom) — match vòng 0 không có đấu thủ nào
-                    // và không có người thắng (do số đấu thủ không là luỹ thừa 2). Bỏ cả đường nối.
-                    if (r === 0 && !m.aRef && !m.bRef && !m.winnerRef) return null;
-                    const single = round.length === 1;
-                    const sib = single ? null : round[i % 2 === 0 ? i + 1 : i - 1];
-                    const selfCol = m.winnerRef ? C.gold : C.border;
-                    const joinCol = (m.winnerRef || (sib && sib.winnerRef)) ? C.gold : C.border;
-                    const cy = centerY(r, i);
-                    const x0 = colX(r) + COLW;
-                    const nextCY = single ? champCY : centerY(r + 1, Math.floor(i / 2));
-                    const drawInto = single || i % 2 === 0; // ngang vào vòng kế: vẽ 1 lần/cặp
-                    return (
-                      <React.Fragment key={`c${r}-${i}`}>
-                        <div style={{ position: "absolute", left: x0, top: cy - 1, width: HG, height: 2, background: selfCol }} />
-                        <div style={{ position: "absolute", left: x0 + HG - 1, top: Math.min(cy, nextCY), width: 2, height: Math.abs(cy - nextCY) || 2, background: joinCol }} />
-                        {drawInto && <div style={{ position: "absolute", left: x0 + HG, top: nextCY - 1, width: HG, height: 2, background: joinCol }} />}
-                      </React.Fragment>
-                    );
+                    if (isPhantom(m, r)) return null;
+                    const p = parentOf(r, m.position ?? i);
+                    if (!p) return null;
+                    const col = m.winnerRef ? C.gold : C.border;
+                    const cx = xOf(r, m.position ?? i), cy = yOf(r, m.position ?? i);
+                    const px = xOf(p.r, p.position), py = yOf(p.r, p.position);
+                    if (p.side === "L") {
+                      const x1 = cx + COLW, x2 = px, midX = (x1 + x2) / 2;
+                      return <React.Fragment key={`c${r}-${i}`}>{hseg(x1, midX, cy, col)}{vseg(midX, cy, py, col)}{hseg(midX, x2, py, col)}</React.Fragment>;
+                    }
+                    const x1 = cx, x2 = px + COLW, midX = (x1 + x2) / 2;
+                    return <React.Fragment key={`c${r}-${i}`}>{hseg(x1, midX, cy, col)}{vseg(midX, cy, py, col)}{hseg(midX, x2, py, col)}</React.Fragment>;
                   }))}
+                  {/* Đường xuống nhà vô địch */}
+                  {vseg(finalX + COLW / 2, HEADER + H / 2 + 24, champTop, champ ? C.gold : C.border)}
 
                   {/* Hộp trận */}
                   {rounds.map((round, r) => round.map((m, i) => {
-                    // #9: ẩn ô "trống vs trống" (phantom) khỏi bảng nhánh.
-                    if (r === 0 && !m.aRef && !m.bRef && !m.winnerRef) return null;
+                    if (isPhantom(m, r)) return null;
+                    const pos = m.position ?? i;
                     // opensAt = null → CHƯA lên sóng (không auto-live); >now → đã hẹn; <=now → đang live.
                     const started = m.opensAt && new Date(m.opensAt) <= new Date();
                     const scheduled = m.opensAt && new Date(m.opensAt) > new Date();
@@ -13237,16 +13277,11 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     const hasBoth = m.aRef && m.bRef;
                     const isLive = r === ar && !m.winnerRef && hasBoth && started && !closed;
                     const notStarted = hasBoth && !m.winnerRef && !m.opensAt && !closed; // đủ đấu thủ nhưng chủ giải chưa mở
-                    const canVote = m.rankiePostId && started && !closed && !m.winnerRef;
                     const isBye = !!m.winnerRef && (!m.aRef || !m.bRef); // 1 bên trống + đã có người thắng = miễn đấu
                     const tie = hasBoth && (m.votes?.a || 0) === (m.votes?.b || 0);
-                    const needResult = closed && !m.winnerRef && hasBoth && (isPrediction || tie); // dự đoán nhập KQ · bình chọn HOÀ → chủ giải xử lý
+                    const needResult = closed && !m.winnerRef && hasBoth && (isPrediction || tie);
                     const onBox = () => {
-                      // Chủ giải: trận CHƯA lên sóng → bước đệm setup; ván dự đoán đã đóng chưa có
-                      // kết quả → bước nhập kết quả. Còn lại (live/đã đóng/xong) → vào CHI TIẾT ván
-                      // (điều khiển đóng sớm/gia hạn nằm ở đó). Khách: live → vào vote; khác → chi tiết.
                       if (isOwner && (notStarted || needResult)) setSheetKey(`${m.round}-${m.position}`);
-                      else if (m.rankiePostId && (started || closed || m.winnerRef)) onOpenRankie?.(m.rankiePostId);
                       else if (m.rankiePostId) onOpenRankie?.(m.rankiePostId);
                     };
                     const slot = (ref, side) => {
@@ -13265,7 +13300,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     };
                     const badge = isLive ? { t: "● LIVE", c: C.teal } : scheduled ? { t: `🕒 ${fmtWhen(m.opensAt)}`, c: C.gold } : (isOwner && needResult) ? { t: tie && !isPrediction ? "⚠️ hoà — chọn bên" : "⚠️ chọn kết quả", c: C.coral } : notStarted ? { t: isOwner ? "chạm để lên sóng" : "chưa lên sóng", c: C.textFaint } : closed ? { t: "đã đóng", c: C.coral } : null;
                     return (
-                      <div key={`m${r}-${i}`} style={{ position: "absolute", left: colX(r), top: centerY(r, i), width: COLW, transform: "translateY(-50%)" }}>
+                      <div key={`m${r}-${i}`} style={{ position: "absolute", left: xOf(r, pos), top: yOf(r, pos), width: COLW, transform: "translateY(-50%)" }}>
                         <div onClick={onBox} style={{ position: "relative", background: C.bg, border: `1px solid ${isLive ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: (m.rankiePostId || isOwner) ? "pointer" : "default", boxShadow: isLive ? `0 0 0 1px ${C.gold}` : "none" }}>
                           {slot(m.aRef, "a")}
                           <div style={{ height: 1, background: C.border }} />
@@ -13276,20 +13311,49 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     );
                   }))}
 
-                  {/* Nhà vô địch */}
-                  <div style={{ position: "absolute", left: champX, top: champCY, width: CHAMPW, transform: "translateY(-50%)" }}>
+                  {/* Nhà vô địch (ngay dưới chung kết, giữa) */}
+                  <div style={{ position: "absolute", left: finalX + (COLW - CHAMPW) / 2, top: champTop, width: CHAMPW, textAlign: "center" }}>
                     {champ ? (
-                      <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
-                        <div style={{ fontSize: 28 }}>{champ.emoji || "🏆"}</div>
-                        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{champ.name}</div>
+                      <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "10px 8px" }}>
+                        <div style={{ fontSize: 26 }}>👑</div>
+                        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{champ.name}</div>
+                        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 9, letterSpacing: 1, color: C.gold, textTransform: "uppercase", marginTop: 1 }}>Vô địch</div>
                       </div>
-                    ) : <div style={{ background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: 12, textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>🏆 ?</div>}
+                    ) : <div style={{ background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9, padding: "12px 8px", color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>👑 Vô địch</div>}
                   </div>
                 </div>
               </div>
             );
           })()}
         </div>
+
+        {/* ROSTER ĐẤU THỦ — cờ đuôi nheo (pennant) so le trái/phải + Tên + Mô tả. */}
+        {roster.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 12 }}>Đấu thủ ({roster.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {roster.map((c, idx) => {
+                const left = idx % 2 === 0;
+                const pennant = (
+                  <div style={{ width: 58, height: 74, flexShrink: 0, clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, border: `1px solid ${c.color || C.border}`, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
+                    {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
+                  </div>
+                );
+                const text = (
+                  <div style={{ flex: 1, minWidth: 0, textAlign: left ? "left" : "right", paddingTop: 4 }}>
+                    <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: c.desc ? C.textMuted : C.textFaint, marginTop: 4, lineHeight: 1.5, fontStyle: c.desc ? "normal" : "italic" }}>{c.desc || (isOwner ? "Chưa có mô tả — thêm sau" : "—")}</div>
+                  </div>
+                );
+                return (
+                  <div key={c.name + idx} style={{ display: "flex", flexDirection: left ? "row" : "row-reverse", alignItems: "flex-start", gap: 14 }}>
+                    {pennant}{text}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Bình luận trên thẻ đấu — như một bài rankie. */}
         <div style={{ marginTop: 20 }}>
