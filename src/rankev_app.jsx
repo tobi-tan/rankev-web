@@ -4913,17 +4913,23 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const ref = useRef(null);
   // Chiều cao carousel BÁM THEO slide đang xem (slide ngắn không bị kéo dài bằng slide cao nhất
   // → không còn khoảng trống, thanh tương tác nằm sát ngay dưới).
+  // CHỈ đổi chiều cao khi vuốt đã DỪNG (hIdx) — đổi kích thước/ghi vị trí cuộn giữa lúc đang
+  // trượt quán tính làm iOS huỷ hiệu ứng hít (snap) → carousel dừng lệch giữa 2 slide.
   const slideRefs = useRef([]);
   const [boxH, setBoxH] = useState(null);
+  const [hIdx, setHIdx] = useState(0);
+  const settleT = useRef(null);
+  useEffect(() => () => clearTimeout(settleT.current), []);
   useEffect(() => {
-    const el = slideRefs.current[idx];
+    const el = slideRefs.current[hIdx];
     if (!el) return;
-    const measure = () => { setBoxH(el.offsetHeight || null); if (ref.current) ref.current.scrollTop = 0; };
+    if (ref.current && ref.current.scrollTop) ref.current.scrollTop = 0; // khung chỉ cuộn NGANG (an toàn: đã dừng cuộn)
+    const measure = () => setBoxH(el.offsetHeight || null);
     measure();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     return () => ro?.disconnect();
-  }, [idx, data]);
+  }, [hIdx, data]);
   // Tải LƯỜI: chỉ gọi getTournament khi thẻ sắp vào màn hình (trước đây mọi giải trên feed/hồ sơ
   // cùng bắn request lúc mở app → chậm, nhất là khi Render vừa "thức dậy").
   const wrapRef = useRef(null);
@@ -4961,8 +4967,20 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const shown = (data?.matches || [])
     .filter((m) => m.rankiePostId && m.aRef && m.bRef && mState(m) !== 4)
     .sort((a, b) => mState(a) - mState(b) || b.round - a.round);
-  const onScroll = () => { const el = ref.current; if (!el) return; if (el.scrollTop) el.scrollTop = 0; // khung chỉ cuộn NGANG
-    const i = Math.round(el.scrollLeft / (el.clientWidth || 1)); setIdx((p) => (i !== p ? i : p)); };
+  const onScroll = () => {
+    const el = ref.current; if (!el) return;
+    const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
+    setIdx((p) => (i !== p ? i : p)); // chấm trang cập nhật ngay
+    // Vuốt dừng ~140ms → nếu còn lệch thì tự hít về slide gần nhất, rồi mới đổi chiều cao.
+    clearTimeout(settleT.current);
+    settleT.current = setTimeout(() => {
+      const e = ref.current; if (!e) return;
+      const w = e.clientWidth || 1;
+      const j = Math.round(e.scrollLeft / w);
+      if (Math.abs(e.scrollLeft - j * w) > 2) e.scrollTo({ left: j * w, behavior: "smooth" });
+      else setHIdx(j);
+    }, 140);
+  };
   const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
   const dot = (a) => ({ width: a ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: a ? C.gold : C.border, transition: "width .2s, background .2s" });
   const slideWrap = { flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" };
