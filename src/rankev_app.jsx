@@ -4905,6 +4905,159 @@ function matchToRankieProto(m, author) {
   };
 }
 
+// ẢNH FEED CỦA GIẢI (slide đầu carousel) — tự đổi theo tiến độ giải, dùng CHUNG ngôn ngữ hình
+// ảnh với thẻ trận / chi tiết: khung ảnh bo góc viền màu đấu thủ, huy hiệu VS, ● LIVE, đồng hồ
+// đếm ngược, thắng viền vàng / thua xám, ruy băng WINNER. 6 giai đoạn:
+//  1 chưa đấu → ảnh bìa rõ nét (+ đếm ngược trận mở màn)   2 vòng đầu, 1 trận live → phóng to cặp
+//  3 nhiều trận live → dải các cặp (tối đa 3)              4 không live → trận sắp tới / kết quả mới
+//  5 từ bán kết → 2 tầng cuối (bán kết → chung kết)       6 có vô địch → ảnh vô địch + 👑 + WINNER
+function TournamentFeedHero({ t, data, roundName }) {
+  const H = 184;
+  const cover = t.media?.url || null;
+  const now = Date.now();
+  const ts = (s) => (s ? Date.parse(s) : null);
+  const matches = data?.matches || [];
+  const maxRound = data ? Math.max(0, (data.rounds || 1) - 1) : 0;
+  const cur = data?.currentRound ?? 0;
+  const champ = data?.championRef || t.championRef || null;
+  const closedM = (m) => ts(m.closesAt) != null && ts(m.closesAt) <= now;
+  const isLive = (m) => !!(m.rankiePostId && m.aRef && m.bRef && !m.winnerRef && ts(m.opensAt) != null && ts(m.opensAt) <= now && !closedM(m));
+  const real = matches.filter((m) => m.rankiePostId); // trận thật (bỏ miễn đấu / nhánh trống)
+  const anyStarted = real.some((m) => m.winnerRef || (ts(m.opensAt) != null && ts(m.opensAt) <= now));
+  const live = real.filter(isLive).sort((a, b) => a.round - b.round || a.position - b.position);
+  const roundReal = real.filter((m) => m.round === cur).sort((a, b) => a.position - b.position);
+  const slotV = (m, ref) => (!ref ? "empty" : m.winnerRef ? (m.winnerRef.name === ref.name ? "win" : "lose") : isLive(m) ? "live" : "plain");
+
+  // --- thành phần dùng chung (cùng kiểu với lá cờ VS của thẻ trận) ---
+  const tile = (ref, size, v = "plain", ribbon = false) => {
+    if (!ref || v === "empty") {
+      return <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), border: "2px dashed rgba(255,255,255,0.28)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.45)", fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(size * 0.34), flexShrink: 0 }}>?</div>;
+    }
+    const col = hexColor(ref.color, "#5FC9A8");
+    const border = v === "win" ? C.gold : v === "lose" ? "#6b6b6b" : col;
+    return (
+      <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), overflow: "hidden", position: "relative", flexShrink: 0, border: `${size >= 56 ? 3 : 2.5}px solid ${border}`, background: `linear-gradient(160deg, ${col}, ${col}bb)`, display: "grid", placeItems: "center", boxShadow: v === "win" ? "0 0 14px rgba(212,169,74,0.5)" : v === "live" ? `0 0 12px ${col}66` : "none", filter: v === "lose" ? "grayscale(1)" : "none", opacity: v === "lose" ? 0.5 : 1 }}>
+        {ref.imageUrl ? <img src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * 0.5) }}>{ref.emoji || "🏳️"}</span>}
+        {ribbon && (
+          <div style={{ position: "absolute", top: 0, right: 0, width: size * 0.8, height: size * 0.8, overflow: "hidden", pointerEvents: "none" }}>
+            <div style={{ position: "absolute", top: size * 0.14, right: -size * 0.26, transform: "rotate(45deg)", width: size * 1.1, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 9, letterSpacing: 0.8, padding: "2px 0" }}>WINNER</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+  const vsBadge = (size = 34) => <div style={{ width: size, height: size, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, display: "grid", placeItems: "center", fontFamily: displayFont, fontStyle: "italic", fontWeight: 900, fontSize: Math.round(size * 0.4), color: C.gold, flexShrink: 0 }}>VS</div>;
+  const livePill = <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE</Pill>;
+  const label = (txt, extra) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: C.gold, textShadow: "0 1px 4px rgba(0,0,0,.7)" }}>{txt}{extra}</div>
+  );
+  const nameEl = (ref, max = 100, gold = false) => (
+    <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: gold ? C.gold : "#fff", textShadow: "0 1px 4px rgba(0,0,0,.85)", maxWidth: max, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center", marginTop: 5 }}>{ref?.name || "?"}</div>
+  );
+  // Thanh tiến độ vòng: mỗi chấm = 1 trận (vàng xong · xanh đang live · mờ chưa) — không kèm chữ số.
+  const dots = roundReal.length > 1 ? (
+    <div style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+      {roundReal.map((m) => {
+        const lv = isLive(m), done = !!m.winnerRef || closedM(m);
+        return <span key={m.position} style={{ width: 8, height: 8, borderRadius: 99, background: done ? C.gold : lv ? C.teal : "rgba(255,255,255,0.25)", boxShadow: lv ? "0 0 0 3px rgba(95,201,168,0.3)" : "none" }} />;
+      })}
+    </div>
+  ) : null;
+  const pairBig = (m, size, center) => (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{tile(m.aRef, size, slotV(m, m.aRef))}{nameEl(m.aRef, 104, slotV(m, m.aRef) === "win")}</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, paddingTop: size / 2 - 17 }}>{vsBadge()}{center}</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{tile(m.bRef, size, slotV(m, m.bRef))}{nameEl(m.bRef, 104, slotV(m, m.bRef) === "win")}</div>
+    </div>
+  );
+
+  let body = null;
+  let blur = true;
+  if (!data || (!anyStarted && !champ)) {
+    // 1 · Chưa đấu trận nào → ảnh bìa rõ nét (+ đếm ngược trận mở màn nếu đã hẹn giờ)
+    blur = false;
+    const next = real.filter((m) => ts(m.opensAt) > now).sort((a, b) => ts(a.opensAt) - ts(b.opensAt))[0];
+    body = next ? <div style={{ position: "absolute", left: 0, right: 0, bottom: 10, display: "flex", justifyContent: "center" }}><CountdownChip toTs={ts(next.opensAt)} prefix="Mở màn" /></div> : null;
+  } else if (champ) {
+    // 6 · Có nhà vô địch
+    body = (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 4 }}>👑</div>
+        {tile(champ, 92, "win", true)}
+        {nameEl(champ, 200, true)}
+      </div>
+    );
+  } else if (maxRound >= 1 && cur >= maxRound - 1) {
+    // 5 · Từ bán kết → 2 tầng cuối: bán kết (thắng vàng / thua xám / đang live) → chung kết
+    const sf = matches.filter((m) => m.round === maxRound - 1).sort((a, b) => a.position - b.position);
+    const fin = matches.find((m) => m.round === maxRound);
+    const finLive = fin && isLive(fin);
+    const finSoon = fin && !fin.winnerRef && ts(fin.opensAt) > now;
+    body = (
+      <>
+        {label(roundName(maxRound - 1))}
+        <div style={{ display: "flex", gap: 40 }}>
+          {sf.map((m) => (
+            <div key={m.position} style={{ display: "flex", gap: 6 }}>{tile(m.aRef, 36, slotV(m, m.aRef))}{tile(m.bRef, 36, slotV(m, m.bRef))}</div>
+          ))}
+        </div>
+        {label(roundName(maxRound), finLive ? livePill : finSoon ? <CountdownChip toTs={ts(fin.opensAt)} /> : null)}
+        {fin && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{tile(fin.aRef, 48, slotV(fin, fin.aRef))}{nameEl(fin.aRef, 96)}</div>
+            <div style={{ paddingTop: 9 }}>{vsBadge(30)}</div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{tile(fin.bRef, 48, slotV(fin, fin.bRef))}{nameEl(fin.bRef, 96)}</div>
+          </div>
+        )}
+      </>
+    );
+  } else if (live.length === 1) {
+    // 2 · Vòng đầu, 1 trận live → phóng to cặp đang đấu
+    const m = live[0];
+    body = (<>{label(roundName(m.round))}{pairBig(m, 64, livePill)}{dots}</>);
+  } else if (live.length > 1) {
+    // 3 · Nhiều trận live cùng lúc → dải các cặp (tối đa 3, dư thì "+N")
+    const show = live.slice(0, 3);
+    body = (
+      <>
+        {label(roundName(cur), livePill)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 300 }}>
+          {show.map((m) => (
+            <div key={`${m.round}-${m.position}`} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.38)", borderRadius: 999, padding: "4px 10px" }}>
+              <span style={{ flex: 1, minWidth: 0, textAlign: "right", fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.aRef?.name}</span>
+              {tile(m.aRef, 30, "live")}{vsBadge(24)}{tile(m.bRef, 30, "live")}
+              <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.bRef?.name}</span>
+            </div>
+          ))}
+          {live.length > 3 && <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal }}>+{live.length - 3}</div>}
+        </div>
+        {dots}
+      </>
+    );
+  } else {
+    // 4 · Không có trận live → trận sắp tới (đếm ngược), nếu chưa hẹn thì kết quả trận vừa xong
+    const upcoming = real.filter((m) => !m.winnerRef && ts(m.opensAt) > now).sort((a, b) => ts(a.opensAt) - ts(b.opensAt))[0];
+    const recent = real.filter((m) => m.winnerRef || closedM(m)).sort((a, b) => (ts(b.closesAt) || 0) - (ts(a.closesAt) || 0))[0];
+    const m = upcoming || recent;
+    if (m) body = (<>{label(roundName(m.round))}{pairBig(m, 58, upcoming ? <CountdownChip toTs={ts(m.opensAt)} /> : null)}{dots}</>);
+    else blur = false;
+  }
+
+  return (
+    <div style={{ position: "relative", height: H, borderRadius: 12, overflow: "hidden", marginBottom: 10, background: C.surfaceRaised }}>
+      {cover ? (
+        <img src={cover} alt="" style={{ position: "absolute", top: blur ? -16 : 0, left: blur ? -16 : 0, width: blur ? "calc(100% + 32px)" : "100%", height: blur ? "calc(100% + 32px)" : "100%", objectFit: "cover", filter: blur ? "blur(8px) brightness(0.42)" : "none" }} />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 30% 20%, ${C.goldSoft}, transparent 65%), linear-gradient(135deg, ${C.surfaceRaised}, ${C.bg})` }} />
+      )}
+      {!cover && !blur && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}><Trophy size={44} color={C.gold} /></div>}
+      {blur ? (
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 10 }}>{body}</div>
+      ) : body}
+    </div>
+  );
+}
+
 function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, onShare }) {
   const [data, setData] = useState(() => tournamentCache.get(t.id) || null);
   const [idx, setIdx] = useState(0);
@@ -4989,33 +5142,13 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const totalVotes = data ? data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0) : (t.totalVotes || 0);
   const commentCount = data?.commentCount ?? t.commentCount ?? 0;
   const joined = !!data?.matches?.some((m) => m.myPick);
-  const liveNow = shown.some((m) => mState(m) === 1);
-  // Slide BẢNG NHÁNH gọn: tên vòng đang diễn ra (+ LIVE) hoặc nhà vô địch; không kèm chuỗi đếm.
+
+  // Slide BẢNG NHÁNH: ảnh feed tự đổi theo tiến độ giải (TournamentFeedHero) + thanh tương tác.
   const bracketSlide = (
     <div onClick={() => onOpenTournament(t.id)} style={{ ...cardSurface, cursor: "pointer" }}>
       {t.author && <AuthorRow author={t.author} onOpenAuthor={onOpenAuthor} />}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
-      {t.media?.url && <img src={t.media.url} alt="" style={{ width: "100%", maxHeight: 150, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 10 }} />}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: champ ? C.goldSoft : C.surfaceRaised, border: `1px solid ${champ ? C.gold : C.border}` }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, overflow: "hidden", position: "relative", background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-          {champ?.imageUrl ? <img src={champ.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-            : champ ? <span style={{ fontSize: 22 }}>{champ.emoji || "👑"}</span> : <Trophy size={19} color={C.gold} />}
-        </div>
-        <div style={{ flex: 1, minWidth: 0, fontFamily: bodyFont }}>
-          {champ ? (
-            <div style={{ fontWeight: 700, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>👑 {champ.name}</div>
-          ) : (<>
-            <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Bảng nhánh đấu</div>
-            {data && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 12, color: C.textMuted }}>
-                {roundName(data.currentRound ?? 0)}
-                {liveNow && <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE</Pill>}
-              </div>
-            )}
-          </>)}
-        </div>
-        <ChevronRight size={18} color={C.textMuted} style={{ flexShrink: 0 }} />
-      </div>
+      <TournamentFeedHero t={t} data={data} roundName={roundName} />
       <div style={{ marginTop: 10 }}>
         <EngagementBar
           type="tournament"
