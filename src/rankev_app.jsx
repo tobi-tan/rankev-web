@@ -7844,9 +7844,16 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
   const resultCount = path.resultCount ?? allEndings.length;
   const discovered = allEndings.filter((e) => (unlockedEndings || []).includes(e) || e === myResult?.detail).length;
   const hideCount = !!path.hideEndingCount;
+  // Nạp trước nội dung đầy đủ (câu hỏi + kết quả) để bấm vào là mở ngay.
+  useEffect(() => {
+    if (!isUuid(path.id) || path.questions?.length) return;
+    const t = setTimeout(() => prefetchPath(path.id), 800);
+    return () => clearTimeout(t);
+  }, [path.id]);
   return (
     <div
       onClick={onOpen}
+      onPointerDown={() => prefetchPath(path.id)}
       style={{
         ...cardSurface,
         cursor: "pointer",
@@ -14997,6 +15004,34 @@ function apiPathToProto(p) {
   };
 }
 
+// Bộ nhớ đệm nội dung đầy đủ của Path (câu hỏi + kết quả + ending đã mở khoá). Thẻ Path
+// trong feed nạp trước khi vừa hiện/được chạm → bấm vào mở ra đủ ngay, không phải chờ.
+const pathFullCache = new Map(); // id → { proto, unlocked }
+const pathFullInflight = new Map(); // id → Promise
+function prefetchPath(id) {
+  if (!isUuid(id)) return Promise.resolve(null);
+  if (pathFullCache.has(id)) return Promise.resolve(pathFullCache.get(id));
+  if (pathFullInflight.has(id)) return pathFullInflight.get(id);
+  const p = api.posts
+    .get(id)
+    .then((full) => {
+      if (!full || full.type !== "path") return null;
+      const entry = { proto: apiPathToProto(full), unlocked: Array.isArray(full.unlockedEndings) ? full.unlockedEndings : null };
+      pathFullCache.set(id, entry);
+      return entry;
+    })
+    .catch(() => null)
+    .finally(() => pathFullInflight.delete(id));
+  pathFullInflight.set(id, p);
+  return p;
+}
+// Ghép nội dung đầy đủ đã đệm vào bản tóm tắt ở feed (giữ số liệu đếm của bản tóm tắt).
+function withCachedPath(p) {
+  const c = p && pathFullCache.get(p.id);
+  if (!c || (p.questions && p.questions.length)) return p;
+  return { ...p, questions: c.proto.questions, results: c.proto.results, seriesId: p.seriesId ?? c.proto.seriesId, seriesName: p.seriesName ?? c.proto.seriesName };
+}
+
 // Full DeckView (GET /posts/:id) → shape deck prototype.
 function apiDeckToProto(d) {
   return {
@@ -16776,25 +16811,25 @@ export default function RankevApp() {
   };
 
   const openPathFromFeed = (id) => {
-    setSelectedPath(allPaths.find((p) => p.id === id) || samplePath);
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
     setPrevAfterPath("feed");
     setView("pathDetail");
   };
 
   const openPathFromProfile = (id) => {
-    setSelectedPath(allPaths.find((p) => p.id === id) || samplePath);
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
     setPrevAfterPath("profile");
     setView("pathDetail");
   };
 
   const openPathFromSearch = (id) => {
-    setSelectedPath(allPaths.find((p) => p.id === id) || samplePath);
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
     setPrevAfterPath("search");
     setView("pathDetail");
   };
 
   const openPathFromHistory = (id) => {
-    setSelectedPath(allPaths.find((p) => p.id === id) || samplePath);
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
     setPrevAfterPath("history");
     setView("pathDetail");
   };
@@ -16853,7 +16888,7 @@ export default function RankevApp() {
   const [selectedSeriesId2, setSelectedSeriesId2] = useState(null);
 
   const openPathFromPresentationHistory = (id) => {
-    setSelectedPath(allPaths.find((p) => p.id === id) || samplePath);
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
     setPrevAfterPath("presentationHistory");
     setView("pathDetail");
   };
@@ -16871,7 +16906,7 @@ export default function RankevApp() {
   // Điều hướng chapter từ swipe
   const navigateChapter = (post) => {
     if (post.type === "rankie") { setSelectedId(post.id); setView("detail"); }
-    else if (post.type === "path") { setSelectedPath(post); setView("pathDetail"); }
+    else if (post.type === "path") { setSelectedPath(withCachedPath(post)); setView("pathDetail"); }
     else { setSelectedDeck(post); setView("deckDetail"); }
   };
   const [selectedSession, setSelectedSession] = useState(null);
@@ -16889,7 +16924,7 @@ export default function RankevApp() {
   };
 
   const openPathFromBookmarks = (id) => {
-    setSelectedPath(allPaths.find((p) => p.id === id) || samplePath);
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
     setPrevAfterPath("bookmarks");
     setView("pathDetail");
   };
@@ -17086,6 +17121,7 @@ export default function RankevApp() {
       .update(item.id, protoToCreatePayload(item))
       .then((full) => {
         if (!full || !full.type) return;
+        pathFullCache.delete(full.id);
         const real = full.type === "path" ? apiPathToProto(full) : full.type === "deck" ? apiDeckToProto(full) : apiRankieToProto(full);
         const merged = { ...real, mine: true, author: currentUser };
         const swap = (prev) => prev.map((x) => (x.id === full.id ? merged : x));
@@ -17140,6 +17176,8 @@ export default function RankevApp() {
   // giữ nguyên giá trị mock làm fallback khi API lỗi.
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  // Bản đệm Path chứa ending đã mở khoá của người xem → đổi phiên đăng nhập thì bỏ.
+  useEffect(() => { pathFullCache.clear(); }, [authed]);
   const [joinCode, setJoinCode] = useState(() => { try { return new URLSearchParams(window.location.search).get("join") || null; } catch { return null; } });
   const hydrateFromApi = useCallback((me) => {
     const u = me?.user;
@@ -17409,23 +17447,27 @@ export default function RankevApp() {
     const p = selectedPath;
     if (view !== "pathDetail" || !p || !p._api) return;
     let alive = true;
-    if (!p.questions || p.questions.length === 0) {
-      api.posts
-        .get(p.id)
-        .then((full) => {
-          if (!alive || !full || full.type !== "path") return;
-          // Giữ số lượt tham gia thật (từ summary) — apiPathToProto để 0.
-          const proto = { ...apiPathToProto(full), participants: p.participants || 0 };
-          setSelectedPath(proto);
-          setApiPosts((prev) => prev.map((x) => (x.id === proto.id ? proto : x)));
-        })
-        .catch(() => {});
-    }
-    if (pathUnlocks[p.id] === undefined) {
-      api.paths
-        .unlocks(p.id)
-        .then((r) => { if (alive && r && r.endings) setPathUnlocks((prev) => ({ ...prev, [p.id]: r.endings })); })
-        .catch(() => {});
+    const needFull = !p.questions || p.questions.length === 0;
+    if (needFull || pathUnlocks[p.id] === undefined) {
+      // Dùng chung bộ đệm với thẻ feed (đã nạp trước) — 1 request trả cả nội dung lẫn
+      // ending đã mở khoá của người xem.
+      prefetchPath(p.id).then((entry) => {
+        if (!alive || !entry) return;
+        if (pathUnlocks[p.id] === undefined) {
+          if (entry.unlocked) setPathUnlocks((prev) => (prev[p.id] === undefined ? { ...prev, [p.id]: entry.unlocked } : prev));
+          else if (authed) {
+            // Bản đệm nạp lúc chưa đăng nhập → hỏi riêng phần ending đã mở khoá.
+            api.paths
+              .unlocks(p.id)
+              .then((r) => { if (alive && r && r.endings) setPathUnlocks((prev) => ({ ...prev, [p.id]: r.endings })); })
+              .catch(() => {});
+          }
+        }
+        if (!needFull) return;
+        const proto = withCachedPath(p);
+        setSelectedPath(proto);
+        setApiPosts((prev) => prev.map((x) => (x.id === proto.id ? { ...x, questions: proto.questions, results: proto.results } : x)));
+      });
     }
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -17667,6 +17709,7 @@ export default function RankevApp() {
                       selectedPath.results &&
                       Object.prototype.hasOwnProperty.call(selectedPath.results, e.detail);
                     if (isApiId(e.itemId) && isRealEnding) {
+                      pathFullCache.delete(e.itemId); // số liệu phân bố kết quả vừa đổi
                       api.paths
                         .complete(e.itemId, e.detail)
                         .then((r) => { if (r && r.unlockedEndings) setPathUnlocks((prev) => ({ ...prev, [e.itemId]: r.unlockedEndings })); })
