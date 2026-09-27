@@ -5152,7 +5152,7 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
   );
 }
 
-function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, activeCategory, setActiveCategory, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
+function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
   // Render 1 thẻ feed theo loại — tách riêng để carousel Series tái dùng cho từng chapter.
@@ -5194,12 +5194,6 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
     { id: "exam", label: "Exam", icon: Edit3 },
   ];
   const currentLabel = typeOptions.find((t) => t.id === typeFilter)?.label || "Tất cả";
-  // Feed kiểu MXH: chỉ có 2 chế độ SẮP XẾP (không lọc theo danh mục nữa).
-  const sortModes = [
-    { id: "Đang thịnh hành", label: "🔥 Thịnh hành" },
-    { id: "Mới nhất", label: "🕘 Mới nhất" },
-  ];
-
   return (
     <div>
       <div style={{ padding: "20px 16px 4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -5320,16 +5314,6 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
             <Search size={18} color={C.textMuted} />
           </button>
         </div>
-      </div>
-
-      {/* Feed kiểu MXH: chỉ 2 chế độ sắp xếp Thịnh hành / Mới nhất (khám phá hashtag ở Tìm kiếm) */}
-      <div style={{ display: "flex", gap: 8, padding: "6px 16px 10px" }}>
-        {sortModes.map((m) => {
-          const active = activeCategory === m.id;
-          return (
-            <button key={m.id} onClick={() => setActiveCategory(m.id)} style={{ flex: 1, padding: "8px 13px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, color: active ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 13.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{m.label}</button>
-          );
-        })}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
@@ -16223,7 +16207,6 @@ export default function RankevApp() {
   const [prevAfterPath, setPrevAfterPath] = useState("feed"); // where "back" returns to from path detail
   const [prevAfterDetail, setPrevAfterDetail] = useState("feed"); // where "back" returns to from rankie detail
   const [prevAfterDeck, setPrevAfterDeck] = useState("feed"); // where "back" returns to from deck detail
-  const [activeCategory, setActiveCategory] = useState("Đang thịnh hành"); // feed category filter
   const [typeFilter, setTypeFilter] = useState("all"); // feed content-type dropdown filter: all | rankie | path | deck
   const [searchHistory, setSearchHistory] = useState([]); // up to 5 recent searches, newest-first
   const addToSearchHistory = (term) => {
@@ -16704,9 +16687,7 @@ export default function RankevApp() {
     );
   };
 
-  // Mixed feed: rankies + all paths + all decks.
-  // "Đang thịnh hành" sorts by a composite trending score (participants × recency × live bonus);
-  // any other category just uses newest-first so fresh content surfaces immediately.
+  // Mixed feed: rankies + all paths + all decks, xếp theo trendingScore (mới × tương tác × live).
   // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
   const tournamentItems = tournamentFeed.map((t) => ({
     id: t.id, type: "tournament", title: t.title, category: t.category || "Khác", tags: t.tags || [],
@@ -16722,13 +16703,10 @@ export default function RankevApp() {
   }
   const feedItemsAll = [...feedDedup.values()]
     .filter((item) => !item.hidden && !item.deletedAt && item.visibility !== "private")
-    .sort((a, b) => {
-      // Như các MXH khác: KHÔNG dồn bài của mình lên đầu. Bài mới (mình hay người khác)
-      // nổi lên theo thời gian; tab "Đang thịnh hành" xếp theo điểm trending.
-      return activeCategory === "Đang thịnh hành"
-        ? trendingScore(b) - trendingScore(a)
-        : (b.createdAt || 0) - (a.createdAt || 0);
-    });
+    // MỘT thứ tự duy nhất (đã bỏ 2 tab Thịnh hành/Mới nhất vì trên dữ liệu thật ra y hệt
+    // nhau): bài mới nổi đầu rồi mờ dần, bài nhiều tương tác được đẩy lên. Như các MXH
+    // khác: KHÔNG dồn bài của mình lên đầu.
+    .sort((a, b) => trendingScore(b) - trendingScore(a) || (b.createdAt || 0) - (a.createdAt || 0));
 
   // Feed kiểu MXH: chỉ lọc theo LOẠI bài (không lọc danh mục — sắp xếp đã xử lý ở trên).
   const feedItems = feedItemsAll
@@ -17593,8 +17571,6 @@ export default function RankevApp() {
               onOpenTournament={openTournament}
               onOpenSearch={() => setView("search")}
               onShareToProfile={shareToProfile}
-              activeCategory={activeCategory}
-              setActiveCategory={setActiveCategory}
               typeFilter={typeFilter}
               setTypeFilter={setTypeFilter}
               contacts={contacts}
