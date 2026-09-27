@@ -13252,20 +13252,20 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                 ))}
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                 {roster.map((c, idx) => {
                   const left = idx % 2 === 0;
                   const editing = editDescName === c.name;
                   const focused = focusName === c.name;
                   const pennant = (
-                    <div style={{ width: 58, height: 74, flexShrink: 0, clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
-                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
+                    <div style={{ width: 124, height: 156, flexShrink: 0, borderRadius: "10px 10px 0 0", clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
+                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 52, marginTop: -18 }}>{c.emoji || "🏳️"}</span>}
                     </div>
                   );
                   const text = (
-                    <div style={{ flex: 1, minWidth: 0, textAlign: left ? "left" : "right", paddingTop: 4 }}>
+                    <div style={{ flex: 1, minWidth: 0, textAlign: left ? "left" : "right", paddingTop: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: left ? "row" : "row-reverse" }}>
-                        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: focused ? C.gold : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.name}</span>
+                        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: focused ? C.gold : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.name}</span>
                         {isOwner && !editing && (
                           <button onClick={() => { setEditDescName(c.name); setDescDraft(c.desc || ""); }} title="Sửa mô tả" aria-label="Sửa mô tả" style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, display: "grid", placeItems: "center", padding: 2, flexShrink: 0 }}><Edit3 size={13} /></button>
                         )}
@@ -13647,7 +13647,6 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
     pickImageUpload((url) => setMedia({ type: "image", url }), "image", svg);
   };
   const [contestants, setContestants] = useState(initialContestants);
-  const [nameInput, setNameInput] = useState("");
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
   const [busy, setBusy] = useState(false);
   // Composer hợp nhất giống Rankie: khung soạn thảo + thanh icon (media/hashtag/thời gian/trình chiếu).
@@ -13716,13 +13715,19 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
   const field = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
   const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 };
   const updateC = (i, patch) => setContestants((p) => p.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
-  // Đổi chỗ đấu thủ → tự đổi cặp đấu (cặp = 2 người liền kề: 0-1, 2-3, …).
-  const moveC = (i, dir) => setContestants((p) => {
-    const j = i + dir;
-    if (j < 0 || j >= p.length) return p;
-    const n = [...p]; [n[i], n[j]] = [n[j], n[i]]; return n;
-  });
-  const addName = () => { const n = nameInput.trim(); if (n) { setContestants((p) => [...p, { name: n, emoji: EMOJI_CHOICES[p.length % EMOJI_CHOICES.length] }]); setNameInput(""); } };
+  const nameOf = (c, i) => (c?.name || "").trim() || `Đấu thủ ${i + 1}`; // ô tên để trống → tên mặc định
+  // Lưới khung ảnh: ô "+" thêm đấu thủ rồi focus ngay ô tên của khung mới.
+  const nameRefs = useRef([]);
+  const [focusIdx, setFocusIdx] = useState(null);
+  useEffect(() => { if (focusIdx == null) return; nameRefs.current[focusIdx]?.focus?.(); setFocusIdx(null); }, [focusIdx]);
+  const addTile = () => { setFocusIdx(contestants.length); setContestants((p) => [...p, { name: "", emoji: EMOJI_CHOICES[p.length % EMOJI_CHOICES.length] }]); };
+  // Đổi cặp đấu: chạm 2 đấu thủ trong "Cặp đấu vòng 1" để đổi chỗ (cặp = 2 người liền kề: 0-1, 2-3, …).
+  const [swapSel, setSwapSel] = useState(null);
+  const tapSwap = (i) => {
+    if (swapSel == null) { setSwapSel(i); return; }
+    if (swapSel !== i) setContestants((p) => { const n = [...p]; [n[swapSel], n[i]] = [n[i], n[swapSel]]; return n; });
+    setSwapSel(null);
+  };
   const uploadFor = (i) => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%232E5D4E'/><text x='40' y='48' font-size='28' text-anchor='middle' fill='white'>${contestants[i]?.emoji || "🏳️"}</text></svg>`;
     pickImageUpload((url) => updateC(i, { image: url }), "image", svg);
@@ -13751,7 +13756,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
       closesInHours,
       allowGuestPresent,
       advanceMode,
-      contestants: contestants.map((c) => ({ name: c.name, emoji: c.emoji || undefined, color: c.color || undefined, imageUrl: urlOK(c.image), refType: c.refType || undefined, refId: c.refId || undefined })),
+      contestants: contestants.map((c, i) => ({ name: nameOf(c, i), emoji: c.emoji || undefined, color: c.color || undefined, imageUrl: urlOK(c.image), refType: c.refType || undefined, refId: c.refId || undefined })),
     }).then((t) => { try { deleteDraft(draftId); } catch {} onCreate?.(t); }).catch((e) => { setBusy(false); showToast?.(e?.message || "Tạo giải đấu thất bại"); });
   };
 
@@ -13876,44 +13881,61 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
         </div>
 
         <div>
-          <div style={label}>Đấu thủ ({contestants.length}) — cần ít nhất 2, có thể thêm ảnh cho từng người</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {contestants.map((c, i) => (
-              <div key={i}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", background: c.refType ? C.surfaceRaised : "transparent", border: c.refType ? `1px solid color-mix(in srgb, var(--gold) 33%, transparent)` : "none", borderRadius: 12, padding: c.refType ? "8px 10px" : 0 }}>
+          <div style={label}>Đấu thủ</div>
+          {/* LƯỚI KHUNG ẢNH 4 cột (giống roster rút gọn): chạm khung → ảnh/emoji · tên ngay dưới · × để bỏ · ô "+" để thêm. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }}>
+            {contestants.map((c, i) => {
+              const picking = emojiPickerFor === i;
+              return (
+                <div key={i} style={{ minWidth: 0, position: "relative" }}>
+                  <button
+                    onClick={() => (c.refType ? null : setEmojiPickerFor(picking ? null : i))}
+                    title={c.refType ? c.name : "Đổi ảnh / emoji"}
+                    style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", padding: 0, cursor: c.refType ? "default" : "pointer", display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1.5px solid ${picking ? C.gold : C.border}` }}
+                  >
+                    {c.image ? <img src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30 }}>{c.emoji || "🏳️"}</span>}
+                    {!c.refType && (
+                      <span style={{ position: "absolute", right: 4, bottom: 4, width: 20, height: 20, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center", border: `2px solid ${C.surface}` }}><ImagePlus size={11} color="#231a05" /></span>
+                    )}
+                  </button>
+                  <button onClick={() => { setContestants((p) => p.filter((_, idx) => idx !== i)); if (picking) setEmojiPickerFor(null); }} aria-label="Bỏ đấu thủ" title="Bỏ" style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 99, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}><X size={12} /></button>
                   {c.refType ? (
-                    <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={{ ...c, label: c.name }} /></div>
+                    <div style={{ marginTop: 5, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.text, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
                   ) : (
-                    <>
-                      <button onClick={() => setEmojiPickerFor(emojiPickerFor === i ? null : i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer" }}>
-                        <Illustration emoji={c.emoji || "🏳️"} image={c.image} size={44} radius={10} />
-                      </button>
-                      <input style={{ ...field, flex: 1 }} placeholder={`Đấu thủ ${i + 1}`} value={c.name} onChange={(e) => updateC(i, { name: e.target.value })} />
-                      <button onClick={() => (c.image ? updateC(i, { image: null }) : uploadFor(i))} title={c.image ? "Xóa ảnh" : "Tải ảnh lên"} style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: c.image ? C.coral : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}>
-                        {c.image ? <X size={16} /> : <ImagePlus size={16} />}
-                      </button>
-                    </>
+                    <input
+                      ref={(el) => { nameRefs.current[i] = el; }}
+                      value={c.name}
+                      onChange={(e) => updateC(i, { name: e.target.value })}
+                      placeholder={`Đấu thủ ${i + 1}`}
+                      style={{ width: "100%", marginTop: 5, background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, textAlign: "center", color: C.text, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, padding: "3px 2px", outline: "none" }}
+                    />
                   )}
-                  <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
-                    <button onClick={() => moveC(i, -1)} disabled={i === 0} title="Lên" style={{ background: "none", border: "none", color: i === 0 ? C.border : C.textMuted, cursor: i === 0 ? "default" : "pointer", padding: 0, lineHeight: 1 }}><ChevronsUp size={15} /></button>
-                    <button onClick={() => moveC(i, 1)} disabled={i === contestants.length - 1} title="Xuống" style={{ background: "none", border: "none", color: i === contestants.length - 1 ? C.border : C.textMuted, cursor: i === contestants.length - 1 ? "default" : "pointer", padding: 0, lineHeight: 1 }}><ChevronsDown size={15} /></button>
-                  </div>
-                  <button onClick={() => setContestants((p) => p.filter((_, idx) => idx !== i))} title="Bỏ" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", flexShrink: 0 }}><X size={16} /></button>
                 </div>
-                {emojiPickerFor === i && !c.refType && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    {EMOJI_CHOICES.map((em) => (
-                      <button key={em} onClick={() => { updateC(i, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${c.emoji === em ? C.gold : C.border}`, background: c.emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-                    ))}
-                  </div>
-                )}
+              );
+            })}
+            <button onClick={addTile} aria-label="Thêm đấu thủ" title="Thêm đấu thủ" style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, border: `1.5px dashed ${C.border}`, background: "transparent", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}>
+              <PlusCircle size={24} />
+            </button>
+          </div>
+          {/* Bảng chọn ảnh / emoji cho khung đang chọn */}
+          {emojiPickerFor != null && contestants[emojiPickerFor] && !contestants[emojiPickerFor].refType && (() => {
+            const i = emojiPickerFor, c = contestants[i];
+            return (
+              <div style={{ marginTop: 10, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <button onClick={() => { uploadFor(i); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
+                  {c.image && (
+                    <button onClick={() => updateC(i, { image: null })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ ảnh</button>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {EMOJI_CHOICES.map((em) => (
+                    <button key={em} onClick={() => { updateC(i, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${c.emoji === em && !c.image ? C.gold : C.border}`, background: c.emoji === em && !c.image ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addName(); }} placeholder="Thêm đấu thủ (gõ tên)" style={{ ...field, flex: 1 }} />
-            <button onClick={addName} style={{ padding: "0 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontWeight: 700, cursor: "pointer", fontFamily: bodyFont }}>+ Thêm</button>
-          </div>
+            );
+          })()}
         </div>
 
         {contestants.length >= 2 && (() => {
@@ -13931,16 +13953,27 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
 
         {contestants.length >= 2 && (
           <div>
-            <div style={label}>Cặp đấu vòng 1 — dùng ↑↓ ở trên để đổi ai gặp ai</div>
+            <div style={label}>Cặp đấu vòng 1 — chạm 2 đấu thủ để đổi chỗ</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {Array.from({ length: Math.ceil(contestants.length / 2) }, (_, k) => {
-                const a = contestants[k * 2], b = contestants[k * 2 + 1];
+                const ia = k * 2, ib = k * 2 + 1;
+                const a = contestants[ia], b = contestants[ib];
+                const chip = (c, i, align) => (
+                  <button
+                    onClick={() => tapSwap(i)}
+                    style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexDirection: align === "right" ? "row-reverse" : "row", padding: "5px 7px", borderRadius: 9, cursor: "pointer", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, background: swapSel === i ? C.goldSoft : "transparent", border: `1px solid ${swapSel === i ? C.gold : "transparent"}` }}
+                  >
+                    <span style={{ width: 26, height: 26, borderRadius: 7, overflow: "hidden", position: "relative", flexShrink: 0, background: C.surface, display: "grid", placeItems: "center", fontSize: 15 }}>
+                      {c.image ? <img src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || "🏳️")}
+                    </span>
+                    <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameOf(c, i)}</span>
+                  </button>
+                );
                 return (
-                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontFamily: bodyFont, fontSize: 13 }}>
-                    <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint, width: 18 }}>{k + 1}</span>
-                    <span style={{ flex: 1, textAlign: "right", fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a?.emoji ? a.emoji + " " : ""}{a?.name || "—"}</span>
-                    <span style={{ color: C.gold, fontWeight: 800, flexShrink: 0 }}>🆚</span>
-                    <span style={{ flex: 1, fontWeight: 600, color: b ? C.text : C.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b ? `${b.emoji ? b.emoji + " " : ""}${b.name}` : "miễn đấu (vào thẳng)"}</span>
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "4px 6px" }}>
+                    {chip(a, ia, "right")}
+                    <span style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 800, fontSize: 13, color: C.gold, flexShrink: 0 }}>VS</span>
+                    {b ? chip(b, ib, "left") : <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, paddingLeft: 7 }}>miễn đấu (vào thẳng)</span>}
                   </div>
                 );
               })}
