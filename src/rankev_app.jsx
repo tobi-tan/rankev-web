@@ -2307,158 +2307,61 @@ function makeCompanions(seed, howMany = 5) {
 }
 
 // ---------- Rankie Competition Timeline ----------
-// Mô phỏng lịch sử thay đổi thứ hạng (chưa có backend lưu vote theo thời gian thực —
-// sẽ nối dữ liệu thật ở giai đoạn Claude Code). Sinh ổn định theo id Rankie nên
-// không đổi giữa các lần render/mở lại.
-function generateRankieTimeline(rankie, options) {
-  if (!options || options.length < 2) return [];
-  // Chưa có phiếu nào → không có "cạnh tranh" để kể (tránh câu kiểu "A dẫn đầu suốt 21 ngày" khi 0:0).
-  if (options.reduce((s, o) => s + (o.votes || 0), 0) === 0) return [];
-  const seedBase = sdHash(rankie.id || rankie.title || "rankie");
-  const now = Date.now();
-  // Khoảng thời gian mô phỏng dao động 15-45 ngày theo từng Rankie — đủ để đôi khi
-  // xuất hiện mốc "giữ vững #1" mà không cố định cứng 30 ngày cho mọi bài.
-  // KHÔNG vượt tuổi thật của bài (bài mới tạo hôm nay thì không thể "suốt 21 ngày").
-  const rSpan = sdRng(seedBase ^ 0x51);
-  const ageDays = rankie.createdAt ? Math.max(0, (now - rankie.createdAt) / 86400000) : null;
-  const daySpan = Math.min(15 + Math.round(rSpan() * 30), ageDays ?? Infinity);
-  if (daySpan < 1 / 24) return []; // bài chưa tới 1 giờ tuổi → chưa có diễn biến để kể
-  const snapCount = 7;
-  const snapTimes = Array.from({ length: snapCount }, (_, i) => now - Math.round(((snapCount - 1 - i) / (snapCount - 1)) * daySpan * 86400000));
-
-  const history = options.map((o, oi) => {
-    const r = sdRng(seedBase ^ sdHash(o.id || String(oi)) ^ (oi * 7919));
-    const finalV = o.votes || 0;
-    let acc = 0;
-    const fracs = [];
-    for (let i = 0; i < snapCount; i++) { acc += r() * (1 / snapCount) + 0.04; fracs.push(acc); }
-    const maxAcc = fracs[fracs.length - 1] || 1;
-    const votesAtSnap = fracs.map((f) => Math.max(0, Math.round((f / maxAcc) * finalV)));
-    votesAtSnap[snapCount - 1] = finalV;
-    return { id: o.id, label: o.label, votesAtSnap };
-  });
-
-  // Rankie đối đầu (2 lựa chọn): không có khái niệm "vượt vào Top N", chỉ theo dõi
-  // ai đang dẫn đầu qua từng mốc thời gian + mốc lượt bình chọn.
-  if (options.length === 2) {
-    const events = [];
-    let prevLeader = null;
-    let leaderStreak = true;
-    for (let s = 0; s < snapCount; s++) {
-      const [x, y] = history;
-      const leader = x.votesAtSnap[s] >= y.votesAtSnap[s] ? x : y;
-      if (prevLeader && leader.id !== prevLeader.id) {
-        events.push({ ts: snapTimes[s], icon: "🔥", text: `${leader.label} vươn lên dẫn đầu` });
-      }
-      if (prevLeader && prevLeader.id !== leader.id) leaderStreak = false;
-      if (s > 0) {
-        history.forEach((h) => {
-          const prevV = h.votesAtSnap[s - 1], curV = h.votesAtSnap[s];
-          [1000, 10000].forEach((m) => {
-            if (prevV < m && curV >= m) events.push({ ts: snapTimes[s], icon: "🎉", text: `${h.label} đạt ${fmt(m)} lượt bình chọn` });
-          });
-        });
-      }
-      prevLeader = leader;
-    }
-    if (leaderStreak && prevLeader) {
-      events.push({ ts: snapTimes[snapCount - 1], icon: "👑", text: `${prevLeader.label} giữ vững vị trí dẫn đầu suốt ${daySpan} ngày qua` });
-    }
-    return events.sort((a, b) => b.ts - a.ts);
-  }
-  if (options.length < 3) return [];
-
-  const events = [];
-  const seen = new Set();
-  let prevRanks = null;
-  let rank1Streak = true; // vẫn còn #1 xuyên suốt từ đầu đến snapshot hiện tại?
-
-  for (let s = 0; s < snapCount; s++) {
-    const snapshot = history
-      .map((h) => ({ id: h.id, label: h.label, votes: h.votesAtSnap[s] }))
-      .sort((a, b) => b.votes - a.votes);
-    const ranks = {};
-    snapshot.forEach((o, i) => { ranks[o.id] = i + 1; });
-
-    if (prevRanks) {
-      // Overtake: A vượt B nếu trước đó A đứng sau B, giờ A đứng trước B.
-      for (const a of history) {
-        for (const b of history) {
-          if (a.id === b.id) continue;
-          if (prevRanks[a.id] > prevRanks[b.id] && ranks[a.id] < ranks[b.id]) {
-            const key = `ot:${s}:${a.id}:${b.id}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            events.push({
-              ts: snapTimes[s],
-              icon: ranks[a.id] === 1 ? "🔥" : "⚡",
-              text: ranks[a.id] === 1
-                ? `${a.label} vượt qua ${b.label} và vươn lên #1`
-                : `${a.label} vượt qua ${b.label}, lên hạng #${ranks[a.id]}`,
-            });
-          }
-        }
-      }
-      // Mốc hạng: lần đầu #1 / lọt Top 3 / lọt Top 10 / rớt khỏi Top 10
-      history.forEach((h) => {
-        const prevRank = prevRanks[h.id], curRank = ranks[h.id];
-        if (curRank === 1 && prevRank !== 1) {
-          const key = `m1:${h.id}`;
-          if (!seen.has(key)) { seen.add(key); events.push({ ts: snapTimes[s], icon: "🏆", text: `${h.label} lần đầu đạt #1` }); }
-        }
-        if (options.length > 3 && curRank <= 3 && prevRank > 3) {
-          events.push({ ts: snapTimes[s], icon: "🚀", text: `${h.label} lọt Top 3` });
-        }
-        if (options.length > 10 && curRank <= 10 && prevRank > 10) {
-          events.push({ ts: snapTimes[s], icon: "🚀", text: `${h.label} lọt Top 10` });
-        }
-        if (options.length > 10 && curRank > 10 && prevRank <= 10) {
-          events.push({ ts: snapTimes[s], icon: "📉", text: `${h.label} rớt khỏi Top 10` });
-        }
-      });
-      // Mốc lượt bình chọn
-      history.forEach((h) => {
-        const prevV = h.votesAtSnap[s - 1], curV = h.votesAtSnap[s];
-        [1000, 10000].forEach((m) => {
-          if (prevV < m && curV >= m) events.push({ ts: snapTimes[s], icon: "🎉", text: `${h.label} đạt ${fmt(m)} lượt bình chọn` });
-        });
-      });
-      // Có ai KHÔNG phải người đang #1 trước đó từng đứng #1 không? Nếu #1 đổi chủ, streak đứt.
-      const currentTop = snapshot[0].id;
-      if (prevRanks[currentTop] !== 1) rank1Streak = false;
-    }
-    prevRanks = ranks;
-  }
-
-  // Mốc "giữ vững #1 suốt N ngày" — chỉ khi #1 không đổi chủ trong toàn bộ lịch sử mô phỏng.
-  if (rank1Streak) {
-    const topId = Object.keys(prevRanks).find((id) => prevRanks[id] === 1);
-    const top = history.find((h) => h.id === topId);
-    if (top) events.push({ ts: snapTimes[snapCount - 1], icon: "👑", text: `${top.label} giữ vững #1 suốt ${daySpan} ngày qua` });
-  }
-
-  return events.sort((a, b) => b.ts - a.ts);
+// SỐ LIỆU THẬT: backend phát lại nhật ký phiếu (GET /rankies/:id/timeline) → các mốc
+// phiếu đầu tiên / đổi ngôi dẫn đầu / mốc lượt bình chọn / giữ ngôi đầu / kết thúc.
+// Tối đa 5 dòng, mới nhất trước. Bài mock (id không phải UUID) hoặc chưa có diễn biến → ẩn.
+function fmtHoldDuration(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${Math.max(1, m)} phút`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} giờ`;
+  return `${Math.floor(h / 24)} ngày`;
 }
 
-// Khối "Dòng thời gian" — đặt ngay dưới biểu đồ Rankie (giữ cuộn 1 mạch, không tách
-// tab, để đồng nhất với Path/Survey/Exam). Hiện với mọi Rankie ≥2 lựa chọn: 2 lựa
-// chọn (đối đầu) dùng bản rút gọn (đổi ngôi dẫn đầu + mốc lượt bình chọn), ≥3 lựa
-// chọn dùng bản đầy đủ (overtake, Top 3/10, mốc #1).
+function timelineRow(e) {
+  const who = e.label || "Lựa chọn";
+  switch (e.type) {
+    case "first_vote": return { icon: "🗳️", text: `Phiếu đầu tiên dành cho ${who}` };
+    case "lead": return { icon: "🔥", text: `${who} vượt lên dẫn đầu` };
+    case "milestone": return { icon: "🎉", text: `${who} đạt ${fmt(e.value)} lượt bình chọn` };
+    case "hold": return { icon: "👑", text: `${who} giữ vị trí dẫn đầu suốt ${fmtHoldDuration(e.value)}` };
+    case "closed": return e.optionId
+      ? { icon: "🏁", text: `Kết thúc — ${who} thắng với ${fmt(e.value)} phiếu` }
+      : { icon: "🏁", text: "Kết thúc — hai bên hoà" };
+    default: return null;
+  }
+}
+
 function RankieTimeline({ rankie, options }) {
-  const events = useMemo(() => generateRankieTimeline(rankie, options), [rankie?.id, options]);
-  if (!events.length) return null;
+  const id = rankie?.id;
+  const total = (options || []).reduce((s, o) => s + (o.votes || 0), 0);
+  const [events, setEvents] = useState([]);
+  useEffect(() => {
+    if (!isUuid(id)) { setEvents([]); return; }
+    let alive = true;
+    // Phiếu đổi liên tục (realtime) → gom lại rồi mới tải lại.
+    const t = setTimeout(() => {
+      api.rankies.timeline(id, 5)
+        .then((r) => { if (alive) setEvents(r?.events || []); })
+        .catch(() => {});
+    }, events.length ? 1500 : 0);
+    return () => { alive = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, total]);
+  const rows = events.map((e) => ({ ...timelineRow(e), at: Date.parse(e.at) })).filter((r) => r.text).slice(0, 5);
+  if (!rows.length) return null;
   return (
     <div style={{ ...cardSurface, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>
         <Flame size={13} color={C.coral} /> Dòng thời gian cạnh tranh
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {events.slice(0, 8).map((e, i) => (
+        {rows.map((e, i) => (
           <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
             <span style={{ fontSize: 16, lineHeight: 1.4, flexShrink: 0 }}>{e.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{e.text}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{timeAgo(e.ts)}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{timeAgo(e.at)}</div>
             </div>
           </div>
         ))}

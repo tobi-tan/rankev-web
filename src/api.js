@@ -215,6 +215,7 @@ export const rankies = {
   vote(id, optionIds) { return apiFetch(`/rankies/${id}/vote`, { method: 'POST', body: { optionIds } }); },
   myVote(id) { return apiFetch(`/rankies/${id}/votes/me`); },
   results(id) { return apiFetch(`/rankies/${id}/results`); },
+  timeline(id, limit = 5) { return apiFetch(`/rankies/${id}/timeline?limit=${limit}`); },
 };
 
 // ---------------- Path ----------------
