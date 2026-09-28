@@ -210,6 +210,20 @@ export const messaging = {
   votePoll(msgId, optionIdx) { return apiFetch(`/messages/${msgId}/vote`, { method: 'POST', body: { optionIdx } }); },
 };
 
+// ---------------- Kiểm soát feed: ẩn / chặn / báo cáo ----------------
+export const moderation = {
+  get() { return apiFetch('/users/me/moderation'); },
+  hidePost(id) { return apiFetch(`/posts/${id}/hide`, { method: 'POST', body: {} }); },
+  unhidePost(id) { return apiFetch(`/posts/${id}/hide`, { method: 'DELETE' }); },
+  clearHidden() { return apiFetch('/users/me/hidden-posts', { method: 'DELETE' }); },
+  mute(userId) { return apiFetch(`/users/${userId}/mute`, { method: 'POST', body: {} }); },
+  unmute(userId) { return apiFetch(`/users/${userId}/mute`, { method: 'DELETE' }); },
+  block(userId) { return apiFetch(`/users/${userId}/block`, { method: 'POST', body: {} }); },
+  unblock(userId) { return apiFetch(`/users/${userId}/block`, { method: 'DELETE' }); },
+  // type: 'post' | 'comment' | 'user'; reason: spam|harassment|hate|violence|sexual|misinformation|other
+  report(type, id, reason, note) { return apiFetch(`/${type}s/${id}/report`, { method: 'POST', body: { reason, note } }); },
+};
+
 // ---------------- Rankie vote ----------------
 export const rankies = {
   vote(id, optionIds) { return apiFetch(`/rankies/${id}/vote`, { method: 'POST', body: { optionIds } }); },
@@ -454,6 +468,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
+  auth, posts, rankies, tournaments, messaging, moderation, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };

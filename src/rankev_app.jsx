@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   LineChart, Line, CartesianGrid,
@@ -10,6 +11,7 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -1784,7 +1786,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
 // Author identity strip — avatar, name, verified badge, follower count.
 // Used on top of Rankie/Path/Deck cards. Tapping it opens that author's wall
 // instead of the card itself, so it stops the click from bubbling up.
-function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, onSetRank, fanCount = 0 }) {
+function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, onSetRank, fanCount = 0, trailing }) {
   const rk = useRankieSave();
   // Nhấn-giữ vào user → "Lưu vào Rankie" (kèm ảnh chụp avatar/tên/@/RP để preview).
   const longPress = useLongPress(() => {
@@ -1892,7 +1894,184 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
           <RankUpControl tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
         </div>
       )}
+      {/* "⋯" (ẩn / chặn / báo cáo) — tận cùng bên phải như Instagram */}
+      {trailing && <div style={{ flexShrink: 0, marginRight: -4 }}>{trailing}</div>}
     </div>
+  );
+}
+
+// ---------- Kiểm soát feed kiểu Instagram/TikTok: ẩn bài / ẩn người / chặn / báo cáo ----------
+// State + hành động nằm ở RankevApp, phát xuống qua context để thẻ bài ở mọi nơi (feed, hồ sơ,
+// tìm kiếm) dùng chung một menu "⋯" mà không phải luồn props qua nhiều tầng.
+const ModerationCtx = React.createContext(null);
+const useModeration = () => React.useContext(ModerationCtx);
+
+const REPORT_REASONS_VI = [
+  ["spam", "Spam / quảng cáo"],
+  ["harassment", "Quấy rối, bắt nạt"],
+  ["hate", "Ngôn từ thù ghét"],
+  ["violence", "Bạo lực, nguy hiểm"],
+  ["sexual", "Nội dung tình dục"],
+  ["misinformation", "Thông tin sai lệch"],
+  ["other", "Lý do khác"],
+];
+
+function BottomSheet({ onClose, children }) {
+  // Portal ra body: thẻ bài có thể mang transform (hiệu ứng/carousel) làm position:fixed lệch.
+  return createPortal(
+    <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 90, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "8px 0 max(14px, env(safe-area-inset-bottom, 14px))", maxHeight: "80vh", overflowY: "auto", animation: "slideUp .2s ease" }}>
+        <div style={{ width: 38, height: 4, borderRadius: 99, background: C.border, margin: "4px auto 10px" }} />
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function SheetRow({ icon: Icon, label, hint, danger, onClick }) {
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "12px 18px", background: "none", border: "none", textAlign: "left", cursor: "pointer" }}>
+      <Icon size={20} color={danger ? C.coral : C.text} style={{ flexShrink: 0 }} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 15, fontWeight: 600, color: danger ? C.coral : C.text }}>{label}</div>
+        {hint && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2, lineHeight: 1.35 }}>{hint}</div>}
+      </div>
+    </button>
+  );
+}
+
+function MiniAvatar({ u, size = 36 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: 99, background: u?.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", fontSize: size * 0.5, overflow: "hidden", flexShrink: 0 }}>
+      {u?.avatarUrl ? <img src={u.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (u?.avatarEmoji || "🙂")}
+    </div>
+  );
+}
+
+// Sheet hành động cho 1 bài (post) hoặc 1 người (chỉ author). Bước: menu → xác nhận chặn / chọn lý do báo cáo.
+function ModerationSheet({ author, post, onClose }) {
+  const mod = useModeration();
+  const [step, setStep] = useState("menu"); // menu | block | report
+  if (!mod || !author) return null;
+  const name = author.name || "người này";
+  const blocked = mod.isBlocked(author.id);
+  const muted = mod.isMuted(author.id);
+  const done = (fn) => { fn(); onClose(); };
+  return (
+    <BottomSheet onClose={onClose}>
+      {step === "menu" && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px 10px", borderBottom: `1px solid ${C.border}`, marginBottom: 4 }}>
+            <MiniAvatar u={author} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+              {author.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{author.handle}</div>}
+            </div>
+          </div>
+          {post && <SheetRow icon={EyeOff} label="Không quan tâm" hint="Ẩn bài này khỏi bảng tin của bạn" onClick={() => done(() => mod.hidePost(post))} />}
+          {muted
+            ? <SheetRow icon={Eye} label={`Bỏ ẩn bài của ${name}`} hint="Bài của họ sẽ xuất hiện lại trên bảng tin" onClick={() => done(() => mod.unmute(author))} />
+            : <SheetRow icon={UserX} label={`Ẩn bài của ${name}`} hint="Không thấy bài của họ trên bảng tin. Họ sẽ không được thông báo." onClick={() => done(() => mod.mute(author, post))} />}
+          {blocked
+            ? <SheetRow icon={Ban} label={`Bỏ chặn ${name}`} onClick={() => done(() => mod.unblock(author))} />
+            : <SheetRow icon={Ban} danger label={`Chặn ${name}`} hint="Hai bên không thấy bài của nhau và không nhắn tin được" onClick={() => setStep("block")} />}
+          <SheetRow icon={Flag} danger label={post ? "Báo cáo bài viết" : "Báo cáo tài khoản"} onClick={() => setStep("report")} />
+        </>
+      )}
+      {step === "block" && (
+        <div style={{ padding: "4px 20px 6px", textAlign: "center" }}>
+          <div style={{ display: "grid", placeItems: "center", marginBottom: 10 }}><MiniAvatar u={author} size={56} /></div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text, marginBottom: 8 }}>Chặn {name}?</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.5, marginBottom: 16 }}>
+            Bạn và {name} sẽ không thấy bài của nhau trên bảng tin và không thể nhắn tin cho nhau. Họ sẽ không được thông báo. Bạn có thể bỏ chặn bất cứ lúc nào trong Hồ sơ → Quyền riêng tư.
+          </div>
+          <button onClick={() => done(() => mod.block(author, post))} style={{ width: "100%", padding: 13, borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 8 }}>Chặn</button>
+          <button onClick={() => setStep("menu")} style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Huỷ</button>
+        </div>
+      )}
+      {step === "report" && (
+        <>
+          <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text }}>Tại sao bạn báo cáo {post ? "bài viết này" : "tài khoản này"}?</div>
+          <div style={{ padding: "0 18px 10px", fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Báo cáo được giữ kín — {name} sẽ không biết ai đã báo cáo.</div>
+          {REPORT_REASONS_VI.map(([reason, label]) => (
+            <button key={reason} onClick={() => done(() => mod.report({ author, post, reason }))} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "13px 18px", background: "none", border: "none", borderTop: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 15, color: C.text, textAlign: "left" }}>
+              {label}<ChevronRight size={16} color={C.textFaint} />
+            </button>
+          ))}
+        </>
+      )}
+    </BottomSheet>
+  );
+}
+
+// Nút "⋯" trên thẻ bài của NGƯỜI KHÁC. Bài của mình → không hiện (đã có menu quản lý riêng).
+function FeedPostMenu({ item }) {
+  const mod = useModeration();
+  const [open, setOpen] = useState(false);
+  if (!mod || !item?.author || mod.isMine(item)) return null;
+  return (
+    <>
+      <button onClick={(e) => { e.stopPropagation(); setOpen(true); }} aria-label="Tuỳ chọn" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 4, borderRadius: 8, display: "grid", placeItems: "center" }}>
+        <MoreHorizontal size={18} />
+      </button>
+      {open && <ModerationSheet author={item.author} post={item} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+// Chỗ của bài vừa ẩn trên feed — có nút Hoàn tác (như Instagram).
+function HiddenPostNotice({ info, onUndo }) {
+  const name = info.author?.name || "người này";
+  const text = info.kind === "mute" ? `Đã ẩn bài của ${name}. Bạn sẽ không thấy bài của họ trên bảng tin.`
+    : info.kind === "block" ? `Đã chặn ${name}.`
+    : info.kind === "report" ? "Cảm ơn bạn đã báo cáo. Bài viết đã được ẩn khỏi bảng tin của bạn."
+    : "Đã ẩn bài viết. Bạn sẽ thấy ít bài như thế này hơn.";
+  return (
+    <div style={{ ...cardSurface, display: "flex", alignItems: "center", gap: 12 }}>
+      <EyeOff size={18} color={C.textFaint} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.4 }}>{text}</div>
+      <button onClick={onUndo} style={{ flexShrink: 0, padding: "7px 12px", borderRadius: 99, background: "transparent", border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hoàn tác</button>
+    </div>
+  );
+}
+
+// Hồ sơ → Quyền riêng tư: quản lý người đã chặn / đã ẩn và bài đã ẩn.
+function PrivacySheet({ onClose }) {
+  const mod = useModeration();
+  if (!mod) return null;
+  const { blocked, muted, hiddenPostIds } = mod.state;
+  const list = (title, users, actionLabel, action, empty) => (
+    <div style={{ padding: "6px 18px 12px" }}>
+      <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>{title}</div>
+      {users.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, padding: "4px 0 8px" }}>{empty}</div>}
+      {users.map((u) => (
+        <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+          <MiniAvatar u={u} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</div>
+            {u.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{String(u.handle).startsWith("@") ? u.handle : "@" + u.handle}</div>}
+          </div>
+          <button onClick={() => action(u)} style={{ padding: "7px 12px", borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{actionLabel}</button>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 18px 12px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>
+        <ShieldCheck size={19} color={C.gold} /> Quyền riêng tư
+      </div>
+      {list("Tài khoản đã chặn", blocked, "Bỏ chặn", mod.unblock, "Bạn chưa chặn ai.")}
+      {list("Đã ẩn bài trên bảng tin", muted, "Bỏ ẩn", mod.unmute, "Bạn chưa ẩn bài của ai.")}
+      <div style={{ padding: "6px 18px 4px" }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Bài viết đã ẩn</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, color: C.text }}><span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{hiddenPostIds.length}</span><EyeOff size={15} color={C.textFaint} /></div>
+          {hiddenPostIds.length > 0 && <button onClick={mod.clearHidden} style={{ padding: "7px 12px", borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Khôi phục tất cả</button>}
+        </div>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -4575,7 +4754,7 @@ function LineViz({ options, colorFor, createdAt }) {
 }
 
 // ---------- RANKIE CARD (FEED) ----------
-function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCategory, hideResults = false, sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, onShare, bookmarked = false, onToggleBookmark, rankTier = 0, onSetRank, onVote, fanCount = 0 }) {
+function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteIds, hideCategory, hideResults = false, sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, onShare, bookmarked = false, onToggleBookmark, rankTier = 0, onSetRank, onVote, fanCount = 0 }) {
   const total = rankie.options.reduce((s, o) => s + o.votes, 0);
   const sorted = [...rankie.options].sort((a, b) => b.votes - a.votes);
   const closed = isRankieClosed(rankie);
@@ -4660,7 +4839,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, myVoteIds, hideCat
           </>
         );
         return rankie.author ? (
-          <AuthorRow author={rankie.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{statusSlot}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
+          <AuthorRow author={rankie.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{statusSlot}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
         ) : (
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>{statusSlot}</div>
@@ -5184,17 +5363,19 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
 function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
+  const mod = useModeration();
   // Render 1 thẻ feed theo loại — tách riêng để carousel Series tái dùng cho từng chapter.
   const renderCard = (it) => (
     it.type === "tournament" ? (
       <TournamentCarousel t={it} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
     ) : it.type === "path" ? (
-      <PathCard path={it} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+      <PathCard path={it} moreMenu={<FeedPostMenu item={it} />} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategoryrankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : it.type === "deck" ? (
-      <DeckCard deck={it} onOpen={() => onOpenDeck(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${it.id}`) || false} sessionCount={deckSessionCounts?.[it.id] || 0} bookmarked={!!bookmarks?.[`deck:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${it.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+      <DeckCard deck={it} moreMenu={<FeedPostMenu item={it} />} onOpen={() => onOpenDeck(it.id)} onOpenAuthor={onOpenAuthor} hideCategoryrankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${it.id}`) || false} sessionCount={deckSessionCounts?.[it.id] || 0} bookmarked={!!bookmarks?.[`deck:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${it.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : (
       <RankieCard
         rankie={liveOptions?.[it.id] ? { ...it, options: liveOptions[it.id] } : it}
+        moreMenu={<FeedPostMenu item={it} />}
         onOpen={onOpenRankie}
         onVote={(id, e) => onVoteInline?.(it, id, e)}
         onOpenAuthor={onOpenAuthor}
@@ -5365,6 +5546,7 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
               />
             );
           }
+          if (item._hiddenNow) return <HiddenPostNotice key={item.id} info={item._hiddenNow} onUndo={() => mod?.undo(item)} />;
           return (
             <SaveWrap key={item.id} item={item.type === "share" || item.type === "tournament" ? null : postSaveItem(item)}>
               <FeedSourceLabel source={feedSourceFor(item)} />
@@ -7827,7 +8009,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
 }
 
 // Path shown as a post in the feed
-function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare, joined = false, bookmarked = false, onToggleBookmark, myResult, unlockedEndings = [], sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, rankTier = 0, onSetRank, fanCount = 0 }) {
+function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory, onShare, joined = false, bookmarked = false, onToggleBookmark, myResult, unlockedEndings = [], sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, rankTier = 0, onSetRank, fanCount = 0 }) {
   const isOwner = path.mine || path.author?.id === "me";
   const nq = path.questionCount ?? path.questions?.length ?? 0;
   const myResultData = myResult?.detail ? path.results?.[myResult.detail] : null;
@@ -7852,7 +8034,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
       }}
     >
       {path.author ? (
-        <AuthorRow author={path.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}<Pill tone="gold"><GitBranch size={11} /> PATH</Pill></>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
+        <AuthorRow author={path.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}<Pill tone="gold"><GitBranch size={11} /> PATH</Pill></>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
       ) : (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
@@ -9153,7 +9335,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 }
 
 // Deck shown as a post in the feed
-function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare, joined = false, sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, bookmarked = false, onToggleBookmark, myResult, rankTier = 0, onSetRank, fanCount = 0 }) {
+function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory, onShare, joined = false, sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, bookmarked = false, onToggleBookmark, myResult, rankTier = 0, onSetRank, fanCount = 0 }) {
   const isOwner = deck.mine || deck.author?.id === "me";
   const nq = deck.questionCount ?? deck.questions?.length ?? 0;
   const badgeLabel = deck.deckMode === "exam" ? "EXAM" : "SURVEY";
@@ -9170,7 +9352,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, hideCategory, onShare,
       style={{ ...cardSurface, cursor: "pointer", animation: "popIn 0.3s ease" }}
     >
       {deck.author ? (
-        <AuthorRow author={deck.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{badge}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} />
+        <AuthorRow author={deck.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{badge}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
       ) : (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           {badge}
@@ -12980,6 +13162,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sendError, setSendError] = useState(null); // vd. "Không thể nhắn tin với người này" (đã chặn)
   const bottomRef = useRef(null);
   const author = conversation.members?.[0] || { name: conversation.title || "Nhóm", avatarEmoji: "💬", avatarColor: C.goldSoft };
 
@@ -13007,11 +13190,19 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
     const t = text.trim();
     if (!t) return;
     setText("");
-    api.messaging.send(conversation.id, { body: t }).then((m) => { pushMine(m); onAfterSend?.(); }).catch(() => {});
+    setSendError(null);
+    // Hiện ngay (mờ) rồi thay bằng bản thật khi server trả về — không phải chờ mạng.
+    const tmpId = "tmp_" + Date.now();
+    setMessages((prev) => [...prev, { id: tmpId, senderId: currentUserId, kind: "text", body: t, time: new Date().toISOString(), _pending: true }]);
+    api.messaging.send(conversation.id, { body: t })
+      .then((m) => { setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.filter((x) => x.id !== tmpId) : prev.map((x) => (x.id === tmpId ? m : x)))); onAfterSend?.(); })
+      .catch((e) => { setMessages((prev) => prev.filter((x) => x.id !== tmpId)); setText(t); setSendError(e?.message || "Không gửi được tin nhắn"); });
   };
   const createPoll = (poll) => {
     setPollOpen(false);
-    api.messaging.send(conversation.id, { kind: "poll", poll }).then((m) => { pushMine(m); onAfterSend?.(); }).catch(() => {});
+    setSendError(null);
+    api.messaging.send(conversation.id, { kind: "poll", poll }).then((m) => { pushMine(m); onAfterSend?.(); })
+      .catch((e) => setSendError(e?.message || "Không gửi được bình chọn"));
   };
   const votePoll = (msgId, optionIdx) => {
     // optimistic
@@ -13038,7 +13229,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
         {messages.map((msg) => {
           const isMe = msg.senderId === currentUserId;
           return (
-            <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+            <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start", opacity: msg._pending ? 0.6 : 1 }}>
               <div style={{ maxWidth: "82%" }}>
                 {msg.kind === "poll" ? (
                   <ChatPollCard msg={msg} onVote={votePoll} />
@@ -13058,6 +13249,9 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
         <div ref={bottomRef} />
       </div>
 
+      {sendError && (
+        <div style={{ padding: "8px 14px", fontFamily: bodyFont, fontSize: 12.5, color: C.coral, borderTop: `1px solid ${C.border}`, background: C.bg }}>{sendError}</div>
+      )}
       {pollOpen ? (
         <ChatPollComposer onCreate={createPoll} onCancel={() => setPollOpen(false)} />
       ) : (
@@ -14189,21 +14383,40 @@ function ProfileView({
   const [confirmDelete, setConfirmDelete] = useState(null); // post pending permanent-delete confirmation
   const [copiedLink, setCopiedLink] = useState(false); // vừa sao chép link hồ sơ
 
-  const targetId = authorId || "me";
+  // Mở hồ sơ của CHÍNH MÌNH bằng id thật (từ thẻ bài trên feed) → coi như "me".
+  const targetId = !authorId || (currentUser.apiId && authorId === currentUser.apiId) ? "me" : authorId;
   const isMe = targetId === "me";
   const canManage = isMe && !!onPin; // management actions are only wired up for "my profile"
-  const author = AUTHORS[targetId] || currentUser;
 
   // Số người đã RankUp hồ sơ này ở mỗi tầng (quan tâm/yêu thích/fan cuồng) — từ backend.
   const [rankCounts, setRankCounts] = useState({ tier1: 0, tier2: 0, tier3: 0, total: 0 });
   const [demo, setDemo] = useState(null); // nhân khẩu học để hiện trên hồ sơ
-  const profileUserId = isMe ? (currentUser.apiId || null) : (/^[0-9a-f-]{36}$/i.test(targetId) ? targetId : null);
+  const [fetchedAuthor, setFetchedAuthor] = useState(null); // hồ sơ thật nạp từ API
+  const mod = useModeration();
+  const [userSheet, setUserSheet] = useState(false); // "⋯" trên hồ sơ người khác
+  const [privacyOpen, setPrivacyOpen] = useState(false); // Quyền riêng tư (hồ sơ của mình)
+  const [settingsOpen, setSettingsOpen] = useState(false); // ⚙ Cài đặt (hồ sơ của mình)
+  const theyBlocked = !isMe && !!mod?.isBlocked(targetId);
+  const theyMuted = !isMe && !!mod?.isMuted(targetId);
+  const profileUserId = isMe ? (currentUser.apiId || null) : (isUuid(targetId) ? targetId : null);
   useEffect(() => {
+    setFetchedAuthor(null);
     if (!profileUserId) { setRankCounts({ tier1: 0, tier2: 0, tier3: 0, total: 0 }); return; }
     let alive = true;
-    api.social.profile(profileUserId).then((r) => { if (alive && r?.rankCounts) setRankCounts(r.rankCounts); }).catch(() => {});
+    api.social.profile(profileUserId).then((r) => {
+      if (!alive) return;
+      if (r?.rankCounts) setRankCounts(r.rankCounts);
+      if (!isMe && r?.user) setFetchedAuthor({ ...apiAuthorToProto(r.user), bio: r.user.bio || "" });
+    }).catch(() => {});
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileUserId]);
+  // Người khác: KHÔNG bao giờ rơi về currentUser (trước đây hồ sơ người lạ hiện thông tin
+  // của chính mình và nút Nhắn tin gửi nhầm id "me"). Ưu tiên AUTHORS → API → tác giả bài.
+  const postAuthor = isMe ? null : posts.find((p) => p.author?.id === targetId)?.author;
+  const author = isMe
+    ? (AUTHORS.me || currentUser)
+    : (AUTHORS[targetId] || fetchedAuthor || postAuthor || { id: targetId, name: "Người dùng", handle: "", avatarEmoji: "🙂", avatarColor: C.surfaceRaised, followers: 0 });
   // Nhân khẩu học: chính chủ dùng /users/me (thấy cả field ẩn); người khác chỉ nhận field công khai.
   useEffect(() => {
     let alive = true;
@@ -14222,6 +14435,7 @@ function ProfileView({
     !!p.mine || p.author?.id === "me" || (!!currentUser.apiId && p.author?.id === currentUser.apiId);
   const theirPostsAll = posts
     .filter((p) => (isMe ? isMinePost(p) : (p.author ? p.author.id === targetId : false)))
+    .filter(() => !theyBlocked) // đã chặn → không hiện bài của họ
     // Ván đấu của giải KHÔNG phải bài lẻ (mở chi tiết ván sẽ nạp nó vào kho phụ) — giải hiện
     // gọn trong carousel giải ở đầu hồ sơ, như feed.
     .filter((p) => !p._match && !p.tournamentId)
@@ -14393,21 +14607,6 @@ function ProfileView({
                 <Search size={15} />
               </button>
             )}
-            {isMe && onToggleTheme && (
-              <button
-                aria-label="Đổi giao diện sáng/tối"
-                title={theme === "light" ? "Chuyển tối" : "Chuyển sáng"}
-                onClick={onToggleTheme}
-                style={{
-                  width: 34, height: 34, borderRadius: 99,
-                  display: "grid", placeItems: "center", flexShrink: 0,
-                  background: C.surfaceRaised, border: `1px solid ${C.border}`,
-                  color: C.text, cursor: "pointer",
-                }}
-              >
-                {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-              </button>
-            )}
             {isMe && onOpenSaved && (
               <button
                 aria-label="Đã lưu"
@@ -14423,10 +14622,12 @@ function ProfileView({
                 <Bookmark size={15} /> {savedCount > 0 ? savedCount : ""}
               </button>
             )}
-            {isMe ? (
+            {/* Cài đặt (như ☰ của Instagram): Quyền riêng tư · Sáng/Tối · Đăng xuất — gọn đầu hồ sơ */}
+            {isMe && (
               <button
-                aria-label="Đăng xuất"
-                onClick={() => { if (onLogout && window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }}
+                aria-label="Cài đặt"
+                title="Cài đặt"
+                onClick={() => setSettingsOpen(true)}
                 style={{
                   width: 34, height: 34, borderRadius: 99,
                   display: "grid", placeItems: "center", flexShrink: 0,
@@ -14434,11 +14635,19 @@ function ProfileView({
                   color: C.text, cursor: "pointer",
                 }}
               >
-                <LogOut size={16} />
+                <Settings size={16} />
               </button>
-            ) : null}
+            )}
           </div>
         </div>
+        {settingsOpen && (
+          <BottomSheet onClose={() => setSettingsOpen(false)}>
+            <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>Cài đặt</div>
+            {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" hint="Tài khoản đã chặn, đã ẩn bài, bài viết đã ẩn" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
+            {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
+            {onLogout && <SheetRow icon={LogOut} danger label="Đăng xuất" onClick={() => { setSettingsOpen(false); if (window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }} />}
+          </BottomSheet>
+        )}
 
         {author.bio && (
           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10, lineHeight: 1.4 }}>
@@ -14449,10 +14658,17 @@ function ProfileView({
         {/* Hàng hành động (hồ sơ người khác): RankUp + Nhắn tin — tách khỏi tên để không che. */}
         {!isMe && (onSetRank || onMessage) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
-            {onSetRank && (
+            {onSetRank && !theyBlocked && (
               <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
             )}
-            {onMessage && (
+            {theyBlocked ? (
+              <button
+                onClick={() => mod.unblock(author)}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
+              >
+                <Ban size={16} /> Bỏ chặn
+              </button>
+            ) : onMessage && (
               <button
                 onClick={() => onMessage(author.id)}
                 style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
@@ -14460,6 +14676,23 @@ function ProfileView({
                 <MessageCircle size={16} /> Nhắn tin
               </button>
             )}
+            {mod && (
+              <button
+                aria-label="Tuỳ chọn"
+                onClick={() => setUserSheet(true)}
+                style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, cursor: "pointer" }}
+              >
+                <MoreHorizontal size={18} />
+              </button>
+            )}
+          </div>
+        )}
+        {userSheet && <ModerationSheet author={author} onClose={() => setUserSheet(false)} />}
+        {privacyOpen && <PrivacySheet onClose={() => setPrivacyOpen(false)} />}
+        {!isMe && (theyBlocked || theyMuted) && (
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
+            {theyBlocked ? <Ban size={14} /> : <EyeOff size={14} />}
+            {theyBlocked ? "Bạn đã chặn tài khoản này — bài của họ bị ẩn." : "Bạn đã ẩn bài của người này khỏi bảng tin (vẫn xem được ở đây)."}
           </div>
         )}
 
@@ -16535,9 +16768,27 @@ export default function RankevApp() {
 
   // Vote trực tiếp trên feed (Rankie 1-lựa-chọn): cập nhật liveOptions + votedMap tại chỗ,
   // dùng chung kho vote với màn chi tiết nên hai nơi luôn đồng bộ.
-  const voteOnFeed = (rankie, optId) => {
+  const voteOnFeed = (rankie, optId, curOverride) => {
     if (isRankieClosed(rankie)) return;
-    const cur = singleVotedId(votedMap[rankie.id] ?? null) ?? null;
+    // Thẻ feed dựng từ bản TÓM TẮT: option id là "opt0/opt1…" chứ chưa phải UUID thật → vote
+    // gửi đi bị 400 "Validation failed" và phiếu KHÔNG được lưu. Nạp bản đầy đủ, ghép đúng
+    // lựa chọn (theo nhãn, rồi theo thứ tự) rồi mới bình chọn.
+    if (isApiId(rankie.id) && optId && !isApiId(optId)) {
+      const label = getOptions(rankie).find((o) => o.id === optId)?.label;
+      const idx = Number((/^opt(\d+)$/.exec(optId) || [])[1]);
+      api.posts.get(rankie.id).then((full) => {
+        if (!full || full.type !== "rankie") return;
+        const proto = apiRankieToProto(full);
+        const real = proto.options.find((o) => o.label && o.label === label) || proto.options[idx];
+        if (!real) return;
+        setLiveOptions((prev) => ({ ...prev, [rankie.id]: proto.options }));
+        const mine = full.myVote?.optionIds?.[0] ?? null;
+        setVotedMap((prev) => ({ ...prev, [rankie.id]: mine }));
+        voteOnFeed({ ...rankie, options: proto.options }, real.id, mine);
+      }).catch((e) => showToast(e?.message || "Bình chọn thất bại"));
+      return;
+    }
+    const cur = curOverride !== undefined ? curOverride : (singleVotedId(votedMap[rankie.id] ?? null) ?? null);
     const off = cur === optId; // bấm lại lựa chọn đang chọn = bỏ phiếu
     const newVal = off ? null : optId;
     // Cập nhật số người tham gia trên EngagementBar: bỏ vote -1, vote mới +1, đổi lựa chọn 0.
@@ -16694,6 +16945,13 @@ export default function RankevApp() {
     );
   };
 
+  // KIỂM SOÁT FEED (như IG/TikTok): Không quan tâm · Ẩn bài của @x · Chặn · Báo cáo.
+  const EMPTY_MOD = { blocked: [], muted: [], hiddenPostIds: [] };
+  const [modState, setModState] = useState(EMPTY_MOD);
+  const [justHidden, setJustHidden] = useState({}); // postId → { kind, author } — chỗ "Hoàn tác" trên feed
+  const modExcludedAuthors = new Set([...modState.blocked, ...modState.muted].map((u) => u.id));
+  const modHiddenPosts = new Set(modState.hiddenPostIds);
+
   // Mixed feed: rankies + all paths + all decks, xếp theo trendingScore (mới × tương tác × live).
   // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
   const tournamentItems = tournamentFeed.map((t) => ({
@@ -16710,6 +16968,9 @@ export default function RankevApp() {
   }
   const feedItemsAll = [...feedDedup.values()]
     .filter((item) => !item.hidden && !item.deletedAt && item.visibility !== "private")
+    // Bài vừa ẩn trong phiên này giữ chỗ để "Hoàn tác"; còn lại lọc theo thiết lập đã lưu.
+    .filter((item) => justHidden[item.id] || (!modHiddenPosts.has(item.id) && !modExcludedAuthors.has(item.author?.id)))
+    .map((item) => (justHidden[item.id] ? { ...item, _hiddenNow: justHidden[item.id] } : item))
     // MỘT thứ tự duy nhất (đã bỏ 2 tab Thịnh hành/Mới nhất vì trên dữ liệu thật ra y hệt
     // nhau): bài mới nổi đầu rồi mờ dần, bài nhiều tương tác được đẩy lên. Như các MXH
     // khác: KHÔNG dồn bài của mình lên đầu.
@@ -17163,6 +17424,85 @@ export default function RankevApp() {
   const [authed, setAuthed] = useState(false);
   // Bản đệm Path chứa ending đã mở khoá của người xem → đổi phiên đăng nhập thì bỏ.
   useEffect(() => { pathFullCache.clear(); }, [authed]);
+
+  // ---- KIỂM SOÁT FEED: nạp thiết lập + hành động (state khai báo ở trên, cạnh feedItemsAll) ----
+  useEffect(() => {
+    if (!authed) { setModState(EMPTY_MOD); return; }
+    api.moderation.get().then((m) => m && setModState({ blocked: m.blocked || [], muted: m.muted || [], hiddenPostIds: m.hiddenPostIds || [] })).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+  const moderation = useMemo(() => {
+    const userLite = (a) => ({ id: a.id, name: a.name, handle: a.handle, avatarEmoji: a.avatarEmoji, avatarColor: a.avatarColor, avatarUrl: a.avatarUrl || null });
+    const blockedSet = new Set(modState.blocked.map((u) => u.id));
+    const mutedSet = new Set(modState.muted.map((u) => u.id));
+    const hiddenSet = new Set(modState.hiddenPostIds);
+    // Gọi API chỉ với id thật; bài/người mẫu (mock) chỉ áp dụng tại máy. Lỗi → báo, không hoàn tác ngầm.
+    const call = (id, fn) => { if (isUuid(id)) fn().catch((e) => showToast(e?.message || "Không thực hiện được, thử lại sau")); };
+    const mark = (post, kind, author) => post && setJustHidden((p) => ({ ...p, [post.id]: { kind, author } }));
+    const unmark = (postId) => setJustHidden((p) => { const n = { ...p }; delete n[postId]; return n; });
+    const api_ = {
+      state: modState,
+      isMine: (item) => !!item.mine || item.author?.id === "me" || (!!currentUser.apiId && item.author?.id === currentUser.apiId),
+      isBlocked: (id) => blockedSet.has(id),
+      isMuted: (id) => mutedSet.has(id),
+      isHiddenPost: (id) => hiddenSet.has(id),
+      hidePost: (post) => {
+        setModState((s) => ({ ...s, hiddenPostIds: [...new Set([...s.hiddenPostIds, post.id])] }));
+        mark(post, "post", post.author);
+        call(post.id, () => api.moderation.hidePost(post.id));
+      },
+      unhidePost: (post) => {
+        setModState((s) => ({ ...s, hiddenPostIds: s.hiddenPostIds.filter((x) => x !== post.id) }));
+        unmark(post.id);
+        call(post.id, () => api.moderation.unhidePost(post.id));
+      },
+      clearHidden: () => { setModState((s) => ({ ...s, hiddenPostIds: [] })); api.moderation.clearHidden().catch(() => {}); },
+      mute: (author, post) => {
+        setModState((s) => (s.muted.some((u) => u.id === author.id) ? s : { ...s, muted: [userLite(author), ...s.muted] }));
+        mark(post, "mute", author);
+        if (!post) showToast(`Đã ẩn bài của ${author.name || "người này"}`);
+        call(author.id, () => api.moderation.mute(author.id));
+      },
+      unmute: (author) => {
+        setModState((s) => ({ ...s, muted: s.muted.filter((u) => u.id !== author.id) }));
+        setJustHidden((p) => Object.fromEntries(Object.entries(p).filter(([, v]) => !(v.kind === "mute" && v.author?.id === author.id))));
+        call(author.id, () => api.moderation.unmute(author.id));
+      },
+      block: (author, post) => {
+        setModState((s) => (s.blocked.some((u) => u.id === author.id) ? s : { ...s, blocked: [userLite(author), ...s.blocked] }));
+        mark(post, "block", author);
+        if (!post) showToast(`Đã chặn ${author.name || "người này"}`);
+        call(author.id, () => api.moderation.block(author.id));
+      },
+      unblock: (author) => {
+        setModState((s) => ({ ...s, blocked: s.blocked.filter((u) => u.id !== author.id) }));
+        setJustHidden((p) => Object.fromEntries(Object.entries(p).filter(([, v]) => !(v.kind === "block" && v.author?.id === author.id))));
+        call(author.id, () => api.moderation.unblock(author.id));
+      },
+      // Báo cáo bài → đồng thời ẩn bài khỏi feed (như Instagram). Báo cáo người → chỉ gửi.
+      report: ({ author, post, reason }) => {
+        if (post) {
+          call(post.id, () => api.moderation.report("post", post.id, reason));
+          setModState((s) => ({ ...s, hiddenPostIds: [...new Set([...s.hiddenPostIds, post.id])] }));
+          mark(post, "report", author);
+          call(post.id, () => api.moderation.hidePost(post.id));
+        } else {
+          call(author.id, () => api.moderation.report("user", author.id, reason));
+          showToast("Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét.");
+        }
+      },
+    };
+    // Hoàn tác từ thẻ "Đã ẩn": gỡ đúng hành động đã làm.
+    api_.undo = (post) => {
+      const info = justHidden[post.id];
+      if (!info) return;
+      if (info.kind === "mute") api_.unmute(info.author);
+      else if (info.kind === "block") api_.unblock(info.author);
+      api_.unhidePost(post);
+    };
+    return api_;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modState, justHidden, currentUser.apiId]);
   const [joinCode, setJoinCode] = useState(() => { try { return new URLSearchParams(window.location.search).get("join") || null; } catch { return null; } });
   const hydrateFromApi = useCallback((me) => {
     const u = me?.user;
@@ -17526,6 +17866,7 @@ export default function RankevApp() {
 
   return (
     <RankieSaveCtx.Provider value={rankieSaveValue}>
+    <ModerationCtx.Provider value={moderation}>
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
       <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} basketHidden={basketHidden} setBasketHidden={setBasketHidden} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
@@ -17930,10 +18271,23 @@ export default function RankevApp() {
           )}
         </div>
         {navPresent && (
-          <BottomNav active={view} setView={(v) => { setOpenConversation(null); if (v === "create") setEditStructPost(null); setView(v); }} chatUnread={chatUnread} hidden={navHidden} />
+          <BottomNav active={view} setView={(v) => {
+            // Như Instagram/TikTok: đang ở Bảng tin mà bấm lại "Bảng tin" → cuộn mượt lên
+            // đầu; đã ở đầu rồi mà bấm tiếp → làm mới feed.
+            if (v === "feed" && view === "feed") {
+              if (currentFeedScroll() > 8) {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                scrollContainerRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+                feedScrollTopRef.current = 0;
+              } else refreshFeed();
+              return;
+            }
+            setOpenConversation(null); if (v === "create") setEditStructPost(null); setView(v);
+          }} chatUnread={chatUnread} hidden={navHidden} />
         )}
       </div>
     </div>
+    </ModerationCtx.Provider>
     </RankieSaveCtx.Provider>
   );
 }
