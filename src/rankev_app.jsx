@@ -2283,27 +2283,56 @@ function examQuestionStats(q, seed) {
 }
 
 // ---------- Path Companions (người cùng kết quả) ----------
-// Mỗi ending là một "cộng đồng" nhỏ — người dùng đến cùng kết quả. Prototype mô phỏng
-// danh sách ổn định theo (path + ending); backend thật sẽ thay bằng người dùng thực.
-const COMPANION_POOL = [
-  { name: "Minh Anh", emoji: "🌸", color: "#3D1F3A" },
-  { name: "Hoàng Nam", emoji: "😎", color: "#1E3A5F" },
-  { name: "Thu Hà", emoji: "🌿", color: "#1A3328" },
-  { name: "Đức Anh", emoji: "🎮", color: "#2A1F3D" },
-  { name: "Bảo Trân", emoji: "✨", color: "#3D2F1A" },
-  { name: "Quang Huy", emoji: "🚀", color: "#1E2F3A" },
-  { name: "Mai Chi", emoji: "🎨", color: "#3A1F2A" },
-  { name: "Tuấn Kiệt", emoji: "🧑‍💻", color: "#1A2F33" },
-  { name: "Ngọc Ánh", emoji: "🌷", color: "#33261A" },
-  { name: "Gia Bảo", emoji: "⚡", color: "#2A331A" },
-];
-function makeCompanions(seed, howMany = 5) {
-  const r = sdRng(seed >>> 0);
-  const pool = [...COMPANION_POOL];
-  const picked = [];
-  const k = Math.min(howMany, pool.length);
-  for (let i = 0; i < k; i++) picked.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
-  return picked;
+// NGƯỜI THẬT: ≤5 endings → người cùng tới ending này (GET /paths/:id/companions/:ending);
+// >5 endings → cộng đồng chung của Path (GET /paths/:id/companions). Backend đã bỏ chính
+// người xem và trả `total` = tổng số người khác. Bài mock (id không phải UUID) → ẩn.
+const companionsCache = new Map(); // `${pathId}|${ending|*}` → { companions, total }
+
+function CompanionAvatar({ u, i }) {
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: "50%", background: u.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", fontSize: 16, border: `2px solid ${C.surface}`, marginLeft: i ? -10 : 0, overflow: "hidden", flexShrink: 0 }}>
+      {u.avatarUrl ? <img src={u.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (u.avatarEmoji || "🙂")}
+    </div>
+  );
+}
+
+function PathCompanions({ path, ending, useGlobal }) {
+  const key = `${path.id}|${useGlobal ? "*" : ending}`;
+  const [data, setData] = useState(() => companionsCache.get(key) || null);
+  useEffect(() => {
+    if (!isUuid(path.id)) return;
+    let alive = true;
+    setData(companionsCache.get(key) || null);
+    api.paths
+      .companions(path.id, useGlobal ? undefined : ending)
+      .then((r) => {
+        const d = { companions: r?.companions || [], total: r?.total ?? (r?.companions || []).length };
+        companionsCache.set(key, d);
+        if (alive) setData(d);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  if (!isUuid(path.id) || !data) return null;
+  const { companions, total } = data;
+  const first = companions[0];
+  const text = !first
+    ? (useGlobal ? "Bạn là người đầu tiên trải nghiệm Path này" : `Bạn là người đầu tiên đến "${ending}"`)
+    : `${first.name}${total > 1 ? ` và ${fmt(total - 1)} người khác` : ""} ${useGlobal ? "cũng đã trải nghiệm Path này" : `cũng đến "${ending}"`}`;
+  return (
+    <div style={{ ...cardSurface, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", flexShrink: 0 }}>
+        {first
+          ? companions.slice(0, 5).map((u, i) => <CompanionAvatar key={u.id} u={u} i={i} />)
+          : <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 16 }}>🌟</div>}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>{useGlobal ? "Cộng đồng Path" : "Bạn đồng hành"}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{text}</div>
+      </div>
+    </div>
+  );
 }
 
 // ---------- Rankie Competition Timeline ----------
@@ -7574,29 +7603,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
 
         {/* Companions — tài liệu PATH: ≤5 endings mỗi ending là 1 cộng đồng riêng;
             >5 endings tự chuyển sang cộng đồng chung (global) cho toàn Path. */}
-        {(() => {
-          const useGlobal = allEndings.length > 5;
-          const seed = useGlobal ? sdHash(path.id || path.title || "p") : sdHash((path.id || path.title || "p") + "|" + step);
-          const mates = makeCompanions(seed);
-          const others = Math.max(0, (useGlobal ? path.participants : r.count || 0) - 1);
-          return (
-            <div style={{ ...cardSurface, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ display: "flex", flexShrink: 0 }}>
-                {mates.slice(0, 5).map((m, i) => (
-                  <div key={i} style={{ width: 32, height: 32, borderRadius: "50%", background: m.color, display: "grid", placeItems: "center", fontSize: 16, border: `2px solid ${C.surface}`, marginLeft: i ? -10 : 0 }}>{m.emoji}</div>
-                ))}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>{useGlobal ? "Cộng đồng Path" : "Bạn đồng hành"}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>
-                  {useGlobal
-                    ? `${mates[0]?.name} và ${fmt(others)} người khác đã trải nghiệm Path này`
-                    : `${mates[0]?.name}${others > 1 ? ` và ${fmt(others)} người khác` : ""} cũng đến "${step}"`}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        <PathCompanions path={path} ending={step} useGlobal={allEndings.length > 5} />
 
         {/* Tiến độ khám phá — cốt lõi của trải nghiệm replay: mỗi lần chơi mở thêm một
             "thực tại" khác. Ẩn với chủ bài (họ thấy toàn bộ). Khi creator bật ẩn số
