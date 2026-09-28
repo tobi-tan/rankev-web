@@ -3995,7 +3995,8 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
   const handlePost = () => {
     if (destination === "profile") {
       onShareToProfile({ item, caption, visibility });
-      onShared?.();
+      // Không +1 "chia sẻ": chia sẻ lên hồ sơ chưa lưu server → số sẽ mất khi tải lại.
+      // Số chia sẻ chỉ tính lượt GỬI QUA TIN NHẮN (server đếm thật).
       setPosted(true);
       setTimeout(onClose, 900);
     } else if (destination === "message" && selectedContact) {
@@ -5266,7 +5267,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
           joined={joined}
           participants={totalVotes}
           comments={commentCount}
-          shares={0}
+          shares={t.shareCount || 0}
           bookmarked={bm}
           onJoinClick={() => onOpenTournament(t.id)}
           onCommentClick={() => onOpenTournament(t.id)}
@@ -13082,18 +13083,103 @@ function ChatListView({ conversations = [], onOpen, onRefresh, onBack }) {
   );
 }
 
-// Thẻ chia sẻ bài trong tin nhắn — mở bài khi chạm.
+// Thẻ chia sẻ bài trong tin nhắn — XEM TRƯỚC như thẻ feed thu gọn (tác giả, tiêu đề, ảnh,
+// top lựa chọn / thông tin path-deck-giải, số tương tác) để người nhận nắm nội dung mà chưa
+// cần mở chi tiết. Chạm để mở. Bài đã xoá → thẻ báo "không còn tồn tại".
 function ChatShareCard({ msg, onOpenShare }) {
+  const ref = msg.ref;
+  const isTour = msg.refType === "tournament" || ref?.kind === "tournament";
+  const typeLabel = isTour ? "GIẢI ĐẤU"
+    : ref?.type === "path" ? "PATH"
+    : ref?.type === "deck" ? (ref.deckMode === "exam" ? "EXAM" : "SURVEY")
+    : "RANKIE";
+  const TypeIcon = isTour ? Trophy : ref?.type === "path" ? GitBranch : ref?.type === "deck" ? (ref.deckMode === "exam" ? Edit3 : Layers) : BarChart3;
+  const box = { display: "block", textAlign: "left", width: "100%", minWidth: 230, marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 0, overflow: "hidden", cursor: "pointer" };
+
+  if (msg.ref === null) {
+    return (
+      <div style={{ ...box, cursor: "default", padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>
+        <EyeOff size={15} /> Bài viết không còn tồn tại
+      </div>
+    );
+  }
+  // Tin cũ trước khi server kèm bản xem trước (hoặc đang tải) → thẻ gọn như trước.
+  if (!ref) {
+    return (
+      <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ ...box, padding: 10, display: "flex", alignItems: "center", gap: 8 }}>
+        <TypeIcon size={18} color={C.gold} />
+        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{typeLabel} được chia sẻ</span>
+      </button>
+    );
+  }
+
+  const img = ref.media?.url || null;
+  const opts = ref.options || [];
+  const total = opts.reduce((s, o) => s + (o.votes || 0), 0);
+  const top = opts.slice(0, 3);
+  const stat = (n, Icon) => (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 12, color: C.textMuted }}>
+      {fmtCompact(n || 0)} <Icon size={13} />
+    </span>
+  );
+  const champ = ref.championRef?.name;
+
   return (
-    <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ display: "block", textAlign: "left", width: "100%", marginTop: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 10, cursor: "pointer" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
-          {msg.refType === "tournament" ? "🏆" : msg.refType === "path" ? "🌿" : msg.refType === "deck" ? "📋" : "📊"}
+    <button onClick={() => onOpenShare?.(isTour ? "tournament" : ref.type, ref.id, isTour ? null : ref)} style={box}>
+      {/* Tác giả + loại bài */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 12px 0" }}>
+        <MiniAvatar u={ref.author} size={22} />
+        <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ref.author?.name || "Rankev"}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 99, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 10, fontWeight: 800, letterSpacing: 0.3, flexShrink: 0 }}>
+          <TypeIcon size={10} /> {typeLabel}
+        </span>
+      </div>
+      <div style={{ padding: "7px 12px 0", fontFamily: displayFont, fontWeight: 600, fontSize: 15, lineHeight: 1.3, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.title}</div>
+      {ref.caption && (
+        <div style={{ padding: "3px 12px 0", fontFamily: bodyFont, fontSize: 12, lineHeight: 1.4, color: C.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.caption}</div>
+      )}
+      {img && <img src={img} alt="" style={{ display: "block", width: "calc(100% - 24px)", height: 130, objectFit: "cover", borderRadius: 10, margin: "8px 12px 0" }} />}
+
+      {/* Nội dung theo loại */}
+      {!isTour && ref.type === "rankie" && top.length > 0 && (
+        <div style={{ padding: "9px 12px 0", display: "flex", flexDirection: "column", gap: 6 }}>
+          {top.map((o, i) => {
+            const pct = total > 0 ? Math.round(((o.votes || 0) / total) * 100) : 0;
+            return (
+              <div key={i}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, marginBottom: 3 }}>
+                  <span style={{ color: C.text, fontWeight: i === 0 && total > 0 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.emoji ? o.emoji + " " : ""}{o.label || `Lựa chọn ${i + 1}`}</span>
+                  <VoteStat votes={o.votes || 0} total={total} style={{ fontSize: 12, color: C.textFaint, flexShrink: 0 }} />
+                </div>
+                <div style={{ height: 5, background: C.surfaceRaised, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: i === 0 && total > 0 ? C.gold : C.teal, borderRadius: 3 }} />
+                </div>
+              </div>
+            );
+          })}
+          {opts.length > 3 && <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>+{opts.length - 3} lựa chọn khác</div>}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{msg.refType === "tournament" ? "Giải đấu" : msg.refType === "path" ? "Path" : msg.refType === "deck" ? "Bộ câu hỏi" : "Rankie"} được chia sẻ</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal, marginTop: 1 }}>Chạm để mở →</div>
+      )}
+      {!isTour && (ref.type === "path" || ref.type === "deck") && (
+        <div style={{ padding: "8px 12px 0", display: "flex", gap: 12 }}>
+          {stat(ref.questionCount, Hash)}
+          {ref.type === "path" && stat(ref.size, Flag)}
         </div>
+      )}
+      {isTour && (
+        <div style={{ padding: "8px 12px 0", fontFamily: bodyFont, fontSize: 12.5, color: champ ? C.gold : C.textMuted, fontWeight: champ ? 700 : 500 }}>
+          {champ ? `🏆 Vô địch: ${champ}` : ref.status === "completed" ? "Đã kết thúc" : "Đang diễn ra"}
+        </div>
+      )}
+
+      {/* Số tương tác — SỐ trái, ICON phải */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "9px 12px 10px", marginTop: 9, borderTop: `1px solid ${C.border}` }}>
+        {!isTour && stat(ref.engagement, ENGAGEMENT_TYPE_ICON[ref.type === "deck" ? (ref.deckMode === "exam" ? "exam" : "survey") : ref.type] || BarChart3)}
+        {!isTour && stat(ref.commentsCount, MessageCircle)}
+        {!isTour && stat(ref.sharesCount, Send)}
+        {!isTour && (ref.closed ? <span style={{ marginLeft: "auto", fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>Đã kết thúc</span>
+          : ref.live ? <span style={{ marginLeft: "auto", fontFamily: bodyFont, fontSize: 11, fontWeight: 800, color: C.teal }}>● LIVE</span> : null)}
+        {isTour && <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>Xem bảng đấu →</span>}
       </div>
     </button>
   );
@@ -13166,12 +13252,32 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
   const bottomRef = useRef(null);
   const author = conversation.members?.[0] || { name: conversation.title || "Nhóm", avatarEmoji: "💬", avatarColor: C.goldSoft };
 
+  // Khung tạm (id=null, đang tạo hội thoại): cho gõ & gửi luôn, tin xếp hàng chờ id thật.
+  const queueRef = useRef([]); // [{ tmpId, body }]
   const load = useCallback(() => {
-    api.messaging.messages(conversation.id).then((r) => { setMessages(r.items || []); setLoading(false); }).catch(() => setLoading(false));
+    if (!conversation.id) { setLoading(false); return; }
+    // Giữ các tin đang gửi dở (mờ) khi nạp lại danh sách từ server.
+    api.messaging.messages(conversation.id).then((r) => { setMessages((prev) => [...(r.items || []), ...prev.filter((m) => m._pending)]); setLoading(false); }).catch(() => setLoading(false));
+  }, [conversation.id]);
+
+  const sendText = (t, tmpId) => {
+    if (!conversation.id) { queueRef.current.push({ tmpId, body: t }); return; }
+    api.messaging.send(conversation.id, { body: t })
+      .then((m) => { setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.filter((x) => x.id !== tmpId) : prev.map((x) => (x.id === tmpId ? m : x)))); onAfterSend?.(); })
+      .catch((e) => { setMessages((prev) => prev.filter((x) => x.id !== tmpId)); setText(t); setSendError(e?.message || "Không gửi được tin nhắn"); });
+  };
+
+  useEffect(() => {
+    if (!conversation.id) return;
+    // Hội thoại thật vừa sẵn sàng → gửi các tin đã gõ trong lúc chờ.
+    const q = queueRef.current; queueRef.current = [];
+    q.forEach(({ tmpId, body }) => sendText(body, tmpId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
   useEffect(() => {
     load();
+    if (!conversation.id) return;
     const unsub = api.subscribeChat(conversation.id, (evt) => {
       if (evt.type === "chat_message") {
         setMessages((prev) => prev.some((m) => m.id === evt.message.id) ? prev : [...prev, evt.message]);
@@ -13194,11 +13300,10 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
     // Hiện ngay (mờ) rồi thay bằng bản thật khi server trả về — không phải chờ mạng.
     const tmpId = "tmp_" + Date.now();
     setMessages((prev) => [...prev, { id: tmpId, senderId: currentUserId, kind: "text", body: t, time: new Date().toISOString(), _pending: true }]);
-    api.messaging.send(conversation.id, { body: t })
-      .then((m) => { setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev.filter((x) => x.id !== tmpId) : prev.map((x) => (x.id === tmpId ? m : x)))); onAfterSend?.(); })
-      .catch((e) => { setMessages((prev) => prev.filter((x) => x.id !== tmpId)); setText(t); setSendError(e?.message || "Không gửi được tin nhắn"); });
+    sendText(t, tmpId);
   };
   const createPoll = (poll) => {
+    if (!conversation.id) return; // đang mở hội thoại — nút bình chọn tạm khoá
     setPollOpen(false);
     setSendError(null);
     api.messaging.send(conversation.id, { kind: "poll", poll }).then((m) => { pushMine(m); onAfterSend?.(); })
@@ -13219,7 +13324,8 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
         <Avatar author={author} size={38} />
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, lineHeight: 1.1 }}>{conversation.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12, color: "#4ADE80" }}>Đang hoạt động</div>
+          {/* Không bịa trạng thái "Đang hoạt động" (chưa có presence thật) — hiện @handle. */}
+          {author.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{String(author.handle).startsWith("@") ? author.handle : "@" + author.handle}</div>}
         </div>
       </div>
 
@@ -13684,7 +13790,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             joined={joinedAny}
             participants={totalVotes}
             comments={data.commentCount || 0}
-            shares={0}
+            shares={data.shareCount || 0}
             bookmarked={!!data.bookmarked}
             onCommentClick={() => commentsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
             onShareClick={() => setShareOpen(true)}
@@ -14670,7 +14776,7 @@ function ProfileView({
               </button>
             ) : onMessage && (
               <button
-                onClick={() => onMessage(author.id)}
+                onClick={() => onMessage(author.id, author)}
                 style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
               >
                 <MessageCircle size={16} /> Nhắn tin
@@ -15144,6 +15250,7 @@ function apiSummaryToProto(s) {
     mine: false,
     caption: s.caption || "",
     participants: s.engagement || 0,
+    shares: s.sharesCount || 0, // lượt gửi qua tin nhắn (thật, từ server)
     questionCount: s.questionCount ?? 0,
     seriesId: s.seriesId || null,
     seriesName: s.seriesName || null,
@@ -15187,6 +15294,7 @@ function apiRankieToProto(r) {
     // Ván giải đấu: bên đi tiếp theo KẾT QUẢ GIẢI (kể cả hoà mà chủ giải chọn) → VersusBanner khoe đúng WINNER.
     winnerIdx: r.tournamentWinner === "a" ? 0 : r.tournamentWinner === "b" ? 1 : null, _match: !!r.tournamentId,
     options: opts, comments: [], _api: true,
+    ...(r.sharesCount != null ? { shares: r.sharesCount } : {}), // lượt gửi qua tin nhắn
   };
 }
 
@@ -15225,6 +15333,7 @@ function apiPathToProto(p) {
     category: p.category || "Khác", tags: p.tags || [], mine: false, allowGuestPresent: !!p.allowGuestPresent, seriesId: p.seriesId || null, seriesName: p.seriesName || null, author: apiAuthorToProto(p.author),
     createdAt: Date.parse(p.createdAt) || Date.now(), caption: p.caption || "", media: p.media || null,
     participants: 0, comments: 0, questions, results, _api: true,
+    ...(p.sharesCount != null ? { shares: p.sharesCount } : {}),
   };
 }
 
@@ -15263,6 +15372,7 @@ function apiDeckToProto(d) {
     category: d.category || "Khác", tags: d.tags || [], mine: !!d.mine, allowGuestPresent: !!d.allowGuestPresent, seriesId: d.seriesId || null, seriesName: d.seriesName || null, author: apiAuthorToProto(d.author),
     createdAt: Date.parse(d.createdAt) || Date.now(), caption: d.caption || "", media: d.media || null,
     participants: 0, comments: 0, answerMode: "step", graded: d.deckMode === "exam",
+    ...(d.sharesCount != null ? { shares: d.sharesCount } : {}),
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
     questions: (d.questions || []).map((q) => ({
       id: q.id, text: q.text || "", votingType: q.votingType || "single", points: q.points || 0,
@@ -16958,7 +17068,7 @@ export default function RankevApp() {
     id: t.id, type: "tournament", title: t.title, category: t.category || "Khác", tags: t.tags || [],
     author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
     status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
-    media: t.media || null, commentCount: t.commentCount || 0, bookmarked: !!t.bookmarked,
+    media: t.media || null, commentCount: t.commentCount || 0, shareCount: t.shareCount || 0, bookmarked: !!t.bookmarked,
     participants: t.totalVotes || 0, // để xếp trending hợp lý
   }));
   const feedDedup = new Map();
@@ -17228,12 +17338,23 @@ export default function RankevApp() {
     const id = opt.refType === "comment" ? opt.preview?.postId : opt.refId;
     if (!id) return;
     const t = opt.preview?.postType;
+    // Bài được chia sẻ (tin nhắn…) có thể CHƯA nằm trong feed đã tải: dựng khung tạm từ bản xem
+    // trước (hoặc stub id thật) thay vì rơi về bài MẪU; màn chi tiết tự nạp bản đầy đủ. Nút quay
+    // lại trở về đúng màn đang đứng (vd. khung chat).
+    const summary = opt.preview?.summary;
+    const stubFor = (type) => (summary ? apiSummaryToProto(summary) : isUuid(id) ? { id, type, title: "", questions: [], results: {}, _api: true } : null);
     if (t === "tournament") openTournament(id);
-    else if (t === "path") openPathFromProfile(id);
-    else if (t === "deck") openDeckFromProfile(id);
-    else openRankie(id);
+    else if (t === "path") {
+      const p = allPaths.find((x) => x.id === id) || stubFor("path");
+      if (!p) return openPathFromProfile(id);
+      setSelectedPath(withCachedPath(p)); setPrevAfterPath(view); setView("pathDetail");
+    } else if (t === "deck") {
+      const d = allDecks.find((x) => x.id === id) || stubFor("deck");
+      if (!d) return openDeckFromProfile(id);
+      setSelectedDeck(d); setPrevAfterDeck(view); setView("deckDetail");
+    } else openRankie(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, allPaths, allDecks]);
 
   // Giải đấu (đấu loại)
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
@@ -17393,14 +17514,24 @@ export default function RankevApp() {
     setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unread: 0 } : c));
   };
   // Mở (hoặc tạo) DM 1-1 với một user thật (UUID) → vào khung chat.
-  const openDM = useCallback((userId) => {
+  // Mở khung chat NGAY khi bấm (không chờ mạng — trước đây phải đợi server trả về mới chuyển
+  // màn, trên Render chậm nên trông như "không vào chat"). Đã có hội thoại → mở luôn; chưa có →
+  // mở khung tạm (tên/avatar từ hồ sơ), server tạo xong thì thay bằng hội thoại thật.
+  const openDM = useCallback((userId, authorHint) => {
     if (!isUuid(userId)) { showToast("Chưa thể nhắn tin người dùng mẫu này"); return; }
+    const existing = conversations.find((c) => !c.isGroup && c.members?.[0]?.id === userId);
+    if (existing) { setOpenConversation(existing); setView("chat"); return; }
+    const h = authorHint || {};
+    setOpenConversation({ id: null, _pendingUserId: userId, isGroup: false, title: h.name || "Đang mở…", members: [{ id: userId, name: h.name, handle: h.handle, avatarEmoji: h.avatarEmoji, avatarColor: h.avatarColor, avatarUrl: h.avatarUrl }] });
+    setView("chat");
     api.messaging.openDM(userId).then((conv) => {
       setConversations((prev) => prev.some((c) => c.id === conv.id) ? prev : [conv, ...prev]);
-      setOpenConversation(conv);
-      setView("chat");
-    }).catch((e) => showToast(e?.message || "Không mở được cuộc trò chuyện"));
-  }, [showToast]);
+      setOpenConversation((cur) => (cur && cur._pendingUserId === userId ? conv : cur));
+    }).catch((e) => {
+      showToast(e?.message || "Không mở được cuộc trò chuyện");
+      setOpenConversation((cur) => (cur && cur._pendingUserId === userId ? null : cur));
+    });
+  }, [showToast, conversations]);
   const chatUnread = conversations.reduce((s, c) => s + (c.unread || 0), 0);
   // Shape mà ShareModal/các picker cũ mong đợi: { id, author, unread, lastTime, lastMsg }.
   const contacts = useMemo(() => conversations.map((c) => ({
@@ -18264,7 +18395,7 @@ export default function RankevApp() {
             <ChatDetailView
               conversation={openConversation}
               currentUserId={currentUser.apiId}
-              onOpenShare={(refType, refId) => openRef({ refType: "post", refId, preview: { postType: refType } })}
+              onOpenShare={(refType, refId, summary) => openRef({ refType: "post", refId, preview: { postType: refType, summary } })}
               onAfterSend={loadConversations}
               onBack={() => { setOpenConversation(null); loadConversations(); }}
             />
