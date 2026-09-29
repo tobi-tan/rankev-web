@@ -51,6 +51,20 @@ const cardSurface = {
   borderRadius: 16,
   padding: 16,
 };
+// ===== Ngôn ngữ thiết kế BÀI VIẾT (kiểu Instagram) — dùng cho mọi danh sách bài toàn app =====
+// Không khung thẻ: nền trùng nền app, các bài ngăn nhau bằng 1 đường kẻ mảnh; ảnh tràn hết
+// chiều ngang (postBleed). Danh sách bài dùng postListStyle (sát mép, không gap/padding ngang)
+// — bài tự lo lề trong (POST_X).
+const POST_X = 16;
+const postSurface = {
+  padding: `14px ${POST_X}px 10px`,
+  borderBottom: `1px solid ${C.border}`,
+  background: "transparent",
+};
+const postListStyle = { display: "flex", flexDirection: "column" };
+// Hàng danh sách (đánh dấu, lịch sử…): cùng ngôn ngữ — không khung, vạch ngăn mảnh.
+const listRow = { display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer" };
+const postBleed = { marginLeft: -POST_X, marginRight: -POST_X, width: `calc(100% + ${POST_X * 2}px)` };
 const raisedSurface = {
   background: C.surfaceRaised,
   border: `1px solid ${C.border}`,
@@ -103,6 +117,10 @@ const FONT_IMPORT = (
     input, textarea, select { font-size: 16px !important; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
+    /* Bài nằm trong carousel (series / giải đấu): bỏ vạch ngăn của từng slide — vạch nằm dưới cả carousel */
+    .rk-carousel .rk-post { border-bottom: none !important; }
+    /* Khối hình tràn viền (vd. ảnh bảng đấu): bỏ bo góc + viền 2 bên của phần tử con */
+    .rk-bleed > * { border-radius: 0 !important; border-left: none !important; border-right: none !important; }
     .chSwitchCard { display: flex; flex-direction: column; }
     .chSwitchCard > div { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
@@ -1622,6 +1640,52 @@ function fmtExamDuration(mins) {
   return `${Math.round(mins)} phút`;
 }
 
+// Loại bài → icon + chữ + màu (thay cho viên nhãn RANKIE/PATH/SURVEY… trên đầu thẻ).
+const POST_TYPE_META = {
+  rankie: { icon: BarChart3, label: "Rankie", color: C.gold },
+  path: { icon: GitBranch, label: "Path", color: C.teal },
+  survey: { icon: Layers, label: "Survey", color: "#7EA8C4" },
+  exam: { icon: Edit3, label: "Exam", color: C.coral },
+  tournament: { icon: Trophy, label: "Giải đấu", color: C.gold },
+};
+const postTypeKey = (item) =>
+  item?.type === "deck" ? (item.deckMode === "exam" ? "exam" : "survey") : (POST_TYPE_META[item?.type] ? item.type : "rankie");
+
+// Đếm ngược dạng CHỮ (không phải viên) để nằm gọn trong dòng thông tin dưới tên.
+function InlineCountdown({ toTs, prefix }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!toTs) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv); }, [toTs]);
+  if (!toTs) return null;
+  const ms = Math.max(0, toTs - now);
+  const urgent = ms <= 300000;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: urgent ? C.coral : C.textMuted }}>
+      <Clock size={11} />{prefix ? `${prefix} ` : ""}<span style={{ fontFamily: monoFont, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtCountdown(ms)}</span>
+    </span>
+  );
+}
+
+// Dòng thông tin dưới tên tác giả: [icon] Loại · trạng thái · thời gian · Được tài trợ.
+// `status`: mảng node trạng thái (LIVE, đếm ngược, Đã kết thúc…) do từng loại thẻ truyền vào.
+function PostMeta({ item, status = [] }) {
+  const m = POST_TYPE_META[postTypeKey(item)];
+  const Icon = m.icon;
+  const parts = [...status.filter(Boolean)];
+  // Nhiều trạng thái (LIVE + đếm ngược…) thì bỏ thời gian đăng cho dòng không bị cắt.
+  if (item?.createdAt && parts.length < 2) parts.push(<span key="t">{timeAgoShort(item.createdAt)}</span>);
+  if (item?._sponsored) parts.push(<span key="sp" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: C.gold }}><Megaphone size={11} /> Được tài trợ</span>);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", minWidth: 0 }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: m.color, fontWeight: 600, flexShrink: 0 }}><Icon size={12} /> {m.label}</span>
+      {parts.map((p, i) => (
+        <React.Fragment key={i}><span style={{ color: C.textFaint }}>·</span>{p}</React.Fragment>
+      ))}
+    </div>
+  );
+}
+const liveMeta = <span key="live" style={{ color: C.teal, fontWeight: 700 }}>● LIVE</span>;
+const closedMeta = <span key="closed" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Lock size={10} /> Đã kết thúc</span>;
+
 // Nhãn hiển thị phía trên bài được tài trợ trong feed. Các nguồn khác không gắn nhãn.
 function FeedSourceLabel({ source }) {
   if (source !== "sponsored") return null;
@@ -1786,7 +1850,9 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
 // Author identity strip — avatar, name, verified badge, follower count.
 // Used on top of Rankie/Path/Deck cards. Tapping it opens that author's wall
 // instead of the card itself, so it stops the click from bubbling up.
-function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, onSetRank, fanCount = 0, trailing }) {
+// `meta`: dòng thông tin dưới tên (PostMeta) — thẻ bài dùng thay cho dòng RP. Không có `meta`
+// (vd. bình luận, hồ sơ) thì vẫn hiện RP như cũ.
+function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, onSetRank, fanCount = 0, trailing, meta }) {
   const rk = useRankieSave();
   // Nhấn-giữ vào user → "Lưu vào Rankie" (kèm ảnh chụp avatar/tên/@/RP để preview).
   const longPress = useLongPress(() => {
@@ -1802,10 +1868,10 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
     <div
       style={{
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: meta ? "center" : "flex-start",
         justifyContent: "space-between",
         gap: 8,
-        marginBottom: 10,
+        marginBottom: meta ? 12 : 10,
       }}
     >
       <div
@@ -1849,7 +1915,7 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
               style={{
                 fontFamily: bodyFont,
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: meta ? 14 : 13,
                 color: C.text,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -1874,13 +1940,15 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
                 <Check size={9} color={C.bg} strokeWidth={3} />
               </span>
             )}
-            {!isMe && author.id && (
-              <SaveFlagButton size={13} item={{ refType: "user", refId: author.id, label: author.name || "Người dùng", preview: { name: author.name, handle: author.handle, avatarUrl: author.avatarUrl, avatarEmoji: author.avatarEmoji, avatarColor: author.avatarColor } }} />
-            )}
+            {/* Icon "lưu người này" cạnh tên đã chuyển vào menu ⋯ (gọn đầu bài). */}
           </div>
-          <div style={{ ...captionText, display: "flex", alignItems: "center", gap: 4 }}>
-            <Star size={11} color={C.gold} fill={C.gold} /> {fmtCompact((author.followers || 0) + (rankTier || 0))} RP
-          </div>
+          {meta ? (
+            <div style={{ marginTop: 2 }}>{meta}</div>
+          ) : (
+            <div style={{ ...captionText, display: "flex", alignItems: "center", gap: 4 }}>
+              <Star size={11} color={C.gold} fill={C.gold} /> {fmtCompact((author.followers || 0) + (rankTier || 0))} RP
+            </div>
+          )}
         </div>
       </div>
       {rightSlot && (
@@ -1952,9 +2020,13 @@ function MiniAvatar({ u, size = 36 }) {
 // Sheet hành động cho 1 bài (post) hoặc 1 người (chỉ author). Bước: menu → xác nhận chặn / chọn lý do báo cáo.
 function ModerationSheet({ author, post, onClose }) {
   const mod = useModeration();
+  const rk = useRankieSave();
   const [step, setStep] = useState("menu"); // menu | block | report
   if (!mod || !author) return null;
   const name = author.name || "người này";
+  // "Lưu người này" (Lưu vào Rankie) — trước là icon nhỏ cạnh tên trên mọi thẻ bài.
+  const saveItem = { refType: "user", refId: author.id, label: author.name || "Người dùng", preview: { name: author.name, handle: author.handle, avatarUrl: author.avatarUrl, avatarEmoji: author.avatarEmoji, avatarColor: author.avatarColor } };
+  const saved = !!rk?.basket?.some((x) => rankieRefKey(x) === rankieRefKey(saveItem));
   const blocked = mod.isBlocked(author.id);
   const muted = mod.isMuted(author.id);
   const done = (fn) => { fn(); onClose(); };
@@ -1969,6 +2041,7 @@ function ModerationSheet({ author, post, onClose }) {
               {author.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{author.handle}</div>}
             </div>
           </div>
+          {rk?.toggle && isUuid(author.id) && <SheetRow icon={Bookmark} label={saved ? `Bỏ lưu ${name}` : `Lưu ${name}`} hint="Lưu vào Rankie để xếp hạng sau" onClick={() => done(() => rk.toggle(saveItem))} />}
           {post && <SheetRow icon={EyeOff} label="Không quan tâm" hint="Ẩn bài này khỏi bảng tin của bạn" onClick={() => done(() => mod.hidePost(post))} />}
           {muted
             ? <SheetRow icon={Eye} label={`Bỏ ẩn bài của ${name}`} hint="Bài của họ sẽ xuất hiện lại trên bảng tin" onClick={() => done(() => mod.unmute(author))} />
@@ -2015,7 +2088,7 @@ function FeedPostMenu({ item }) {
       <button onClick={(e) => { e.stopPropagation(); setOpen(true); }} aria-label="Tuỳ chọn" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 4, borderRadius: 8, display: "grid", placeItems: "center" }}>
         <MoreHorizontal size={18} />
       </button>
-      {open && <ModerationSheet author={item.author} post={item} onClose={() => setOpen(false)} />}
+      {open && <ModerationSheet author={item.author} post={item.type === "tournament" ? null : item} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -2028,7 +2101,7 @@ function HiddenPostNotice({ info, onUndo }) {
     : info.kind === "report" ? "Cảm ơn bạn đã báo cáo. Bài viết đã được ẩn khỏi bảng tin của bạn."
     : "Đã ẩn bài viết. Bạn sẽ thấy ít bài như thế này hơn.";
   return (
-    <div style={{ ...cardSurface, display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="rk-post" style={{ ...postSurface, padding: `14px ${POST_X}px`, display: "flex", alignItems: "center", gap: 12 }}>
       <EyeOff size={18} color={C.textFaint} style={{ flexShrink: 0 }} />
       <div style={{ flex: 1, fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.4 }}>{text}</div>
       <button onClick={onUndo} style={{ flexShrink: 0, padding: "7px 12px", borderRadius: 99, background: "transparent", border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hoàn tác</button>
@@ -3001,23 +3074,20 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
               : "Không có mục nào khớp với bộ lọc này."}
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {filtered.map((entry) => {
               const Icon = getIcon(entry);
               return (
                 <div
                   key={entry.id}
-                  style={{ ...cardSurface, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
+                  style={listRow}
                   onClick={() => openEntry(entry)}
                 >
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
                     <Icon size={17} color={C.gold} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                      <Pill tone="muted">{getLabel(entry)}</Pill>
-                      <span style={captionText}>{timeAgo(entry.endedAt)} trước</span>
-                    </div>
+                    <div style={{ marginBottom: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.endedAt }} /></div>
                     <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {entry.name}
                     </div>
@@ -3061,25 +3131,23 @@ function BookmarksView({ bookmarks, onOpenRankie, onOpenPath, onOpenDeck, onTogg
             Chưa đánh dấu bài nào. Bấm icon 🔖 trên một bài để lưu lại xem/làm sau.
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {list.map((item) => {
               const Icon = getIcon(item);
               return (
                 <div
                   key={`${item.type}:${item.id}`}
-                  style={{ ...cardSurface, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
+                  style={listRow}
                   onClick={() => openItem(item)}
                 >
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                    <Icon size={17} color={C.gold} />
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Icon size={17} color={POST_TYPE_META[postTypeKey(item)].color} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                      <Pill tone="muted">{getLabel(item)}</Pill>
-                    </div>
                     <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.title}
                     </div>
+                    <div style={{ marginTop: 2 }}><PostMeta item={{ ...item, createdAt: undefined }} /></div>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); onToggleBookmark(item); }}
@@ -3166,26 +3234,23 @@ function ParticipationHistoryView({ history, onOpenRankie, onOpenPath, onOpenDec
               : "Không có mục nào khớp với bộ lọc này."}
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {filtered.map((entry) => {
               const Icon = getIcon(entry);
               return (
                 <div
                   key={entry.key}
-                  style={{ ...cardSurface, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
+                  style={listRow}
                   onClick={() => openEntry(entry)}
                 >
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                    <Icon size={17} color={C.gold} />
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Icon size={17} color={POST_TYPE_META[postTypeKey(entry)].color} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                      <Pill tone="muted">{getLabel(entry)}</Pill>
-                      <span style={captionText}>{timeAgo(entry.timestamp)} trước</span>
-                    </div>
                     <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {entry.title}
                     </div>
+                    <div style={{ marginTop: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.timestamp }} /></div>
                     {entry.detail && (
                       <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         Kết quả của bạn: {entry.detail}
@@ -3576,7 +3641,8 @@ function VoteBubbleLayer({ bubbles }) {
 
 // Renders post media: an image (color-block placeholder) or a video (placeholder with play button).
 // In the prototype, real files aren't uploaded; media carries { type, color, emoji, url? }.
-function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480 }) {
+function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480, bleed = false }) {
+  const edge = bleed ? { borderLeft: "none", borderRight: "none" } : null; // tràn viền: bỏ viền 2 bên
   // fit: "cover" (cắt lấp đầy, chiều cao cố định) | "contain" (hiện trọn ảnh dọc) |
   // "auto" (mặc định: ảnh DỌC → contain hiện trọn kiểu IG/TikTok, ảnh ngang/vuông → cover).
   const [portrait, setPortrait] = useState(false);
@@ -3593,7 +3659,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
   const useContain = !!url && (fit === "contain" || (fit === "auto" && portrait));
   if (useContain) {
     return (
-      <div style={{ position: "relative", width: "100%", maxHeight, borderRadius: radius, overflow: "hidden", background: "#0b0b0d", border: `1px solid ${C.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
+      <div style={{ position: "relative", width: "100%", maxHeight, borderRadius: radius, overflow: "hidden", background: "#0b0b0d", border: `1px solid ${C.border}`, ...edge, display: "flex", justifyContent: "center", alignItems: "center" }}>
         <img src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
       </div>
     );
@@ -3608,6 +3674,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
         overflow: "hidden",
         background: bg,
         border: `1px solid ${C.border}`,
+        ...edge,
         display: "grid",
         placeItems: "center",
       }}
@@ -3647,7 +3714,8 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
 // On feed cards, caption clamps to `clampLines` with a static "…xem thêm" hint (opens detail).
 // Ở màn CHI TIẾT, truyền `expandable` để mô tả thu gọn `clampLines` dòng + nút "Xem thêm/
 // Thu gọn" mở/đóng TẠI CHỖ (kiểu Facebook) — chỉ hiện nút khi mô tả thực sự bị tràn.
-function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false }) {
+// `bleed`: ảnh tràn hết chiều ngang bài (ngôn ngữ thiết kế bài viết không khung).
+function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false }) {
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const textRef = useRef(null);
@@ -3688,12 +3756,15 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
                   {expanded ? "Thu gọn" : "…xem thêm"}
                 </button>
               )
-            : showMore && (
+            // Chỉ gợi "xem thêm" khi mô tả có vẻ dài hơn số dòng hiển thị (trước đây luôn hiện).
+            : showMore && (caption.length > clampLines * 44 || caption.split("\n").length > clampLines) && (
                 <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
               )}
         </div>
       )}
-      {media && <PostMedia media={media} height={mediaHeight} />}
+      {media && (bleed
+        ? <div style={postBleed}><PostMedia media={media} height={Math.max(mediaHeight, 220)} radius={0} bleed /></div>
+        : <PostMedia media={media} height={mediaHeight} />)}
     </div>
   );
 }
@@ -3801,7 +3872,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
           >
             <TypeIcon size={20} color={joinColor} />
-            <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: joined ? C.text : C.textFaint }}>{fmtCompact(participants)}</span>
+            {participants > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: joined ? C.text : C.textFaint }}>{fmtCompact(participants)}</span>}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onCommentClick?.(); }}
@@ -3809,7 +3880,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             aria-label="Bình luận"
           >
             <IconCommentBubble />
-            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(comments)}</span>
+            {comments > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(comments)}</span>}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onShareClick?.(); }}
@@ -3817,9 +3888,10 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             aria-label="Chia sẻ"
           >
             <IconShareArrow />
-            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(shares)}</span>
+            {shares > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(shares)}</span>}
           </button>
-          {sessionCount !== null && (
+          {/* Trình chiếu: chỉ hiện khi đã có phiên (0 phiên = không cần icon, đỡ rối) */}
+          {sessionCount !== null && hasSessions && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowSessions((v) => !v); }}
               title={`${sessionCount} phiên trình chiếu đã lưu`}
@@ -3865,7 +3937,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
                       {s.name}
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
-                      {timeAgo(s.endedAt)} trước · {s.meta}
+                      {timeAgo(s.endedAt)} · {s.meta}
                     </div>
                   </div>
                   {onOpenSession && <ChevronRight size={14} color={C.textFaint} style={{ flexShrink: 0 }} />}
@@ -4805,58 +4877,30 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
 
   return (
     <div
+      className="rk-post"
       onClick={() => onOpen(rankie.id)}
-      style={{
-        ...cardSurface,
-        cursor: "pointer",
-        animation: "popIn 0.3s ease",
-        // Bài đã kết thúc: KHÔNG làm mờ (khó nhìn). Thay bằng viền trái vàng nhạt + nhãn
-        // "Đã kết thúc" để vẫn nhận biết rõ mà thẻ vẫn sáng, dễ đọc.
-        ...(closed ? { borderLeft: `3px solid ${C.gold}` } : {}),
-      }}
+      style={{ ...postSurface, cursor: "pointer" }}
     >
       {(() => {
-        const statusSlot = (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {scheduled ? (
-                <CountdownChip toTs={rankie.opensAt} prefix="Sắp đăng" />
-              ) : (<>
-              {rankie.closesAt && !closed && <CountdownChip toTs={rankie.closesAt} />}
-              {closed ? (versusDecided ? null : (
-                <Pill tone="muted">
-                  <Lock size={11} /> Đã kết thúc
-                </Pill>
-              )) : rankie.live ? (
-                <Pill tone="live">
-                  <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE
-                </Pill>
-              ) : null}
-              </>)}
-            </div>
-            {rankie.votingType === "unlimited" && (
-              <TapHintPill tone="gold" hint="Không giới hạn">🔥</TapHintPill>
-            )}
-          </>
-        );
+        // Trạng thái nằm trong DÒNG THÔNG TIN dưới tên (thay các viên LIVE/đếm ngược/Đã kết thúc).
+        const status = scheduled
+          ? [<InlineCountdown key="sch" toTs={rankie.opensAt} prefix="Sắp đăng" />]
+          : [
+              rankie.tournamentId ? <span key="tour" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>🏆 {rankie.tournamentTitle || "Giải đấu"}</span> : null,
+              closed ? (versusDecided ? null : closedMeta) : rankie.live ? liveMeta : null,
+              rankie.closesAt && !closed ? <InlineCountdown key="cd" toTs={rankie.closesAt} /> : null,
+              rankie.votingType === "unlimited" ? <span key="ul" title="Không giới hạn lượt bình chọn">🔥</span> : null,
+            ];
+        const meta = <PostMeta item={rankie} status={status} />;
         return rankie.author ? (
-          <AuthorRow author={rankie.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{statusSlot}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
+          <AuthorRow author={rankie.author} size={36} meta={meta} onOpenAuthor={onOpenAuthor} rightSlot={menuSlot} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
         ) : (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>{statusSlot}</div>
-          </div>
+          <div style={{ marginBottom: 10 }}>{meta}</div>
         );
       })()}
-      {(!hideCategory || rankie.seriesId || rankie.tournamentId) && (
+      {!hideCategory && (rankie.tags || []).length > 0 && (
         <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-          {!hideCategory && <TagPills tags={rankie.tags} category={rankie.category} />}
-          {rankie.tournamentId ? (
-            <span title={rankie.tournamentTitle || "Giải đấu"} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, maxWidth: 220, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-              🏆 {rankie.tournamentTitle || "Giải đấu"}
-            </span>
-          ) : (
-            <SeriesBadge item={rankie} />
-          )}
+          <TagPills tags={rankie.tags} category={rankie.category} />
         </div>
       )}
       {/* #13: ẩn tiêu đề tự tạo "A vs B" (trùng đúng tên 2 phương án) — lá cờ VS đã nói lên
@@ -4964,7 +5008,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
       {/* Description comes after the results, and only takes a sliver of space */}
       {(rankie.caption || rankie.media) && (
         <div style={{ marginTop: 12 }}>
-          <PostContent caption={rankie.caption} media={rankie.media} clampLines={1} mediaHeight={140} />
+          <PostContent caption={rankie.caption} media={rankie.media} clampLines={1} mediaHeight={140} bleed />
         </div>
       )}
 
@@ -5254,13 +5298,16 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const totalVotes = data ? data.matches.reduce((s, m) => s + (m.votes?.a || 0) + (m.votes?.b || 0), 0) : (t.totalVotes || 0);
   const commentCount = data?.commentCount ?? t.commentCount ?? 0;
   const joined = !!data?.matches?.some((m) => m.myPick);
+  const liveCount = shown.filter((m) => mState(m) === 1).length;
+  const tourMeta = <PostMeta item={{ type: "tournament", createdAt: t.createdAt, _sponsored: t._sponsored }} status={[champ ? <span key="ch" style={{ color: C.gold, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>🏆 {champ.name}</span> : liveCount ? liveMeta : null]} />;
 
   // Slide BẢNG NHÁNH: ảnh feed tự đổi theo tiến độ giải (TournamentFeedHero) + thanh tương tác.
   const bracketSlide = (
-    <div onClick={() => onOpenTournament(t.id)} style={{ ...cardSurface, cursor: "pointer" }}>
-      {t.author && <AuthorRow author={t.author} onOpenAuthor={onOpenAuthor} />}
+    <div onClick={() => onOpenTournament(t.id)} className="rk-post" style={{ ...postSurface, cursor: "pointer" }}>
+      {t.author && <AuthorRow author={t.author} size={36} onOpenAuthor={onOpenAuthor} meta={tourMeta} trailing={<FeedPostMenu item={t} />} />}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
-      <TournamentFeedHero t={t} data={data} roundName={roundName} />
+      {/* Ảnh bảng đấu tràn viền như ảnh các bài khác */}
+      <div className="rk-bleed" style={postBleed}><TournamentFeedHero t={t} data={data} roundName={roundName} /></div>
       <div style={{ marginTop: 10 }}>
         <EngagementBar
           type="tournament"
@@ -5285,11 +5332,9 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   };
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
-      {/* Nhãn loại bài (giải đấu). Số trang đã có chấm tròn bên dưới → bỏ "· N phần" và "i/N" trùng lặp. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}><Trophy size={12} /> Giải đấu</span>
-      </div>
+    // Loại bài "Giải đấu" nằm trong dòng thông tin dưới tên (bỏ viên nhãn phía trên). Vạch ngăn
+    // nằm dưới cả carousel (các slide bên trong bỏ vạch riêng — .rk-carousel).
+    <div ref={wrapRef} className="rk-carousel" style={{ position: "relative", borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
       <div ref={ref} onScroll={onScroll} style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none", height: boxH || "auto", transition: "height .25s ease" }}>
         <div ref={(el) => { slideRefs.current[0] = el; }} style={slideWrap}>{bracketSlide}</div>
         {shown.map((m, i) => <div key={`${m.round}-${m.position}`} ref={(el) => { slideRefs.current[i + 1] = el; }} style={slideWrap}>{matchSlide(m)}</div>)}
@@ -5324,13 +5369,8 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
   const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
   const dot = (active) => ({ width: active ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: active ? C.gold : C.border, transition: "width .2s, background .2s" });
   return (
-    <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}>
-          <Library size={12} /> {seriesName || "Series"} · {total} phần
-        </span>
-        <span style={{ marginLeft: "auto", fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: C.textFaint }}>{Math.min(idx + 1, total)}/{total}</span>
-      </div>
+    // Series: KHÔNG còn dải tên series + "1/2" phía trên — chấm trượt bên dưới đã đủ hiểu.
+    <div className="rk-carousel" style={{ position: "relative", borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
       <div
         ref={ref}
         onScroll={onScroll}
@@ -5339,7 +5379,7 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
         {slides.map((ch, i) => (
           <div key={ch.id} style={{ flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
             {live.has(i) ? renderCard(ch) : (
-              <div style={{ minHeight: 300, display: "grid", placeItems: "center", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16 }}>
+              <div style={{ minHeight: 300, display: "grid", placeItems: "center" }}>
                 <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Chapter {i + 1}…</span>
               </div>
             )}
@@ -5370,9 +5410,9 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
     it.type === "tournament" ? (
       <TournamentCarousel t={it} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
     ) : it.type === "path" ? (
-      <PathCard path={it} moreMenu={<FeedPostMenu item={it} />} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategoryrankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+      <PathCard path={it} moreMenu={<FeedPostMenu item={it} />} onOpen={() => onOpenPath(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`path:${it.id}`) || false} bookmarked={!!bookmarks?.[`path:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${it.id}`]} unlockedEndings={pathUnlocks?.[it.id] || []} sessionCount={pathSessionCounts?.[it.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : it.type === "deck" ? (
-      <DeckCard deck={it} moreMenu={<FeedPostMenu item={it} />} onOpen={() => onOpenDeck(it.id)} onOpenAuthor={onOpenAuthor} hideCategoryrankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${it.id}`) || false} sessionCount={deckSessionCounts?.[it.id] || 0} bookmarked={!!bookmarks?.[`deck:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${it.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+      <DeckCard deck={it} moreMenu={<FeedPostMenu item={it} />} onOpen={() => onOpenDeck(it.id)} onOpenAuthor={onOpenAuthor} hideCategory rankTier={rankTiers?.[it.author?.id] || 0} onSetRank={onSetRank} fanCount={fanCounts?.[it.author?.id] || 0} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${it.id}`) || false} sessionCount={deckSessionCounts?.[it.id] || 0} bookmarked={!!bookmarks?.[`deck:${it.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${it.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === it.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : (
       <RankieCard
         rankie={liveOptions?.[it.id] ? { ...it, options: liveOptions[it.id] } : it}
@@ -5527,7 +5567,8 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
+      {/* Danh sách bài: sát mép, KHÔNG khung — mỗi bài tự lo lề trong và vạch ngăn (postSurface). */}
+      <div style={{ ...postListStyle, borderTop: `1px solid ${C.border}`, marginTop: 8 }}>
         {feedItems.length === 0 && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             Chưa có bài đăng nào{typeFilter !== "all" ? ` (${currentLabel})` : ""}.
@@ -5550,8 +5591,8 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
           if (item._hiddenNow) return <HiddenPostNotice key={item.id} info={item._hiddenNow} onUndo={() => mod?.undo(item)} />;
           return (
             <SaveWrap key={item.id} item={item.type === "share" || item.type === "tournament" ? null : postSaveItem(item)}>
-              <FeedSourceLabel source={feedSourceFor(item)} />
-              {renderCard(item)}
+              {/* "Được tài trợ" nằm trong dòng thông tin dưới tên (không còn nhãn riêng phía trên). */}
+              {renderCard(feedSourceFor(item) === "sponsored" ? { ...item, _sponsored: true } : item)}
             </SaveWrap>
           );
         })}
@@ -5564,7 +5605,7 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
 }
 
 // ---------- SEARCH ----------
-function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, searchHistory, onAddHistory, onRemoveHistory, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onShareToProfile, onBack, contacts }) {
+function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, searchHistory, onAddHistory, onRemoveHistory, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenSession, onOpenTournament, onShareToProfile, onBack, contacts }) {
   const [query, setQuery] = useState("");
   const [browseCategory, setBrowseCategory] = useState(null); // giữ một HASHTAG để duyệt
   const [shareTarget, setShareTarget] = useState(null);
@@ -5599,14 +5640,40 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     : [];
 
-  const results = q.length > 0
+  // Tìm trên SERVER (toàn hệ thống: bài, người dùng, giải) — trước đây chỉ lọc vài chục bài đã
+  // tải ở máy nên nhiều bài có thật báo "không tìm thấy". Chờ 300ms sau khi ngừng gõ.
+  const serverQ = query.trim() ? query.trim() : browseCategory ? `#${String(browseCategory).replace(/^#+/, "")}` : "";
+  const [server, setServer] = useState({ q: "", posts: [], users: [], tournaments: [], loading: false });
+  useEffect(() => {
+    if (!serverQ) { setServer({ q: "", posts: [], users: [], tournaments: [], loading: false }); return; }
+    let alive = true;
+    setServer((s) => ({ ...s, loading: true }));
+    const t = setTimeout(() => {
+      api.search(serverQ)
+        .then((r) => { if (alive) setServer({ q: serverQ, posts: (r.posts || []).map(apiSummaryToProto), users: (r.users || []).map(apiAuthorToProto), tournaments: (r.tournaments || []).map((x) => apiTournamentToFeedItem(x)), loading: false }); })
+        .catch(() => { if (alive) setServer((s) => ({ ...s, loading: false })); });
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [serverQ]);
+  // Gộp kết quả máy (gồm bài mẫu + bài đã tải, có số phiếu mới nhất) với kết quả server, khử trùng.
+  const mergePosts = (local) => {
+    const seen = new Set(local.map((p) => p.id));
+    return [...local, ...server.posts.filter((p) => !seen.has(p.id))];
+  };
+
+  const localResults = q.length > 0
     ? allPosts.filter((item) => {
+        if (item.type === "tournament" || item.hidden || item.deletedAt) return false;
         const haystack = normalizeVi(
-          [item.title, item.subtitle, item.caption, item.category, ...(Array.isArray(item.tags) ? item.tags : [])].filter(Boolean).join(" ")
+          [item.title, item.subtitle, item.caption, item.category, item.author?.name, ...(Array.isArray(item.tags) ? item.tags : [])].filter(Boolean).join(" ")
         );
         return haystack.includes(q);
       })
     : [];
+  const results = q.length > 0 ? mergePosts(localResults) : [];
+  const userResults = q.length > 0 ? server.users : [];
+  const tournamentResults = q.length > 0 ? server.tournaments : [];
+  const browsePosts = browseCategory && q.length === 0 ? mergePosts(categoryPosts) : [];
 
   const commitSearch = (term) => {
     const t = term.trim();
@@ -5618,19 +5685,21 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
 
   const renderCard = (item, hideCategory = false) =>
     item.type === "path" ? (
-      <PathCard key={item.id} path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} hideCategory={hideCategory} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+      <PathCard key={item.id} path={item} moreMenu={<FeedPostMenu item={item} />} onOpen={() => onOpenPath(item.id, item)} onOpenAuthor={onOpenAuthor} hideCategory={hideCategory} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : item.type === "deck" ? (
-      <DeckCard key={item.id} deck={item} onOpen={() => onOpenDeck(item.id)} onOpenAuthor={onOpenAuthor} hideCategory={hideCategory} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+      <DeckCard key={item.id} deck={item} moreMenu={<FeedPostMenu item={item} />} onOpen={() => onOpenDeck(item.id, item)} onOpenAuthor={onOpenAuthor} hideCategory={hideCategory} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
     ) : (
       <RankieCard
         key={item.id}
         rankie={item}
-        onOpen={onOpenRankie}
+        onOpen={() => onOpenRankie(item.id, item)}
         onOpenAuthor={onOpenAuthor}
         myVoteIds={votedIdsFor(votedMap?.[item.id])}
         sessionCount={sessionCounts?.[item.id] || 0}
         sessionList={presentationHistory?.filter(h => h.type === "rankie" && h.itemId === item.id) || []}
         onSeeAllSessions={onOpenPresentationHistory}
+        onOpenSession={onOpenSession}
+        moreMenu={<FeedPostMenu item={item} />}
         hideCategory={hideCategory}
         onShare={setShareTarget}
         bookmarked={!!bookmarks?.[`rankie:${item.id}`]}
@@ -5675,31 +5744,59 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
         {browseCategory && q.length === 0 && (
           <div>
             {sectionLabel(`#${String(browseCategory).replace(/^#+/, "")}`)}
-            {categoryPosts.length === 0 ? (
+            {browsePosts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 0", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
-                Chưa có bài đăng nào trong danh mục này.
+                {server.loading ? "Đang tìm…" : "Chưa có bài đăng nào với hashtag này."}
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {categoryPosts.map((item) => renderCard(item, true))}
+              <div style={{ ...postListStyle, margin: "0 -16px" }}>
+                {browsePosts.map((item) => renderCard(item, true))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Search results ── */}
+        {/* ── Search results: người dùng · giải đấu · bài viết ── */}
         {q.length > 0 && (
           <div>
-            {results.length === 0 ? (
+            {results.length === 0 && userResults.length === 0 && tournamentResults.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
-                Không tìm thấy kết quả nào cho "{query}".
+                {server.loading ? "Đang tìm…" : `Không tìm thấy kết quả nào cho "${query}".`}
               </div>
             ) : (
               <div>
-                <div style={{ ...captionText, marginBottom: 10 }}>{results.length} kết quả</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {results.map((item) => renderCard(item))}
-                </div>
+                {userResults.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    {sectionLabel("Người dùng")}
+                    {userResults.map((u) => (
+                      <button key={u.id} onClick={() => { AUTHORS[u.id] = AUTHORS[u.id] || u; onOpenAuthor?.(u.id); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "8px 0", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                        <MiniAvatar u={u} size={40} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text }}>{u.name}</div>
+                          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{u.handle}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {tournamentResults.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    {sectionLabel("Giải đấu")}
+                    <div style={{ ...postListStyle, margin: "0 -16px" }}>
+                      {tournamentResults.map((t) => (
+                        <TournamentCarousel key={t.id} t={t} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {results.length > 0 && (
+                  <div>
+                    {sectionLabel("Bài viết")}
+                    <div style={{ ...postListStyle, margin: "0 -16px" }}>
+                      {results.map((item) => renderCard(item))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -6319,7 +6416,7 @@ function ChapterSwitcher({ series, currentIdx, participatedKeys, resultData, onS
                 <div style={{ padding: "2px 4px 8px" }}>
                   <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 13, color: isCurrent ? C.gold : C.textFaint }}>Chapter {String(idx + 1).padStart(2, "0")}</span>
                 </div>
-                <div className="chSwitchCard" style={{ flex: 1, overflowY: "auto", paddingBottom: 6, borderRadius: 18, boxShadow: isCurrent ? `0 0 0 2px ${C.gold}, 0 10px 32px color-mix(in srgb, var(--gold) 18%, transparent)` : "none", transition: "box-shadow 0.15s" }}>
+                <div className="chSwitchCard rk-carousel" style={{ flex: 1, overflowY: "auto", paddingBottom: 6, borderRadius: 18, background: C.surface, border: `1px solid ${C.border}`, boxShadow: isCurrent ? `0 0 0 2px ${C.gold}, 0 10px 32px color-mix(in srgb, var(--gold) 18%, transparent)` : "none", transition: "box-shadow 0.15s" }}>
                   {renderCard(p)}
                 </div>
               </div>
@@ -7003,7 +7100,15 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           </button>
         )}
         {rankie.author && (
-          <AuthorRow author={rankie.author} onOpenAuthor={undefined} />
+          // Cùng ngôn ngữ thẻ feed: loại bài + trạng thái nằm trong dòng thông tin dưới tên.
+          <AuthorRow author={rankie.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={rankie} status={[
+            isClosed
+              ? ((["head_to_head", "hh_classic"].includes(rankie.chartType) && rankie.options?.length === 2 &&
+                  (rankie.winnerIdx === 0 || rankie.winnerIdx === 1 || ((options?.[0]?.votes || 0) !== (options?.[1]?.votes || 0)))) ? null : closedMeta)
+              : notYetOpen ? <span key="soon" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: C.gold }}><Clock size={11} /> Sắp lên sóng</span>
+              : rankie.live ? liveMeta : null,
+            isUnlimited ? <span key="ul" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: C.teal }}><Flame size={11} /> Không giới hạn</span> : null,
+          ]} />} />
         )}
         {/* #13: ẩn tiêu đề tự tạo "A vs B" (trùng tên 2 phương án) — chỉ hiện tiêu đề riêng của chủ post. */}
         {!(rankie.options?.length === 2 && rankie.title === `${rankie.options[0]?.label} vs ${rankie.options[1]?.label}`) && (
@@ -7011,35 +7116,12 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             {rankie.title}
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <TagPills tags={rankie.tags} category={rankie.category} max={5} />
-          {isClosed ? (
-            // Lá cờ VS đã khoe WINNER → không nhắc lại "Đã kết thúc" (dòng thông báo bên dưới có giờ kết thúc).
-            (["head_to_head", "hh_classic"].includes(rankie.chartType) && rankie.options?.length === 2 &&
-              (rankie.winnerIdx === 0 || rankie.winnerIdx === 1 || ((options?.[0]?.votes || 0) !== (options?.[1]?.votes || 0)))) ? null : (
-              <Pill tone="muted">
-                <Lock size={11} /> Đã kết thúc
-              </Pill>
-            )
-          ) : notYetOpen ? (
-            <Pill tone="gold">
-              <Clock size={11} /> Sắp lên sóng
-            </Pill>
-          ) : (
-            rankie.live && (
-              <Pill tone="live">
-                <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE
-              </Pill>
-            )
-          )}
-          {/* Tổng lượt tham gia KHÔNG lặp ở đây — đã hiển thị ở góc dưới-trái khung biểu
-              đồ (nơi còn kiêm nút đổi "người tham gia" ⇄ "lượt tương tác" cho vote vô hạn). */}
-          {isUnlimited && (
-            <Pill tone="live">
-              <Flame size={11} /> KHÔNG GIỚI HẠN
-            </Pill>
-          )}
-        </div>
+        {/* Trạng thái (LIVE / kết thúc / không giới hạn) đã lên dòng thông tin dưới tên — ở đây chỉ còn hashtag. */}
+        {(rankie.tags || []).length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            <TagPills tags={rankie.tags} category={rankie.category} max={5} />
+          </div>
+        )}
 
         {(rankie.caption || rankie.media) && (
           <PostContent caption={rankie.caption} media={rankie.media} clampLines={4} expandable mediaHeight={180} />
@@ -7648,10 +7730,9 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
       return (
         <div style={{ padding: 16 }}>
           {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
-          {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
+          {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-            <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
                         <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
             <Pill tone="muted">{path.questions.length} câu</Pill>
             <Pill tone="muted">{resultEntries.length} kết quả</Pill>
@@ -7697,10 +7778,9 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     return (
       <div style={{ padding: 16 }}>
         {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
-        {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
+        {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
                     <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
           <Pill tone="muted">{path.questions.length} câu</Pill>
         </div>
@@ -7755,7 +7835,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     const hideCount = path.hideEndingCount && revealMode === "hidden" && !isOwner; // ẩn cả số lượng kết quả
     return (
       <div style={{ padding: 16 }}>
-        {path.author && <AuthorRow author={path.author} onOpenAuthor={undefined} />}
+        {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {path.title}
         </div>
@@ -8028,23 +8108,17 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
     <div
       onClick={onOpen}
       onPointerDown={() => prefetchPath(path.id)}
-      style={{
-        ...cardSurface,
-        cursor: "pointer",
-        animation: "popIn 0.3s ease",
-      }}
+      className="rk-post"
+      style={{ ...postSurface, cursor: "pointer" }}
     >
       {path.author ? (
-        <AuthorRow author={path.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}<Pill tone="gold"><GitBranch size={11} /> PATH</Pill></>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
+        <AuthorRow author={path.author} size={36} meta={<PostMeta item={path} />} onOpenAuthor={onOpenAuthor} rightSlot={menuSlot} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
       ) : (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-          <Pill tone="gold"><GitBranch size={11} /> PATH</Pill>
-        </div>
+        <div style={{ marginBottom: 10 }}><PostMeta item={path} /></div>
       )}
-      {(!hideCategory || path.seriesId) && (
+      {!hideCategory && (path.tags || []).length > 0 && (
         <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-          {!hideCategory && <TagPills tags={path.tags} category={path.category} />}
-          <SeriesBadge item={path} />
+          <TagPills tags={path.tags} category={path.category} />
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 4 }}>
@@ -8072,7 +8146,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả; không có mô tả thì hiện số liệu kết quả
         // (lượt tham gia + số câu + số kết quả). Path không có phổ điểm.
         (path.caption || path.media)
-          ? <PostContent caption={path.caption} media={path.media} mediaHeight={170} />
+          ? <PostContent caption={path.caption} media={path.media} mediaHeight={170} bleed />
           : (
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
               <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
@@ -8087,7 +8161,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
             </div>
           )
       ) : path.caption || path.media ? (
-        <PostContent caption={path.caption} media={path.media} mediaHeight={170} />
+        <PostContent caption={path.caption} media={path.media} mediaHeight={170} bleed />
       ) : (
         // Người khác → prompt trung tính (không spoil)
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
@@ -8761,10 +8835,9 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
       return (
         <div style={{ padding: 16 }}>
           {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
-          {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
+          {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-            <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
                         <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
             <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
             {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
@@ -8858,10 +8931,9 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
     return (
       <div style={{ padding: 16 }}>
         {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
-        {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
+        {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <Pill tone="gold">{deck.deckMode === "exam" ? "EXAM" : "SURVEY"}</Pill>
                     <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
           <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
           {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
@@ -8884,7 +8956,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
   if (submitted) {
     return (
       <div style={{ padding: 16 }}>
-        {deck.author && <AuthorRow author={deck.author} onOpenAuthor={undefined} />}
+        {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {deck.title}
         </div>
@@ -9339,30 +9411,23 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory, onShare, joined = false, sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, bookmarked = false, onToggleBookmark, myResult, rankTier = 0, onSetRank, fanCount = 0 }) {
   const isOwner = deck.mine || deck.author?.id === "me";
   const nq = deck.questionCount ?? deck.questions?.length ?? 0;
-  const badgeLabel = deck.deckMode === "exam" ? "EXAM" : "SURVEY";
   const examTime = deck.deckMode === "exam" && deck.examDurationMinutes != null ? fmtExamDuration(deck.examDurationMinutes) : null;
-  const badge = (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      {examTime && <Pill tone="muted"><Clock size={11} /> {examTime}</Pill>}
-      <Pill tone="gold">{deck.deckMode === "exam" ? <Edit3 size={11} /> : <Layers size={11} />} {badgeLabel}</Pill>
-    </div>
-  );
+  // Thời lượng thi nằm trong dòng thông tin dưới tên (thay viên "⏱ 45 phút" + viên SURVEY/EXAM).
+  const meta = <PostMeta item={deck} status={[examTime ? <span key="dur" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Clock size={11} /> {examTime}</span> : null]} />;
   return (
     <div
       onClick={onOpen}
-      style={{ ...cardSurface, cursor: "pointer", animation: "popIn 0.3s ease" }}
+      className="rk-post"
+      style={{ ...postSurface, cursor: "pointer" }}
     >
       {deck.author ? (
-        <AuthorRow author={deck.author} onOpenAuthor={onOpenAuthor} rightSlot={<>{menuSlot}{badge}</>} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
+        <AuthorRow author={deck.author} size={36} meta={meta} onOpenAuthor={onOpenAuthor} rightSlot={menuSlot} rankTier={rankTier} onSetRank={onSetRank} fanCount={fanCount} trailing={moreMenu} />
       ) : (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-          {badge}
-        </div>
+        <div style={{ marginBottom: 10 }}>{meta}</div>
       )}
-      {(!hideCategory || deck.seriesId) && (
+      {!hideCategory && (deck.tags || []).length > 0 && (
         <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-          {!hideCategory && <TagPills tags={deck.tags} category={deck.category} />}
-          <SeriesBadge item={deck} />
+          <TagPills tags={deck.tags} category={deck.category} />
         </div>
       )}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>{deck.title}</div>
@@ -9384,10 +9449,10 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả (clamp + "xem thêm"); không có mô tả
         // thì hiện KẾT QUẢ luôn (survey: phân bố đáp án; exam: + phổ điểm) — không cần giấu.
         (deck.caption || deck.media)
-          ? <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />
+          ? <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} bleed />
           : <DeckCardResultPreview deck={deck} />
       ) : deck.caption || deck.media ? (
-        <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} />
+        <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} bleed />
       ) : (
         // Người khác + chưa tham gia → giấu nội dung câu hỏi để tránh spoil
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
@@ -9428,7 +9493,7 @@ function SharedPostCard({ post, onOpen, onOpenAuthor, menuSlot }) {
   const visIcon = post.visibility === "private" ? Lock : post.visibility === "unlisted" ? Link2 : Globe;
   const VisIcon = visIcon;
   return (
-    <div onClick={onOpen} style={{ ...cardSurface, cursor: "pointer", animation: "popIn 0.3s ease" }}>
+    <div onClick={onOpen} className="rk-post" style={{ ...postSurface, cursor: "pointer" }}>
       <AuthorRow
         author={post.author}
         onOpenAuthor={onOpenAuthor}
@@ -13119,7 +13184,7 @@ function ChatShareCard({ msg, onOpenShare }) {
   const top = opts.slice(0, 3);
   const stat = (n, Icon) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 12, color: C.textMuted }}>
-      {fmtCompact(n || 0)} <Icon size={13} />
+      <Icon size={13} />{n > 0 ? fmtCompact(n) : null}
     </span>
   );
   const champ = ref.championRef?.name;
@@ -14911,7 +14976,7 @@ function ProfileView({
       {/* Sessions tab content removed — sessions now live inside each Rankie's detail view */}
 
       {/* Timeline of this author's posts (pinned first, then newest) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
+      <div style={{ ...postListStyle }}>
         {/* Giải đấu của tác giả — hiện dưới dạng thẻ giải (ván lẻ đã ẩn). Chỉ ở tab "Tất cả". */}
         {tab === "posts" && !query.trim() && tournaments.map((t) => (
           <TournamentCarousel key={t.id} t={t} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
@@ -14943,10 +15008,8 @@ function ProfileView({
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: 14,
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
+                padding: `14px ${POST_X}px`,
+                borderBottom: `1px solid ${C.border}`,
                 opacity: 0.75,
               }}
             >
@@ -14955,7 +15018,7 @@ function ProfileView({
                   {item.title}
                 </div>
                 <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>
-                  Đã xóa {timeAgo(item.deletedAt)} trước
+                  Đã xóa {timeAgo(item.deletedAt)}
                 </div>
               </div>
               <button
@@ -14976,19 +15039,19 @@ function ProfileView({
           ) : (
             <SaveWrap key={item.id} item={item.type === "share" ? null : postSaveItem(item)} style={{ opacity: item.hidden ? 0.6 : 1 }}>
               {item.hidden && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4, fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, padding: `10px ${POST_X}px 0`, fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
                   <EyeOff size={11} /> Đã ẩn — chỉ bạn thấy
                 </div>
               )}
               {item.pinned && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4, fontFamily: bodyFont, fontSize: 11, color: C.gold, fontWeight: 600 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, padding: `10px ${POST_X}px 0`, fontFamily: bodyFont, fontSize: 11, color: C.gold, fontWeight: 600 }}>
                   <Pin size={11} /> Đã ghim
                 </div>
               )}
               {item.type === "path" ? (
-                <PathCard path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} menuSlot={optionsMenuFor(item)} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+                <PathCard path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} menuSlot={optionsMenuFor(item)} moreMenu={!isMe ? <FeedPostMenu item={item} /> : null} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
               ) : item.type === "deck" ? (
-                <DeckCard deck={item} onOpen={() => onOpenDeck(item.id)} onOpenAuthor={onOpenAuthor} menuSlot={optionsMenuFor(item)} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
+                <DeckCard deck={item} onOpen={() => onOpenDeck(item.id)} onOpenAuthor={onOpenAuthor} menuSlot={optionsMenuFor(item)} moreMenu={!isMe ? <FeedPostMenu item={item} /> : null} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
               ) : item.type === "share" ? (
                 <SharedPostCard
                   post={item}
@@ -15010,6 +15073,7 @@ function ProfileView({
                   sessionList={presentationHistory?.filter(h => h.type === "rankie" && h.itemId === item.id) || []}
                   onSeeAllSessions={onOpenPresentationHistory}
                   menuSlot={optionsMenuFor(item)}
+                  moreMenu={!isMe ? <FeedPostMenu item={item} /> : null}
                   onShare={setShareTarget}
                   bookmarked={!!bookmarks?.[`rankie:${item.id}`]}
                   onToggleBookmark={onToggleBookmark}
@@ -15030,21 +15094,18 @@ function ProfileView({
               Chưa có hoạt động nào. Khi bạn bình chọn một Rankie, làm một Path, trả lời một Survey, hoặc làm một Exam, nó sẽ xuất hiện ở đây.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               {participationHistory.map((entry) => {
                 const Icon = entry.type === "rankie" ? BarChart3 : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
                 const label = entry.type === "rankie" ? "Rankie" : entry.type === "path" ? "Path" : entry.deckMode === "exam" ? "Exam" : "Survey";
                 const openEntry = () => onOpenSession(entry);
                 return (
-                  <div key={entry.key} style={{ ...cardSurface, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={openEntry}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <div key={entry.key} style={listRow} onClick={openEntry}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}>
                       <Icon size={17} color={C.gold} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <Pill tone="muted">{label}</Pill>
-                        <span style={captionText}>{timeAgo(entry.timestamp)} trước</span>
-                      </div>
+                      <div style={{ marginBottom: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.timestamp }} /></div>
                       <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {entry.title}
                       </div>
@@ -15073,21 +15134,18 @@ function ProfileView({
               Chưa có phiên trình chiếu nào được lưu. Sau khi trình chiếu một Rankie, Survey, hoặc Exam, bấm "Lưu phiên trình chiếu" để nó xuất hiện ở đây.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               {presentationHistory.map((entry) => {
                 const Icon = entry.type === "rankie" ? BarChart3 : entry.type === "path" ? GitBranch : entry.deckMode === "exam" ? Edit3 : Layers;
                 const label = entry.type === "rankie" ? "Rankie" : entry.type === "path" ? "Path" : entry.deckMode === "exam" ? "Exam" : "Survey";
                 const openEntry = () => onOpenSession(entry);
                 return (
-                  <div key={entry.id} style={{ ...cardSurface, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={openEntry}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <div key={entry.id} style={listRow} onClick={openEntry}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
                       <Icon size={17} color={C.gold} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <Pill tone="muted">{label}</Pill>
-                        <span style={captionText}>{timeAgo(entry.endedAt)} trước</span>
-                      </div>
+                      <div style={{ marginBottom: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.endedAt }} /></div>
                       <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {entry.name}
                       </div>
@@ -15116,7 +15174,7 @@ function ProfileView({
               );
             }
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {list.map((item) => {
                   const Icon = item.type === "rankie" ? BarChart3 : item.type === "path" ? GitBranch : item.deckMode === "exam" ? Edit3 : Layers;
                   const label = item.type === "rankie" ? "Rankie" : item.type === "path" ? "Path" : item.deckMode === "exam" ? "Exam" : "Survey";
@@ -15126,14 +15184,12 @@ function ProfileView({
                     else onOpenDeck(item.id);
                   };
                   return (
-                    <div key={`${item.type}:${item.id}`} style={{ ...cardSurface, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={openItem}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <div key={`${item.type}:${item.id}`} style={listRow} onClick={openItem}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}>
                         <Icon size={17} color={C.gold} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                          <Pill tone="muted">{label}</Pill>
-                        </div>
+                        <div style={{ marginBottom: 2 }}><PostMeta item={{ type: item.type, deckMode: item.deckMode }} /></div>
                         <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {item.title}
                         </div>
@@ -15269,6 +15325,17 @@ function apiSummaryToProto(s) {
     return { ...base, type: "path", subtitle: `${s.size} kết quả`, resultCount: s.size || 0, questions: [], results: {}, comments: s.commentsCount || 0 };
   }
   return { ...base, type: "deck", deckMode: s.deckMode, subtitle: `${s.size} câu hỏi`, questions: [], comments: s.commentsCount || 0, answerMode: "step", graded: s.deckMode === "exam" };
+}
+
+// Giải trong GET /tournaments (hoặc /search) → item thẻ feed giải (TournamentCarousel).
+function apiTournamentToFeedItem(t, me) {
+  return {
+    id: t.id, type: "tournament", title: t.title, category: t.category || "Khác", tags: t.tags || [],
+    author: (me && t.author && t.author.id === me.apiId) ? me : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
+    status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
+    media: t.media || null, commentCount: t.commentCount || 0, shareCount: t.shareCount || 0, bookmarked: !!t.bookmarked,
+    participants: t.totalVotes || 0, // để xếp trending hợp lý
+  };
 }
 
 // Full RankieView (GET /posts/:id) → shape rankie prototype ĐẦY ĐỦ (option id thật → vote được).
@@ -17064,13 +17131,7 @@ export default function RankevApp() {
 
   // Mixed feed: rankies + all paths + all decks, xếp theo trendingScore (mới × tương tác × live).
   // Gộp mọi nguồn, LOẠI TRÙNG theo id — ưu tiên bản author="me" (để khớp Hồ sơ).
-  const tournamentItems = tournamentFeed.map((t) => ({
-    id: t.id, type: "tournament", title: t.title, category: t.category || "Khác", tags: t.tags || [],
-    author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), createdAt: Date.parse(t.createdAt) || Date.now(),
-    status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes,
-    media: t.media || null, commentCount: t.commentCount || 0, shareCount: t.shareCount || 0, bookmarked: !!t.bookmarked,
-    participants: t.totalVotes || 0, // để xếp trending hợp lý
-  }));
+  const tournamentItems = tournamentFeed.map((t) => apiTournamentToFeedItem(t, currentUser));
   const feedDedup = new Map();
   for (const item of [...tournamentItems, ...apiRankies, ...rankies, ...allPaths, ...allDecks].map(withMeta)) {
     const existing = feedDedup.get(item.id);
@@ -17178,8 +17239,10 @@ export default function RankevApp() {
     setView("pathDetail");
   };
 
-  const openPathFromSearch = (id) => {
-    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
+  // Kết quả tìm kiếm có thể là bài chưa tải về máy → dùng chính thẻ kết quả làm khung tạm
+  // (màn chi tiết tự nạp bản đầy đủ) thay vì rơi về bài mẫu.
+  const openPathFromSearch = (id, item) => {
+    setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id) || item) || samplePath);
     setPrevAfterPath("search");
     setView("pathDetail");
   };
@@ -17202,8 +17265,8 @@ export default function RankevApp() {
     setView("deckDetail");
   };
 
-  const openDeckFromSearch = (id) => {
-    setSelectedDeck(allDecks.find((d) => d.id === id) || sampleDeck);
+  const openDeckFromSearch = (id, item) => {
+    setSelectedDeck(allDecks.find((d) => d.id === id) || item || sampleDeck);
     setPrevAfterDeck("search");
     setView("deckDetail");
   };
@@ -18087,6 +18150,8 @@ export default function RankevApp() {
               onOpenPath={openPathFromSearch}
               onOpenDeck={openDeckFromSearch}
               onOpenAuthor={openAuthorWall}
+              onOpenSession={openSessionDetail}
+              onOpenTournament={openTournament}
               onShareToProfile={shareToProfile}
               contacts={contacts}
               onBack={() => setView("feed")}

@@ -201,6 +201,9 @@ export const tags = {
   trending(limit = 20) { return apiFetch(`/tags/trending?limit=${limit}`); },
 };
 
+// Tìm kiếm toàn hệ thống → { posts: FeedSummary[], users: PublicUser[], tournaments: [...] }
+export function search(q) { return apiFetch(`/search?q=${encodeURIComponent(q)}`); }
+
 // ---------------- Messaging (chat) ----------------
 export const messaging = {
   conversations() { return apiFetch('/conversations'); },
@@ -468,6 +471,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, moderation, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
+  auth, posts, rankies, tournaments, messaging, moderation, search, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
   uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
