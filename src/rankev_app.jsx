@@ -5605,9 +5605,13 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
 }
 
 // ---------- SEARCH ----------
+const searchMemory = { query: "", browse: null }; // giữ qua các lần dựng lại SearchView trong phiên
 function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, searchHistory, onAddHistory, onRemoveHistory, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenSession, onOpenTournament, onShareToProfile, onBack, contacts }) {
-  const [query, setQuery] = useState("");
-  const [browseCategory, setBrowseCategory] = useState(null); // giữ một HASHTAG để duyệt
+  // Nhớ từ khoá/hashtag đang xem khi mở một kết quả rồi quay lại (SearchView bị dựng lại).
+  const [query, setQueryRaw] = useState(() => searchMemory.query);
+  const [browseCategory, setBrowseRaw] = useState(() => searchMemory.browse); // giữ một HASHTAG để duyệt
+  const setQuery = (v) => { searchMemory.query = v; setQueryRaw(v); };
+  const setBrowseCategory = (v) => { searchMemory.browse = v; setBrowseRaw(v); };
   const [shareTarget, setShareTarget] = useState(null);
   const [trendingTags, setTrendingTags] = useState([]);
   useEffect(() => {
@@ -16605,7 +16609,17 @@ export default function RankevApp() {
       updateNavOnScroll();
     };
     window.addEventListener("scroll", onWindowScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onWindowScroll);
+    // Ghi vị trí feed ngay lúc CHẠM (trước khi rời feed sang màn khác) — không phụ thuộc hoàn
+    // toàn vào sự kiện scroll (có lúc không phát, vd. cuộn quán tính vừa dừng) → quay lại
+    // (nút trong app hay vuốt Back) về đúng bài đang xem.
+    const onPointer = () => { if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll(); };
+    window.addEventListener("pointerdown", onPointer, { capture: true, passive: true });
+    window.addEventListener("click", onPointer, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("scroll", onWindowScroll);
+      window.removeEventListener("pointerdown", onPointer, { capture: true });
+      window.removeEventListener("click", onPointer, { capture: true });
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useLayoutEffect(() => {
@@ -18081,6 +18095,72 @@ export default function RankevApp() {
 
   // Đổi màn → luôn hiện lại thanh menu dưới.
   useEffect(() => { setNavHidden(false); lastNavScrollRef.current = 0; }, [view]);
+
+  // ===== Lịch sử trình duyệt ↔ màn trong app =====
+  // App chuyển màn bằng state, không ghi vào lịch sử trình duyệt → cử chỉ vuốt từ mép trái
+  // (iOS/Android) hay nút Back của Android quay về trang TRƯỚC app → trông như app "reset".
+  // Nay mỗi màn con (chi tiết, hồ sơ người khác, tìm kiếm, giải, khung chat…) được ghi 1 mục
+  // lịch sử; Back của trình duyệt đưa về màn con trước đó, hoặc màn gốc (Bảng tin/Hồ sơ/Tin nhắn).
+  const isBaseScreen = navPresent; // màn gốc = màn có thanh menu dưới
+  const screenKey = [
+    view,
+    // Khung chat: khoá theo NGƯỜI đang chat (khung tạm lúc mở → hội thoại thật không tính là màn mới).
+    view === "chat" ? openConversation?.members?.[0]?.id || openConversation?.id || "" : "",
+    view === "detail" ? selectedId : "",
+    view === "pathDetail" ? selectedPath?.id : "",
+    view === "deckDetail" ? selectedDeck?.id : "",
+    view === "authorProfile" ? viewedAuthorId : "",
+    view === "tournament" ? selectedTournamentId : "",
+  ].join("|");
+  const navStackRef = useRef([]); // ảnh chụp các màn con, khớp với các mục lịch sử đã push
+  const baseViewRef = useRef("feed"); // màn gốc gần nhất để quay về khi hết màn con
+  const ignorePopsRef = useRef(0); // số popstate do chính app gây ra (tua lịch sử) → bỏ qua
+  const restoringRef = useRef(false); // đang khôi phục màn từ popstate → không push lại
+  const snapshotNow = () => ({ key: screenKey, view, openConversation, selectedId, selectedPath, selectedDeck, viewedAuthorId, selectedTournamentId });
+  useEffect(() => {
+    if (!authed) return;
+    if (restoringRef.current) { restoringRef.current = false; return; }
+    const stack = navStackRef.current;
+    if (isBaseScreen) {
+      baseViewRef.current = view;
+      // Về màn gốc bằng nút trong app → tua bỏ các mục lịch sử của màn con.
+      if (stack.length) { ignorePopsRef.current += 1; window.history.go(-stack.length); navStackRef.current = []; }
+      return;
+    }
+    if (stack.length && stack[stack.length - 1].key === screenKey) return; // cùng màn (đổi state phụ)
+    if (stack.length >= 2 && stack[stack.length - 2].key === screenKey) {
+      // Nút "quay lại" trong app về màn con trước → lùi lịch sử 1 bước cho khớp.
+      stack.pop(); ignorePopsRef.current += 1; window.history.back(); return;
+    }
+    stack.push(snapshotNow());
+    try { window.history.pushState({ rk: stack.length }, ""); } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenKey, isBaseScreen, authed]);
+  useEffect(() => {
+    // App tự khôi phục vị trí cuộn của feed → tắt khôi phục tự động của trình duyệt (tránh 2
+    // bên cùng cuộn, giật trang khi quay lại).
+    try { window.history.scrollRestoration = "manual"; } catch { /* ignore */ }
+    const onPop = () => {
+      if (ignorePopsRef.current > 0) { ignorePopsRef.current -= 1; return; }
+      const stack = navStackRef.current;
+      if (!stack.length) return; // đã ở màn gốc → để trình duyệt xử lý như thường
+      stack.pop();
+      const target = stack[stack.length - 1];
+      restoringRef.current = true;
+      if (target) {
+        setSelectedId(target.selectedId); setSelectedPath(target.selectedPath); setSelectedDeck(target.selectedDeck);
+        setViewedAuthorId(target.viewedAuthorId); setSelectedTournamentId(target.selectedTournamentId);
+        setOpenConversation(target.view === "chat" ? target.openConversation : null);
+        setView(target.view);
+      } else {
+        setOpenConversation(null);
+        setView(baseViewRef.current || "feed");
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cổng đăng nhập (Phần 1): chờ kiểm tra phiên → nếu chưa đăng nhập thì hiện AuthGate.
   // Tham gia phiên trực tiếp qua link ?join=CODE — KHÔNG cần đăng nhập.
