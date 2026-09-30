@@ -119,6 +119,8 @@ const FONT_IMPORT = (
     ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
     /* Bài nằm trong carousel (series / giải đấu): bỏ vạch ngăn của từng slide — vạch nằm dưới cả carousel */
     .rk-carousel .rk-post { border-bottom: none !important; }
+    /* Màn toàn khung (khung chat): cao đúng phần nhìn thấy, kể cả khi thanh địa chỉ iOS co/giãn */
+    .rk-fullh { height: 100vh; height: 100dvh; }
     /* Khối hình tràn viền (vd. ảnh bảng đấu): bỏ bo góc + viền 2 bên của phần tử con */
     .rk-bleed > * { border-radius: 0 !important; border-left: none !important; border-right: none !important; }
     .chSwitchCard { display: flex; flex-direction: column; }
@@ -13360,7 +13362,12 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
     return unsub;
   }, [conversation.id, load]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  // Chỉ cuộn DANH SÁCH TIN xuống tin mới nhất — scrollIntoView cuộn cả trang (window) làm thanh
+  // tên người chat trôi khuất phía trên.
+  useEffect(() => {
+    const list = bottomRef.current?.parentElement;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: messages.length > 1 ? "smooth" : "auto" });
+  }, [messages]);
 
   const pushMine = (m) => setMessages((prev) => prev.some((x) => x.id === m.id) ? prev.map((x) => x.id === m.id ? m : x) : [...prev, m]);
 
@@ -13390,8 +13397,10 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: C.bg }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 10 }}>
+    // Khung chat cao ĐÚNG phần nhìn thấy (100dvh — iOS Safari: 100vh lớn hơn màn hình vì thanh
+    // địa chỉ) → trang không cuộn được nữa, thanh tên người chat luôn nằm trên cùng.
+    <div className="rk-fullh" style={{ position: "fixed", top: 0, bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, zIndex: 45, display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", paddingTop: "max(12px, env(safe-area-inset-top, 12px))", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
         <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ArrowLeft size={22} /></button>
         <Avatar author={author} size={38} />
         <div style={{ flex: 1 }}>
@@ -18085,13 +18094,16 @@ export default function RankevApp() {
   // App cuộn bằng WINDOW (container flex:1 không bị giới hạn chiều cao nên window mới cuộn).
   // Dùng useLayoutEffect (chạy trước paint) để không "nháy" giữa trang. Không reset khi về
   // feed để giữ vị trí đang xem (khôi phục ở effect view === "feed" bên trên).
+  // QUY TẮC CHUNG: mở BẤT KỲ màn nào khác Bảng tin (kể cả tab Hồ sơ / Tin nhắn / Tạo mới, khung
+  // chat, giải đấu…) → luôn bắt đầu từ ĐẦU trang. Trước đây chỉ áp cho "màn chồng" + Tạo mới nên
+  // tab Hồ sơ/Tin nhắn mở ra vẫn giữ vị trí cuộn của feed (lưng chừng trang), khung chat bị che tên.
   useLayoutEffect(() => {
-    if (isOverlay || view === "create") {
+    if (view !== "feed") {
       window.scrollTo(0, 0);
       if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, viewedAuthorId, selectedId, selectedDeck?.id, selectedPath?.id]);
+  }, [view, viewedAuthorId, selectedId, selectedDeck?.id, selectedPath?.id, selectedTournamentId, openConversation?.members?.[0]?.id || openConversation?.id]);
 
   // Đổi màn → luôn hiện lại thanh menu dưới.
   useEffect(() => { setNavHidden(false); lastNavScrollRef.current = 0; }, [view]);
