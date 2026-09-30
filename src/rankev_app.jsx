@@ -16557,7 +16557,11 @@ export default function RankevApp() {
   // Giải đấu cho feed (mỗi giải = 1 thẻ; các ván lẻ đã ẩn khỏi feed ở backend).
   const [tournamentFeed, setTournamentFeed] = useState([]);
   const loadTournamentFeed = useCallback(() => {
-    api.tournaments.feed().then((r) => setTournamentFeed(r.items || [])).catch(() => {});
+    api.tournaments.feed().then((r) => {
+      setTournamentFeed(r.items || []);
+      // Tải lần đầu khi người dùng còn ở đầu trang → xếp lại cho đúng thứ tự (không làm nhảy).
+      if (currentFeedScroll() < 120) setFeedEpoch((e) => e + 1);
+    }).catch(() => {});
   }, []);
   // Kết quả Deck thật từ API (Phần 5): { [deckId]: { answers, submitted, result } }
   const [apiDeckResults, setApiDeckResults] = useState({});
@@ -16937,18 +16941,20 @@ export default function RankevApp() {
     // Bài thật: gửi vote lên backend; lỗi → toast; thành công → đồng bộ số phiếu.
     if (isApiId(rankieId)) {
       const optionIds = toOptionIds(val);
-      if (optionIds.length > 0) {
-        api.rankies
-          .vote(rankieId, optionIds)
-          .then((res) => { if (res && res.options) syncServerVotes(rankieId, res.options); })
-          .catch((e) => showToast(e?.message || "Bình chọn thất bại"));
-      }
+      // Bỏ hết lựa chọn = HUỶ PHIẾU (trước đây gửi mảng rỗng → 400, phiếu vẫn còn trên server).
+      (optionIds.length > 0 ? api.rankies.vote(rankieId, optionIds) : api.rankies.unvote(rankieId))
+        .then((res) => { if (res && res.options) syncServerVotes(rankieId, res.options); })
+        .catch((e) => showToast(e?.message || "Bình chọn thất bại"));
     }
   };
 
   // Vote trực tiếp trên feed (Rankie 1-lựa-chọn): cập nhật liveOptions + votedMap tại chỗ,
   // dùng chung kho vote với màn chi tiết nên hai nơi luôn đồng bộ.
-  const voteOnFeed = (rankie, optId, curOverride) => {
+  // LƯU Ý: thẻ feed gọi onVoteInline(rankie, optId, event) — tham số thứ 3 là SỰ KIỆN, nên
+  // phiếu hiện tại (sau khi nạp bản đầy đủ) phải đi qua hàm nội bộ riêng, không dùng chung
+  // chữ ký (trước đây event bị hiểu nhầm là "phiếu hiện tại" → bấm lại để huỷ không ăn).
+  const voteOnFeed = (rankie, optId) => voteOnFeedWith(rankie, optId, undefined);
+  const voteOnFeedWith = (rankie, optId, curOverride) => {
     if (isRankieClosed(rankie)) return;
     // Thẻ feed dựng từ bản TÓM TẮT: option id là "opt0/opt1…" chứ chưa phải UUID thật → vote
     // gửi đi bị 400 "Validation failed" và phiếu KHÔNG được lưu. Nạp bản đầy đủ, ghép đúng
@@ -16964,7 +16970,7 @@ export default function RankevApp() {
         setLiveOptions((prev) => ({ ...prev, [rankie.id]: proto.options }));
         const mine = full.myVote?.optionIds?.[0] ?? null;
         setVotedMap((prev) => ({ ...prev, [rankie.id]: mine }));
-        voteOnFeed({ ...rankie, options: proto.options }, real.id, mine);
+        voteOnFeedWith({ ...rankie, options: proto.options }, real.id, mine);
       }).catch((e) => showToast(e?.message || "Bình chọn thất bại"));
       return;
     }
@@ -16986,9 +16992,10 @@ export default function RankevApp() {
     if (off) bumpParticipants(-1); else if (cur === null) bumpParticipants(1);
     // Bài THẬT: gửi vote lên backend để phiếu được TÍNH THẬT (kể cả trận đấu trong giải,
     // và không mất khi tải lại). Trước đây feed chỉ cập nhật cục bộ nên phiếu không lưu.
-    if (isApiId(rankie.id) && !off) {
-      api.rankies
-        .vote(rankie.id, toOptionIds(newVal))
+    if (isApiId(rankie.id)) {
+      // Bấm lại lựa chọn đang chọn = huỷ phiếu THẬT trên server (trước đây chỉ đổi tạm ở máy
+      // rồi bị đồng bộ lại → trông như "bấm không ăn").
+      (off ? api.rankies.unvote(rankie.id) : api.rankies.vote(rankie.id, toOptionIds(newVal)))
         .then((res) => { if (res && res.options) syncServerVotes(rankie.id, res.options); })
         .catch((e) => showToast(e?.message || "Bình chọn thất bại"));
     }
@@ -17127,6 +17134,10 @@ export default function RankevApp() {
 
   // KIỂM SOÁT FEED (như IG/TikTok): Không quan tâm · Ẩn bài của @x · Chặn · Báo cáo.
   const EMPTY_MOD = { blocked: [], muted: [], hiddenPostIds: [] };
+  // Thứ tự feed đóng băng (xem feedItemsAll): tăng feedEpoch để xếp lại (làm mới / tải lần đầu).
+  const feedOrderRef = useRef(null);
+  const feedOrderEpochRef = useRef(-1);
+  const [feedEpoch, setFeedEpoch] = useState(0);
   const [modState, setModState] = useState(EMPTY_MOD);
   const [justHidden, setJustHidden] = useState({}); // postId → { kind, author } — chỗ "Hoàn tác" trên feed
   const modExcludedAuthors = new Set([...modState.blocked, ...modState.muted].map((u) => u.id));
@@ -17140,7 +17151,7 @@ export default function RankevApp() {
     const existing = feedDedup.get(item.id);
     if (!existing || (item.author?.id === "me" && existing.author?.id !== "me")) feedDedup.set(item.id, item);
   }
-  const feedItemsAll = [...feedDedup.values()]
+  const feedItemsRanked = [...feedDedup.values()]
     .filter((item) => !item.hidden && !item.deletedAt && item.visibility !== "private")
     // Bài vừa ẩn trong phiên này giữ chỗ để "Hoàn tác"; còn lại lọc theo thiết lập đã lưu.
     .filter((item) => justHidden[item.id] || (!modHiddenPosts.has(item.id) && !modExcludedAuthors.has(item.author?.id)))
@@ -17149,6 +17160,25 @@ export default function RankevApp() {
     // nhau): bài mới nổi đầu rồi mờ dần, bài nhiều tương tác được đẩy lên. Như các MXH
     // khác: KHÔNG dồn bài của mình lên đầu.
     .sort((a, b) => trendingScore(b) - trendingScore(a) || (b.createdAt || 0) - (a.createdAt || 0));
+
+  // THỨ TỰ FEED ĐÓNG BĂNG trong phiên lướt (như Instagram). Trước đây mỗi lần bình chọn/tương
+  // tác là điểm trending đổi → feed xếp lại → bài nhảy chỗ, trang bị kéo đi (trông như "tự nhảy
+  // lên đầu"). Nay chỉ xếp lại khi LÀM MỚI (feedEpoch tăng); bài mới đăng chèn lên đầu, bài của
+  // trang tải thêm nối xuống cuối, bài đã có giữ nguyên vị trí.
+  let feedItemsAll = feedItemsRanked;
+  if (feedOrderRef.current && feedOrderEpochRef.current === feedEpoch) {
+    const pos = new Map(feedOrderRef.current.map((id, i) => [id, i]));
+    const known = feedItemsRanked.filter((i) => pos.has(i.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
+    const fresh = feedItemsRanked.filter((i) => !pos.has(i.id));
+    const newestKnown = known.reduce((m, i) => Math.max(m, i.createdAt || 0), 0);
+    feedItemsAll = [
+      ...fresh.filter((i) => (i.createdAt || 0) > newestKnown),
+      ...known,
+      ...fresh.filter((i) => (i.createdAt || 0) <= newestKnown),
+    ];
+  }
+  feedOrderRef.current = feedItemsAll.map((i) => i.id);
+  feedOrderEpochRef.current = feedEpoch;
 
   // Feed kiểu MXH: chỉ lọc theo LOẠI bài (không lọc danh mục — sắp xếp đã xử lý ở trên).
   const feedItems = feedItemsAll
@@ -17787,6 +17817,7 @@ export default function RankevApp() {
       const res = await api.posts.feed();
       setApiPosts((res.items || []).map(apiSummaryToProto));
       setApiCursor(res.nextCursor || null);
+      setFeedEpoch((e) => e + 1); // làm mới = xếp lại thứ tự feed
     } catch { /* giữ nguyên nếu lỗi */ }
     setFeedRefreshing(false);
     window.scrollTo(0, 0);
@@ -17810,6 +17841,7 @@ export default function RankevApp() {
         if (!alive) return;
         setApiPosts((res.items || []).map(apiSummaryToProto));
         setApiCursor(res.nextCursor || null);
+        if (currentFeedScroll() < 120) setFeedEpoch((e) => e + 1); // tải lần đầu → xếp thứ tự
       } catch { /* giữ mock */ }
     })();
     loadMySeries(); // nạp series của mình để chọn khi thêm chapter
