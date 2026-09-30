@@ -7678,7 +7678,10 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
   // Record participation the first time a result is reached in this session — guarded
   // by a ref so re-renders don't create duplicate history entries. Computed and hooked
   // here, before any early return below, so this always runs in the same hook order.
-  const isResultStep = !path.questions.find((q) => q.id === step);
+  // CHỈ một KẾT THÚC thật mới là "đã tham gia". Trước đây mọi bước không phải câu hỏi đều bị
+  // coi là kết quả — kể cả màn giới thiệu "intro" (hoặc khi câu hỏi chưa tải xong) → chỉ mở
+  // xem rồi quay lại cũng bị ghi "đã tham gia" (icon đỏ) và cộng lượt tham gia giả.
+  const isResultStep = !!path.results && Object.prototype.hasOwnProperty.call(path.results, step);
   useEffect(() => {
     if (isResultStep && reportedResultRef.current !== step) {
       reportedResultRef.current = step;
@@ -18218,17 +18221,17 @@ export default function RankevApp() {
                 contacts={contacts}
                 onShared={() => bumpShares(selectedPath)}
                 onComplete={(e) => {
+                  // Chỉ một KẾT THÚC thật mới tính là đã tham gia — không ghi lịch sử / mở khoá /
+                  // cộng lượt khi chỉ mở xem (màn "intro") rồi quay lại.
+                  const isRealEnding =
+                    e.type !== "path" ||
+                    (selectedPath && selectedPath.results && Object.prototype.hasOwnProperty.call(selectedPath.results, e.detail));
+                  if (!isRealEnding) return;
                   addToHistory(e);
                   if (e.type === "path") {
                     unlockPathEnding(e.itemId, e.detail);
                     // Path thật: ghi kết quả lên backend (mở khoá ending + cộng lượt).
-                    // Chỉ gọi khi e.detail là một KẾT THÚC thật — PathView cũng phát onComplete
-                    // ở màn "intro" (step "intro" không phải id câu hỏi), tránh gửi ending rác.
-                    const isRealEnding =
-                      selectedPath &&
-                      selectedPath.results &&
-                      Object.prototype.hasOwnProperty.call(selectedPath.results, e.detail);
-                    if (isApiId(e.itemId) && isRealEnding) {
+                    if (isApiId(e.itemId)) {
                       pathFullCache.delete(e.itemId); // số liệu phân bố kết quả vừa đổi
                       api.paths
                         .complete(e.itemId, e.detail)
