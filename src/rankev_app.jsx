@@ -18096,12 +18096,16 @@ export default function RankevApp() {
   // Đổi màn → luôn hiện lại thanh menu dưới.
   useEffect(() => { setNavHidden(false); lastNavScrollRef.current = 0; }, [view]);
 
-  // ===== Lịch sử trình duyệt ↔ màn trong app =====
-  // App chuyển màn bằng state, không ghi vào lịch sử trình duyệt → cử chỉ vuốt từ mép trái
-  // (iOS/Android) hay nút Back của Android quay về trang TRƯỚC app → trông như app "reset".
-  // Nay mỗi màn con (chi tiết, hồ sơ người khác, tìm kiếm, giải, khung chat…) được ghi 1 mục
-  // lịch sử; Back của trình duyệt đưa về màn con trước đó, hoặc màn gốc (Bảng tin/Hồ sơ/Tin nhắn).
-  const isBaseScreen = navPresent; // màn gốc = màn có thanh menu dưới
+  // ===== Quay lại (vuốt từ mép trái / nút Back hệ thống) — như Facebook/Instagram =====
+  // App chuyển màn bằng state nên phải tự giữ "ngăn xếp màn":
+  //   Bảng tin = GỐC. Tab khác (Tạo mới / Hồ sơ / Tin nhắn) nằm 1 tầng trên Bảng tin — đổi qua
+  //   lại giữa các tab KHÔNG chồng thêm (Tạo mới → Hồ sơ → Tin nhắn, quay lại = về Bảng tin).
+  //   Màn con (chi tiết bài, hồ sơ người khác, tìm kiếm, giải, khung chat…) chồng lên tab đang
+  //   đứng; quay lại từng bước về tab đó rồi mới về Bảng tin.
+  // Trình duyệt chỉ giữ MỘT mục "đệm" khi không ở Bảng tin: bắt được cử chỉ quay lại thì app tự
+  // lùi 1 bước trong ngăn xếp, chưa về Bảng tin thì đặt lại đệm. Ở Bảng tin không có đệm →
+  // quay lại lần nữa mới rời app, như app bình thường.
+  const isBaseScreen = navPresent; // màn gốc = màn có thanh menu dưới (Bảng tin + các tab)
   const screenKey = [
     view,
     // Khung chat: khoá theo NGƯỜI đang chat (khung tạm lúc mở → hội thoại thật không tính là màn mới).
@@ -18112,49 +18116,60 @@ export default function RankevApp() {
     view === "authorProfile" ? viewedAuthorId : "",
     view === "tournament" ? selectedTournamentId : "",
   ].join("|");
-  const navStackRef = useRef([]); // ảnh chụp các màn con, khớp với các mục lịch sử đã push
-  const baseViewRef = useRef("feed"); // màn gốc gần nhất để quay về khi hết màn con
-  const ignorePopsRef = useRef(0); // số popstate do chính app gây ra (tua lịch sử) → bỏ qua
-  const restoringRef = useRef(false); // đang khôi phục màn từ popstate → không push lại
-  const snapshotNow = () => ({ key: screenKey, view, openConversation, selectedId, selectedPath, selectedDeck, viewedAuthorId, selectedTournamentId });
+  const navStackRef = useRef([]); // [tab (nếu khác Bảng tin), ...màn con] — ảnh chụp để khôi phục
+  const guardArmedRef = useRef(false); // đã đặt mục đệm trong lịch sử trình duyệt chưa
+  const ignorePopsRef = useRef(0); // popstate do chính app gây ra (gỡ đệm) → bỏ qua
+  const restoringRef = useRef(false); // đang khôi phục màn từ popstate → effect không ghi lại
+  const snapshotNow = () => ({ key: screenKey, base: isBaseScreen, view, openConversation, selectedId, selectedPath, selectedDeck, viewedAuthorId, selectedTournamentId });
+  const armGuard = () => {
+    if (guardArmedRef.current) return;
+    try { window.history.pushState({ rk: 1 }, ""); guardArmedRef.current = true; } catch { /* ignore */ }
+  };
   useEffect(() => {
     if (!authed) return;
     if (restoringRef.current) { restoringRef.current = false; return; }
     const stack = navStackRef.current;
+    if (isBaseScreen && view === "feed") {
+      // Về Bảng tin (bấm tab / nút quay lại trong app) → xoá ngăn xếp, gỡ đệm.
+      navStackRef.current = [];
+      if (guardArmedRef.current) { guardArmedRef.current = false; ignorePopsRef.current += 1; window.history.back(); }
+      return;
+    }
     if (isBaseScreen) {
-      baseViewRef.current = view;
-      // Về màn gốc bằng nút trong app → tua bỏ các mục lịch sử của màn con.
-      if (stack.length) { ignorePopsRef.current += 1; window.history.go(-stack.length); navStackRef.current = []; }
+      // Tab khác Bảng tin: thay cho tab/màn con trước đó (không chồng tab lên tab).
+      navStackRef.current = [snapshotNow()];
+      armGuard();
       return;
     }
     if (stack.length && stack[stack.length - 1].key === screenKey) return; // cùng màn (đổi state phụ)
     if (stack.length >= 2 && stack[stack.length - 2].key === screenKey) {
-      // Nút "quay lại" trong app về màn con trước → lùi lịch sử 1 bước cho khớp.
-      stack.pop(); ignorePopsRef.current += 1; window.history.back(); return;
+      stack.pop(); // nút "quay lại" trong app về màn trước → lùi ngăn xếp cho khớp
+    } else {
+      stack.push(snapshotNow());
     }
-    stack.push(snapshotNow());
-    try { window.history.pushState({ rk: stack.length }, ""); } catch { /* ignore */ }
+    armGuard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenKey, isBaseScreen, authed]);
   useEffect(() => {
-    // App tự khôi phục vị trí cuộn của feed → tắt khôi phục tự động của trình duyệt (tránh 2
-    // bên cùng cuộn, giật trang khi quay lại).
+    // App tự khôi phục vị trí cuộn của feed → tắt khôi phục tự động của trình duyệt.
     try { window.history.scrollRestoration = "manual"; } catch { /* ignore */ }
     const onPop = () => {
       if (ignorePopsRef.current > 0) { ignorePopsRef.current -= 1; return; }
+      if (!guardArmedRef.current) return; // đang ở Bảng tin → để trình duyệt rời app như thường
+      guardArmedRef.current = false; // đệm vừa bị dùng
       const stack = navStackRef.current;
-      if (!stack.length) return; // đã ở màn gốc → để trình duyệt xử lý như thường
-      stack.pop();
+      stack.pop(); // bỏ màn hiện tại
       const target = stack[stack.length - 1];
       restoringRef.current = true;
       if (target) {
         setSelectedId(target.selectedId); setSelectedPath(target.selectedPath); setSelectedDeck(target.selectedDeck);
         setViewedAuthorId(target.viewedAuthorId); setSelectedTournamentId(target.selectedTournamentId);
-        setOpenConversation(target.view === "chat" ? target.openConversation : null);
+        setOpenConversation(!target.base && target.view === "chat" ? target.openConversation : null);
         setView(target.view);
+        armGuard(); // chưa về Bảng tin → đặt lại đệm cho lần quay lại tiếp theo
       } else {
         setOpenConversation(null);
-        setView(baseViewRef.current || "feed");
+        setView("feed");
       }
     };
     window.addEventListener("popstate", onPop);
