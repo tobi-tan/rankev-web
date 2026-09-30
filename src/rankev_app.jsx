@@ -17827,9 +17827,28 @@ export default function RankevApp() {
   // Kéo-xuống-để-làm-mới (mobile): chỉ khi đang ở feed và đã cuộn lên đầu.
   const pullStartY = useRef(null);
   const [pullDist, setPullDist] = useState(0);
-  const onFeedTouchStart = (e) => { pullStartY.current = (view === "feed" && (scrollContainerRef.current?.scrollTop || 0) <= 0) ? e.touches[0].clientY : null; };
-  const onFeedTouchMove = (e) => { if (pullStartY.current == null) return; const d = e.touches[0].clientY - pullStartY.current; setPullDist(d > 0 ? Math.min(90, d * 0.55) : 0); };
-  const onFeedTouchEnd = () => { if (pullDist > 52 && !feedRefreshing) refreshFeed(); setPullDist(0); pullStartY.current = null; };
+  // CHỈ kích hoạt khi thật sự đang ở ĐẦU trang và kéo THẲNG xuống. Trước đây kiểm tra
+  // scrollTop của khung trong (luôn 0 vì app cuộn bằng WINDOW) → ở bất kỳ đâu trong feed, cứ
+  // ngón tay trượt xuống ~95px (vuốt chéo qua chapter, hay kéo ngược lên xem bài cũ) là làm
+  // mới + nhảy về đầu trang. Nay dùng vị trí cuộn thật và bỏ qua cử chỉ vuốt ngang.
+  const pullStartX = useRef(null);
+  const onFeedTouchStart = (e) => {
+    const armed = view === "feed" && currentFeedScroll() <= 0;
+    pullStartY.current = armed ? e.touches[0].clientY : null;
+    pullStartX.current = armed ? e.touches[0].clientX : null;
+  };
+  const onFeedTouchMove = (e) => {
+    if (pullStartY.current == null) return;
+    const dy = e.touches[0].clientY - pullStartY.current;
+    const dx = e.touches[0].clientX - pullStartX.current;
+    // Vuốt ngang (carousel chapter/giải) hoặc trang đã cuộn đi → huỷ, không phải kéo để làm mới.
+    if (Math.abs(dx) > Math.abs(dy) || currentFeedScroll() > 0) { pullStartY.current = null; setPullDist(0); return; }
+    setPullDist(dy > 0 ? Math.min(90, dy * 0.55) : 0);
+  };
+  const onFeedTouchEnd = () => {
+    if (pullStartY.current != null && pullDist > 52 && !feedRefreshing && currentFeedScroll() <= 0) refreshFeed();
+    setPullDist(0); pullStartY.current = null;
+  };
 
   // --- Nạp feed thật khi đã đăng nhập (Phần 2). Lỗi → giữ mock (fallback). ---
   useEffect(() => {
