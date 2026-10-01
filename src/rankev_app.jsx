@@ -3892,8 +3892,8 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             <IconShareArrow />
             {shares > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(shares)}</span>}
           </button>
-          {/* Trình chiếu: chỉ hiện khi đã có phiên (0 phiên = không cần icon, đỡ rối) */}
-          {sessionCount !== null && hasSessions && (
+          {/* Trình chiếu: LUÔN hiện icon (xám khi chưa có phiên, vàng khi đã có); số 0 thì ẩn số như các mục khác */}
+          {sessionCount !== null && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowSessions((v) => !v); }}
               title={`${sessionCount} phiên trình chiếu đã lưu`}
@@ -3902,7 +3902,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
               aria-label="Lịch sử trình chiếu"
             >
               <Monitor size={19} color={hasSessions ? C.gold : C.textMuted} />
-              <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: hasSessions ? 700 : 400, color: hasSessions ? C.gold : C.textFaint }}>{fmtCompact(sessionCount)}</span>
+              {hasSessions && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>{fmtCompact(sessionCount)}</span>}
             </button>
           )}
         </div>
