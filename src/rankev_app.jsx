@@ -11,7 +11,7 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler } from "./api.js";
 
@@ -1678,7 +1678,8 @@ function PostMeta({ item, status = [] }) {
   if (item?._sponsored) parts.push(<span key="sp" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: C.gold }}><Megaphone size={11} /> Được tài trợ</span>);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", minWidth: 0 }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: m.color, fontWeight: 600, flexShrink: 0 }}><Icon size={12} /> {m.label}</span>
+      {/* Loại bài: CHỈ icon màu (ưu tiên icon, hạn chế chữ) — tên loại ở tooltip / trình đọc màn hình. */}
+      <span title={m.label} aria-label={m.label} style={{ display: "inline-flex", alignItems: "center", color: m.color, flexShrink: 0 }}><Icon size={13} /></span>
       {parts.map((p, i) => (
         <React.Fragment key={i}><span style={{ color: C.textFaint }}>·</span>{p}</React.Fragment>
       ))}
@@ -13204,8 +13205,9 @@ function ChatShareCard({ msg, onOpenShare }) {
       <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 12px 0" }}>
         <MiniAvatar u={ref.author} size={22} />
         <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ref.author?.name || "Rankev"}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 99, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 10, fontWeight: 800, letterSpacing: 0.3, flexShrink: 0 }}>
-          <TypeIcon size={10} /> {typeLabel}
+        {/* Loại bài: chỉ icon (hạn chế chữ) */}
+        <span title={typeLabel} style={{ display: "inline-grid", placeItems: "center", width: 22, height: 22, borderRadius: 7, background: C.goldSoft, color: C.gold, flexShrink: 0 }}>
+          <TypeIcon size={12} />
         </span>
       </div>
       <div style={{ padding: "7px 12px 0", fontFamily: displayFont, fontWeight: 600, fontSize: 15, lineHeight: 1.3, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.title}</div>
@@ -13222,7 +13224,11 @@ function ChatShareCard({ msg, onOpenShare }) {
             return (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, marginBottom: 3 }}>
-                  <span style={{ color: C.text, fontWeight: i === 0 && total > 0 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.emoji ? o.emoji + " " : ""}{o.label || `Lựa chọn ${i + 1}`}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0, color: C.text, fontWeight: i === 0 && total > 0 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {/* Ảnh của lựa chọn ưu tiên hơn emoji */}
+                    {o.imageUrl ? <img src={o.imageUrl} alt="" style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} /> : o.emoji ? <span>{o.emoji}</span> : null}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.label || `Lựa chọn ${i + 1}`}</span>
+                  </span>
                   <VoteStat votes={o.votes || 0} total={total} style={{ fontSize: 12, color: C.textFaint, flexShrink: 0 }} />
                 </div>
                 <div style={{ height: 5, background: C.surfaceRaised, borderRadius: 3, overflow: "hidden" }}>
@@ -14507,6 +14513,134 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
 // this renders the current user's own profile with edit controls; otherwise it
 // renders a read-only wall for whichever author was tapped from a card,
 // showing every Rankie/Path/Deck that person has posted.
+// ---------- Ô lưới hồ sơ (3 cột, kiểu Instagram) ----------
+// Hình của ô lấy từ NỘI DUNG THẬT của bài, theo thứ tự ưu tiên (không bịa, không bắt thêm ảnh):
+// 1) ảnh bìa người đăng tải lên · 2) Rankie đối đầu: ảnh/emoji của 2 lựa chọn · 3) Rankie nhiều
+// lựa chọn: thanh phiếu thật của 3 lựa chọn dẫn đầu · 4) bìa emoji + màu người đăng chọn ·
+// 5) Path: ảnh/emoji các kết quả · 6) icon loại bài. Loại bài = ICON (hạn chế chữ).
+function ProfileGridTile({ item, onOpen }) {
+  const isShare = item.type === "share";
+  const key = isShare ? (item.sharedType === "path" ? "path" : item.sharedType === "deck" ? "survey" : "rankie") : postTypeKey(item);
+  const meta = POST_TYPE_META[key];
+  const TypeIcon = meta.icon;
+  const title = isShare ? item.sharedTitle : item.title;
+  const cover = !isShare && item.media?.url ? item.media.url : null;
+  const opts = !isShare && item.type === "rankie" ? item.options || [] : [];
+  const live = !isShare && item.type === "rankie" && item.live && !isRankieClosed(item);
+  const pic = (o, size) => (
+    <div style={{ width: size, height: size, borderRadius: 99, background: o?.color || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, fontSize: size * 0.55, fontFamily: bodyFont, fontWeight: 800, color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,.35)" }}>
+      {o?.image || o?.imageUrl ? <img src={o.image || o.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : o?.emoji ? o.emoji : (o?.label || o?.name || "?").trim().charAt(0).toUpperCase()}
+    </div>
+  );
+
+  let art = null;
+  if (cover) {
+    art = (<>
+      <img src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0) 58%)" }} />
+    </>);
+  } else if (opts.length === 2) {
+    art = (
+      <div style={{ position: "absolute", inset: "18px 0 30px", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        {pic(opts[0], 34)}<span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 10, color: C.gold }}>VS</span>{pic(opts[1], 34)}
+      </div>
+    );
+  } else if (opts.length >= 3) {
+    const top = [...opts].sort((a, b) => (b.votes || 0) - (a.votes || 0)).slice(0, 3);
+    const max = Math.max(1, ...top.map((o) => o.votes || 0));
+    art = (
+      <div style={{ position: "absolute", top: 30, left: 7, right: 7, display: "flex", flexDirection: "column", gap: 5 }}>
+        {top.map((o, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {(o.image || o.emoji) && pic(o, 13)}
+            <div style={{ flex: 1, height: 5, borderRadius: 3, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+              <div style={{ width: `${Math.max(6, ((o.votes || 0) / max) * 100)}%`, height: "100%", borderRadius: 3, background: o.color || C.gold }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  } else if (!isShare && item.media?.emoji) {
+    art = <div style={{ position: "absolute", inset: "14px 0 28px", display: "grid", placeItems: "center", fontSize: 34 }}>{item.media.emoji}</div>;
+  } else if (!isShare && item.type === "path") {
+    const ends = item.endingsPreview?.length ? item.endingsPreview : Object.entries(item.results || {}).slice(0, 3).map(([name, r]) => ({ name, emoji: r.emoji, imageUrl: r.image }));
+    art = ends.length ? (
+      <div style={{ position: "absolute", inset: "18px 0 30px", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+        {ends.map((e, i) => <div key={i}>{pic({ ...e, color: C.surfaceRaised }, 24)}</div>)}
+      </div>
+    ) : null;
+  }
+  if (!art) art = <div style={{ position: "absolute", inset: "14px 0 28px", display: "grid", placeItems: "center", opacity: 0.35 }}><TypeIcon size={30} color={meta.color} /></div>;
+
+  const bg = cover ? C.surface
+    : !isShare && item.media?.color && !opts.length ? `linear-gradient(160deg, ${item.media.color}, var(--surface))`
+    : `linear-gradient(160deg, color-mix(in srgb, ${meta.color} 22%, var(--surface)), var(--surface))`;
+  return (
+    <button onClick={onOpen} title={title} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: bg, textAlign: "left", opacity: item.hidden ? 0.55 : 1 }}>
+      {art}
+      <span title={meta.label} style={{ position: "absolute", top: 5, left: 5, width: 20, height: 20, borderRadius: 6, background: "rgba(0,0,0,.45)", display: "grid", placeItems: "center" }}><TypeIcon size={12} color={meta.color} /></span>
+      <span style={{ position: "absolute", top: 6, right: 6, display: "flex", alignItems: "center", gap: 4 }}>
+        {item.hidden && <EyeOff size={12} color="#fff" />}
+        {item.pinned && <Pin size={12} color={C.gold} fill={C.gold} />}
+        {live && <span style={{ width: 7, height: 7, borderRadius: 99, background: C.teal, boxShadow: `0 0 0 2px rgba(0,0,0,.4)` }} title="LIVE" />}
+      </span>
+      <div style={{ position: "absolute", left: 6, right: 6, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, lineHeight: 1.25, color: "#F5F1E6", textShadow: "0 1px 3px rgba(0,0,0,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{title}</div>
+    </button>
+  );
+}
+
+// ---------- Sửa hồ sơ (tên · @handle · tiểu sử · ảnh đại diện) ----------
+function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
+  const [name, setName] = useState(currentUser.name || "");
+  const [handle, setHandle] = useState(String(currentUser.handle || "").replace(/^@/, ""));
+  const [bio, setBio] = useState(currentUser.bio || "");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const handleOk = /^[a-zA-Z0-9_]{3,20}$/.test(handle);
+  const canSave = name.trim().length > 0 && handleOk && !saving;
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true); setErr(null);
+    try {
+      await api.auth.updateProfile({ name: name.trim(), handle, bio: bio.trim() || null });
+      Object.assign(currentUser, { name: name.trim(), handle: "@" + handle, bio: bio.trim() });
+      onSaved?.(); onClose();
+    } catch (e) {
+      setErr(e?.status === 409 || /handle/i.test(e?.message || "") ? "@handle này đã có người dùng" : e?.message || "Lưu thất bại, thử lại sau");
+    } finally { setSaving(false); }
+  };
+  const field = { width: "100%", padding: "11px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 15, outline: "none" };
+  const lab = { fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted, margin: "12px 0 6px" };
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px 6px" }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 15, cursor: "pointer" }}>Huỷ</button>
+        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text }}>Sửa hồ sơ</div>
+        <button onClick={save} disabled={!canSave} style={{ background: "none", border: "none", color: canSave ? C.gold : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, cursor: canSave ? "pointer" : "default" }}>{saving ? "Đang lưu…" : "Xong"}</button>
+      </div>
+      <div style={{ padding: "6px 18px 8px" }}>
+        <div style={{ display: "grid", placeItems: "center", margin: "6px 0 4px" }}>
+          <button onClick={onChangeAvatar} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", gap: 6 }}>
+            <div style={{ width: 76, height: 76, borderRadius: 99, background: currentUser.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 34 }}>
+              {currentUser.avatarUrl ? <img src={currentUser.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (currentUser.avatarEmoji || "🙂")}
+            </div>
+            <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>Đổi ảnh đại diện</span>
+          </button>
+        </div>
+        <div style={lab}>Tên</div>
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={field} />
+        <div style={lab}>@handle</div>
+        <input value={handle} onChange={(e) => setHandle(e.target.value.replace(/^@/, "").trim())} maxLength={20} style={{ ...field, borderColor: handleOk ? C.border : C.coral }} />
+        {!handleOk && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 4 }}>3–20 ký tự: chữ, số, dấu _</div>}
+        <div style={lab}>Tiểu sử</div>
+        <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} rows={3} style={{ ...field, resize: "none", lineHeight: 1.45 }} />
+        <div style={{ textAlign: "right", fontFamily: bodyFont, fontSize: 11, color: C.textFaint, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{bio.length}/500</div>
+        {err && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.coral, marginTop: 6 }}>{err}</div>}
+      </div>
+    </BottomSheet>
+  );
+}
+
 function ProfileView({
   posts,
   authorId,
@@ -14569,6 +14703,11 @@ function ProfileView({
   const [statsPost, setStatsPost] = useState(null); // post currently open in the stats modal
   const [confirmDelete, setConfirmDelete] = useState(null); // post pending permanent-delete confirmation
   const [copiedLink, setCopiedLink] = useState(false); // vừa sao chép link hồ sơ
+  const [editOpen, setEditOpen] = useState(false); // màn "Sửa hồ sơ"
+  const [, setProfileV] = useState(0); // lưu hồ sơ xong → vẽ lại với currentUser mới
+  // Bài viết: lưới (mặc định) hoặc danh sách — nhớ lựa chọn trên máy.
+  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem("rankev.profileView") || "grid"; } catch { return "grid"; } });
+  const setViewModePersist = (m) => { setViewMode(m); try { localStorage.setItem("rankev.profileView", m); } catch { /* ignore */ } };
 
   // Mở hồ sơ của CHÍNH MÌNH bằng id thật (từ thẻ bài trên feed) → coi như "me".
   const targetId = !authorId || (currentUser.apiId && authorId === currentUser.apiId) ? "me" : authorId;
@@ -14688,6 +14827,38 @@ function ProfileView({
       />
     ) : null;
 
+  // ---- Thiết kế hồ sơ kiểu Instagram (2026-10): đầu trang gọn, chỉ số = SỐ + ICON (không chữ),
+  // radar chuyển vào bảng Thống kê, Series/Giải thành hàng vòng tròn nổi bật, bài viết dạng LƯỚI.
+  const statBtn = (n, IconEl, title, color) => (
+    <button onClick={() => setShowStatsDetail(true)} title={title} aria-label={title}
+      style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "4px 2px", cursor: "pointer", color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>
+      {fmtCompact(n || 0)}<IconEl size={17} color={color || C.textMuted} />
+    </button>
+  );
+  const iconPill = (IconEl, label, onClick, active) => (
+    <button onClick={onClick} aria-label={label} title={label}
+      style={{ width: 34, height: 34, borderRadius: 99, display: "grid", placeItems: "center", flexShrink: 0, background: active ? C.goldSoft : C.surfaceRaised, border: `1px solid ${active ? C.gold : C.border}`, color: active ? C.gold : C.textMuted, cursor: "pointer" }}>
+      <IconEl size={15} />
+    </button>
+  );
+  const shareProfile = () => {
+    const h = String(author.handle || "").replace(/^@/, "");
+    const link = `${window.location.origin}/?u=${encodeURIComponent(h)}`;
+    const done = () => { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1800); };
+    if (navigator.share) navigator.share({ title: author.name, url: link }).catch(() => {});
+    else { try { navigator.clipboard.writeText(link); } catch { /* noop */ } done(); }
+  };
+  // Hàng nổi bật: giải đấu + series của tác giả (thay cho từng thẻ giải lớn chắn đầu danh sách).
+  const highlightSeries = [];
+  const seenHl = new Set();
+  theirPosts.forEach((p) => { if (p.seriesId && !seenHl.has(p.seriesId)) { seenHl.add(p.seriesId); highlightSeries.push(p); } });
+  const highlights = [
+    ...tournaments.map((t) => ({ key: "t" + t.id, label: t.title, img: t.media?.url || t.championRef?.imageUrl, emoji: t.media?.emoji || (t.championRef?.imageUrl ? null : t.championRef?.emoji), Icon: Trophy, onClick: () => onOpenTournament?.(t.id) })),
+    ...highlightSeries.map((p) => ({ key: "s" + p.seriesId, label: p.seriesName || p.title, img: p.media?.url, emoji: p.media?.emoji, Icon: Library, onClick: () => (p.type === "path" ? onOpenPath(p.id) : p.type === "deck" ? onOpenDeck(p.id) : onOpenRankie(p.id)) })),
+  ];
+  const demoLine = demoChips.map((d) => d.val).join(" · ");
+  const demoHasHidden = isMe && demo?.pub && demoChips.some((d) => demo.pub[d.key] === false);
+
   return (
     <div>
       {/* Back button — shown whenever the caller gave us somewhere to return to
@@ -14701,132 +14872,51 @@ function ProfileView({
         </div>
       )}
 
-      {/* Avatar + tên/theo dõi gọn bên phải, giống bố cục Instagram — không còn ảnh bìa */}
-      <div style={{ padding: "16px 16px 0" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flex: 1, minWidth: 0 }}>
-            <div
-              onClick={isMe && onChangeAvatar ? onChangeAvatar : undefined}
-              title={isMe && onChangeAvatar ? "Đổi ảnh đại diện" : undefined}
-              style={{
-                width: 76,
-                height: 76,
-                borderRadius: 99,
-                background: author.avatarColor || C.surfaceRaised,
-                border: `1px solid ${C.border}`,
-                display: "grid",
-                placeItems: "center",
-                fontSize: 34,
-                flexShrink: 0,
-                overflow: "hidden",
-                position: "relative",
-                cursor: isMe && onChangeAvatar ? "pointer" : "default",
-              }}
-            >
-              {author.avatarUrl ? (
-                <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                author.avatarEmoji || <User size={26} color={C.gold} />
-              )}
-              {isMe && onChangeAvatar && (
-                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.55)", padding: "3px 0", display: "grid", placeItems: "center" }}>
-                  <ImagePlus size={12} color="#fff" />
-                </div>
-              )}
-            </div>
-            <div style={{ minWidth: 0, paddingTop: 4 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 21, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {isMe ? currentUser.name : author.name}
-                </div>
-                {SHOW_VERIFIED && author.verified && (
-                  <span style={{ width: 16, height: 16, borderRadius: 99, background: C.teal, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                    <Check size={9} color={C.bg} strokeWidth={3} />
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  const h = String(author.handle || "").replace(/^@/, "");
-                  const link = `${window.location.origin}/?u=${encodeURIComponent(h)}`;
-                  try { navigator.clipboard.writeText(link); } catch { /* noop */ }
-                  setCopiedLink(true);
-                  setTimeout(() => setCopiedLink(false), 1800);
-                }}
-                title="Sao chép link hồ sơ để chia sẻ"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: 0, marginTop: 3, cursor: "pointer", fontFamily: monoFont, fontSize: 13, color: copiedLink ? C.teal : C.textFaint }}
-              >
-                {author.handle}
-                {copiedLink ? <Check size={12} color={C.teal} /> : <Link2 size={12} color={C.textFaint} />}
-              </button>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
-                <Star size={12} color={C.gold} fill={C.gold} /> {fmtCompact(author.followers)} RP
-              </div>
-              {demoChips.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {demoChips.map((d) => {
-                    const hidden = isMe && demo?.pub && demo.pub[d.key] === false; // field ẩn: chỉ chính chủ thấy
-                    return (
-                      <span key={d.key} title={hidden ? "Chỉ mình bạn thấy (đang ẩn)" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: hidden ? C.textFaint : C.textMuted }}>
-                        {hidden && <EyeOff size={11} />} {d.val}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+      <div style={{ padding: "14px 16px 0" }}>
+        {/* Hàng 1: ảnh đại diện + 3 chỉ số (bài · người RankUp · lượt xem) — chạm để xem Thống kê */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div
+            onClick={isMe && onChangeAvatar ? onChangeAvatar : undefined}
+            title={isMe && onChangeAvatar ? "Đổi ảnh đại diện" : undefined}
+            style={{ width: 82, height: 82, borderRadius: 99, background: author.avatarColor || C.surfaceRaised, boxShadow: `0 0 0 2px ${C.bg}, 0 0 0 4px ${C.gold}`, display: "grid", placeItems: "center", fontSize: 38, flexShrink: 0, overflow: "hidden", position: "relative", cursor: isMe && onChangeAvatar ? "pointer" : "default", margin: 4 }}
+          >
+            {author.avatarUrl ? <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (author.avatarEmoji || <User size={28} color={C.gold} />)}
           </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {canManage && (
-              <button
-                onClick={() => setShowSearch((v) => !v)}
-                aria-label="Tìm trong hồ sơ"
-                style={{
-                  width: 34, height: 34, borderRadius: 99,
-                  display: "grid", placeItems: "center", flexShrink: 0,
-                  background: showSearch ? C.goldSoft : C.surfaceRaised,
-                  border: `1px solid ${showSearch ? C.gold : C.border}`,
-                  color: showSearch ? C.gold : C.textMuted,
-                  cursor: "pointer",
-                }}
-              >
-                <Search size={15} />
-              </button>
-            )}
-            {isMe && onOpenSaved && (
-              <button
-                aria-label="Đã lưu"
-                title="Đã lưu"
-                onClick={onOpenSaved}
-                style={{
-                  height: 34, borderRadius: 99, padding: "0 12px",
-                  display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-                  background: savedCount > 0 ? C.goldSoft : C.surfaceRaised, border: `1px solid ${savedCount > 0 ? C.gold : C.border}`,
-                  color: savedCount > 0 ? C.gold : C.textMuted, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 13,
-                }}
-              >
-                <Bookmark size={15} /> {savedCount > 0 ? savedCount : ""}
-              </button>
-            )}
-            {/* Cài đặt (như ☰ của Instagram): Quyền riêng tư · Sáng/Tối · Đăng xuất — gọn đầu hồ sơ */}
-            {isMe && (
-              <button
-                aria-label="Cài đặt"
-                title="Cài đặt"
-                onClick={() => setSettingsOpen(true)}
-                style={{
-                  width: 34, height: 34, borderRadius: 99,
-                  display: "grid", placeItems: "center", flexShrink: 0,
-                  background: C.surfaceRaised, border: `1px solid ${C.border}`,
-                  color: C.text, cursor: "pointer",
-                }}
-              >
-                <Settings size={16} />
-              </button>
-            )}
+          <div style={{ flex: 1, display: "flex", justifyContent: "space-around", alignItems: "center" }}>
+            {statBtn(theirPostsAll.filter((p) => !p.deletedAt).length, Grid3x3, "Bài viết")}
+            {statBtn(rankCounts.total, ChevronsUp, "Người đã RankUp", C.gold)}
+            {statBtn(totalReach, Eye, "Lượt tương tác")}
           </div>
         </div>
+
+        {/* Hàng 2: tên + RP · nút nhanh (hồ sơ mình) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isMe ? currentUser.name : author.name}</span>
+            {SHOW_VERIFIED && author.verified && (
+              <span style={{ width: 16, height: 16, borderRadius: 99, background: C.teal, display: "grid", placeItems: "center", flexShrink: 0 }}><Check size={9} color={C.bg} strokeWidth={3} /></span>
+            )}
+            <span title="Rank Points" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.gold, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+              {fmtCompact(author.followers)}<Star size={12} color={C.gold} fill={C.gold} />
+            </span>
+          </div>
+          {canManage && iconPill(Search, "Tìm trong hồ sơ", () => setShowSearch((v) => !v), showSearch)}
+          {isMe && onOpenSaved && (
+            <button aria-label="Đã lưu" title="Đã lưu" onClick={onOpenSaved}
+              style={{ height: 34, borderRadius: 99, padding: savedCount > 0 ? "0 11px" : 0, width: savedCount > 0 ? "auto" : 34, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexShrink: 0, background: savedCount > 0 ? C.goldSoft : C.surfaceRaised, border: `1px solid ${savedCount > 0 ? C.gold : C.border}`, color: savedCount > 0 ? C.gold : C.textMuted, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+              {savedCount > 0 ? savedCount : null}<Bookmark size={15} />
+            </button>
+          )}
+          {isMe && iconPill(Settings, "Cài đặt", () => setSettingsOpen(true))}
+        </div>
+        <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 1 }}>{author.handle}</div>
+        {author.bio && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, marginTop: 6, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{author.bio}</div>}
+        {demoLine && (
+          <div title={demoHasHidden ? "Có mục đang ẩn — chỉ mình bạn thấy" : undefined} style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 4 }}>
+            {demoHasHidden && <EyeOff size={11} />}{demoLine}
+          </div>
+        )}
+
         {settingsOpen && (
           <BottomSheet onClose={() => setSettingsOpen(false)}>
             <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>Cài đặt</div>
@@ -14835,40 +14925,40 @@ function ProfileView({
             {onLogout && <SheetRow icon={LogOut} danger label="Đăng xuất" onClick={() => { setSettingsOpen(false); if (window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }} />}
           </BottomSheet>
         )}
-
-        {author.bio && (
-          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10, lineHeight: 1.4 }}>
-            {author.bio}
-          </div>
+        {showStatsDetail && (
+          <BottomSheet onClose={() => setShowStatsDetail(false)}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 18px 4px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}><BarChart3 size={18} color={C.gold} /> Thống kê</div>
+            <div style={{ padding: "4px 10px 6px" }}>
+              <ProfileStatRadar rankie={theirRankies.length} path={theirPaths.length} exam={theirExams.length} survey={theirDecks.length} posts={theirPostsAll.length} views={totalReach} rankCounts={rankCounts} />
+            </div>
+          </BottomSheet>
         )}
+        {editOpen && <EditProfileSheet onClose={() => setEditOpen(false)} onChangeAvatar={onChangeAvatar} onSaved={() => setProfileV((v) => v + 1)} />}
 
-        {/* Hàng hành động (hồ sơ người khác): RankUp + Nhắn tin — tách khỏi tên để không che. */}
-        {!isMe && (onSetRank || onMessage) && (
+        {/* Hàng hành động */}
+        {isMe ? (
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button onClick={() => setEditOpen(true)} style={{ flex: 1, height: 36, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Sửa hồ sơ</button>
+            <button onClick={shareProfile} style={{ flex: 1, height: 36, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${copiedLink ? C.teal : C.border}`, color: copiedLink ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              {copiedLink ? <><Check size={14} /> Đã chép link</> : "Chia sẻ hồ sơ"}
+            </button>
+          </div>
+        ) : (onSetRank || onMessage) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
             {onSetRank && !theyBlocked && (
               <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
             )}
             {theyBlocked ? (
-              <button
-                onClick={() => mod.unblock(author)}
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
-              >
+              <button onClick={() => mod.unblock(author)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
                 <Ban size={16} /> Bỏ chặn
               </button>
             ) : onMessage && (
-              <button
-                onClick={() => onMessage(author.id, author)}
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
-              >
+              <button onClick={() => onMessage(author.id, author)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
                 <MessageCircle size={16} /> Nhắn tin
               </button>
             )}
             {mod && (
-              <button
-                aria-label="Tuỳ chọn"
-                onClick={() => setUserSheet(true)}
-                style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, cursor: "pointer" }}
-              >
+              <button aria-label="Tuỳ chọn" onClick={() => setUserSheet(true)} style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, cursor: "pointer" }}>
                 <MoreHorizontal size={18} />
               </button>
             )}
@@ -14882,41 +14972,31 @@ function ProfileView({
             {theyBlocked ? "Bạn đã chặn tài khoản này — bài của họ bị ẩn." : "Bạn đã ẩn bài của người này khỏi bảng tin (vẫn xem được ở đây)."}
           </div>
         )}
-
-
-        {/* Thống kê kiểu "chỉ số game": radar 4 loại bài + huy hiệu trung tâm (tổng bài + lượt) */}
-        <div style={{ marginTop: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 8px 8px" }}>
-          <ProfileStatRadar
-            rankie={theirRankies.length}
-            path={theirPaths.length}
-            exam={theirExams.length}
-            survey={theirDecks.length}
-            posts={theirPostsAll.length}
-            views={totalReach}
-            rankCounts={rankCounts}
-          />
-        </div>
-
       </div>
+
+      {/* Hàng nổi bật: Giải đấu + Series (vòng tròn, cuộn ngang) */}
+      {highlights.length > 0 && !theyBlocked && (
+        <div style={{ display: "flex", gap: 14, overflowX: "auto", padding: "14px 16px 2px", scrollbarWidth: "none" }}>
+          {highlights.map((h) => (
+            <button key={h.key} onClick={h.onClick} title={h.label} style={{ width: 64, flexShrink: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "center" }}>
+              <div style={{ width: 60, height: 60, margin: "0 auto", borderRadius: 99, padding: 2, background: `conic-gradient(${C.gold}, #8a6a24, ${C.gold})` }}>
+                <div style={{ width: "100%", height: "100%", borderRadius: 99, border: `2px solid ${C.bg}`, background: C.surface, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 24 }}>
+                  {h.img ? <img src={h.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : h.emoji ? h.emoji : <h.Icon size={22} color={C.gold} />}
+                </div>
+              </div>
+              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.label}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Ô tìm kiếm — chỉ hiện khi bấm icon kính lúp ở trên */}
       {canManage && showSearch && (
         <div style={{ padding: "14px 16px 0" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 10px" }}>
             <Search size={15} color={C.textFaint} />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm trong bài đăng của bạn..."
-              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }}
-            />
-            <button
-              onClick={() => { setQuery(""); setShowSearch(false); }}
-              style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 2 }}
-            >
-              <X size={16} />
-            </button>
+            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm trong bài đăng của bạn..." style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+            <button onClick={() => { setQuery(""); setShowSearch(false); }} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 2 }}><X size={16} /></button>
           </div>
         </div>
       )}
@@ -14924,7 +15004,7 @@ function ProfileView({
       {/* Tab lớn kiểu Instagram — chỉ icon, gạch dưới cho tab đang chọn. Ba tab riêng
           tư (tham gia/trình chiếu/đánh dấu) chỉ hiện trên hồ sơ của chính mình. */}
       {canManage && (
-        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}`, marginTop: 10 }}>
           {[
             { id: "posts", icon: Grid3x3, label: "Bài viết" },
             { id: "participation", icon: Clock, label: "Lịch sử tham gia" },
@@ -14934,17 +15014,8 @@ function ProfileView({
             const active = mainTab === t.id;
             const IconEl = t.icon;
             return (
-              <button
-                key={t.id}
-                onClick={() => setMainTab(t.id)}
-                title={t.label}
-                aria-label={t.label}
-                style={{
-                  flex: 1, padding: "11px 0", display: "flex", justifyContent: "center",
-                  background: "none", border: "none", cursor: "pointer",
-                  borderBottom: `2px solid ${active ? C.text : "transparent"}`,
-                }}
-              >
+              <button key={t.id} onClick={() => setMainTab(t.id)} title={t.label} aria-label={t.label}
+                style={{ flex: 1, padding: "11px 0", display: "flex", justifyContent: "center", background: "none", border: "none", cursor: "pointer", borderBottom: `2px solid ${active ? C.text : "transparent"}` }}>
                 {IconEl ? <IconEl size={21} color={active ? C.text : C.textFaint} /> : <IconBookmark filled={active} size={21} />}
               </button>
             );
@@ -14952,52 +15023,56 @@ function ProfileView({
         </div>
       )}
 
-      {/* Content filter — compact dropdown replacing the previous tab row */}
+      {/* Bộ lọc loại bài: hàng chip CHỈ ICON (màu theo loại) + nút đổi lưới/danh sách */}
       {mainTab === "posts" && (
       <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setFilterOpen((v) => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, border: `1px solid ${tab !== "posts" ? C.gold : C.border}`, background: tab !== "posts" ? C.goldSoft : C.surface, color: tab !== "posts" ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-          >
-            {currentFilterLabel}
-            <ChevronDown size={14} />
-          </button>
-          {filterOpen && (
-            <>
-              <div onClick={() => setFilterOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 150, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: 6, zIndex: 21, boxShadow: "0 8px 24px rgba(0,0,0,0.35)", animation: "popIn 0.15s ease" }}>
-                {filterOptions.map((o) => {
-                  const IconEl = o.icon;
-                  return (
-                    <button
-                      key={o.id}
-                      onClick={() => { setTab(o.id); setFilterOpen(false); }}
-                      style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", borderRadius: 8, border: "none", background: tab === o.id ? C.goldSoft : "transparent", color: tab === o.id ? C.gold : C.text, fontFamily: bodyFont, fontSize: 14, fontWeight: tab === o.id ? 700 : 500, cursor: "pointer", textAlign: "left" }}
-                    >
-                      {IconEl && <IconEl size={15} color={tab === o.id ? C.gold : C.textMuted} />}
-                      <span style={{ flex: 1 }}>{o.label}</span>
-                      <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint }}>{o.count}</span>
-                      {tab === o.id && <Check size={13} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderBottom: `1px solid ${C.border}`, marginTop: canManage ? 0 : 10, borderTop: canManage ? "none" : `1px solid ${C.border}` }}>
+        {filterOptions.map((o) => {
+          const active = tab === o.id;
+          const IconEl = o.icon;
+          const color = { rankies: POST_TYPE_META.rankie.color, paths: POST_TYPE_META.path.color, decks: POST_TYPE_META.survey.color, exams: POST_TYPE_META.exam.color, trash: C.coral }[o.id] || C.text;
+          if (o.id !== "posts" && o.id !== "trash" && !o.count) return null; // ẩn loại không có bài
+          return (
+            <button key={o.id} onClick={() => setTab(o.id)} title={`${o.label} (${o.count})`} aria-label={o.label}
+              style={{ height: 32, minWidth: 40, padding: "0 10px", borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer", background: active ? C.text : "transparent", border: `1px solid ${active ? C.text : C.border}`, color: active ? C.bg : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+              <IconEl size={15} />
+            </button>
+          );
+        })}
+        <div style={{ flex: 1 }} />
+        {tab !== "trash" && (
+          <div style={{ display: "flex", gap: 2 }}>
+            {[["grid", Grid3x3, "Dạng lưới"], ["list", List, "Dạng danh sách"]].map(([m, IconEl, label]) => (
+              <button key={m} onClick={() => setViewModePersist(m)} aria-label={label} title={label}
+                style={{ width: 32, height: 32, borderRadius: 8, display: "grid", placeItems: "center", background: viewMode === m ? C.surfaceRaised : "none", border: "none", color: viewMode === m ? C.text : C.textFaint, cursor: "pointer" }}>
+                <IconEl size={17} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Sessions tab content removed — sessions now live inside each Rankie's detail view */}
 
       {/* Timeline of this author's posts (pinned first, then newest) */}
+      {/* Giải đấu nay nằm ở hàng vòng tròn nổi bật phía trên (không còn thẻ giải lớn chắn danh sách). */}
+      {tab !== "trash" && viewMode === "grid" && visibleGrouped.length > 0 && (
+        // LƯỚI 3 cột kiểu Instagram — ô tự dựng hình từ nội dung thật (ảnh bìa → ảnh lựa chọn →
+        // thanh phiếu → emoji bìa → kết quả Path → icon loại). Quản lý bài (ghim/ẩn/xoá…) ở dạng danh sách.
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }}>
+          {visibleGrouped.map((item) => (
+            <ProfileGridTile
+              key={item.id}
+              item={item}
+              onOpen={() => (item.type === "share"
+                ? (item.sharedType === "path" ? onOpenPath(item.sharedId) : item.sharedType === "deck" ? onOpenDeck(item.sharedId) : onOpenRankie(item.sharedId))
+                : item.type === "path" ? onOpenPath(item.id) : item.type === "deck" ? onOpenDeck(item.id) : onOpenRankie(item.id))}
+            />
+          ))}
+        </div>
+      )}
       <div style={{ ...postListStyle }}>
-        {/* Giải đấu của tác giả — hiện dưới dạng thẻ giải (ván lẻ đã ẩn). Chỉ ở tab "Tất cả". */}
-        {tab === "posts" && !query.trim() && tournaments.map((t) => (
-          <TournamentCarousel key={t.id} t={t} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
-        ))}
-        {visibleGrouped.length === 0 && !(tab === "posts" && tournaments.length > 0) && (
+        {visibleGrouped.length === 0 && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             {tab === "trash" ? (
               "Thùng rác trống."
@@ -15014,7 +15089,7 @@ function ProfileView({
             )}
           </div>
         )}
-        {visibleGrouped.map((item) =>
+        {(tab === "trash" || viewMode !== "grid") && visibleGrouped.map((item) =>
           tab === "trash" ? (
             // Trash rows are intentionally plain (no chart preview, no tap-to-open)
             // to make clear these posts are no longer live — only Khôi phục / Xóa apply.
@@ -15332,13 +15407,13 @@ function apiSummaryToProto(s) {
   };
   if (s.type === "rankie") {
     const opts = (s.options || []).map((o, i) => ({
-      id: "opt" + i, label: o.label || "", emoji: o.emoji || undefined,
+      id: "opt" + i, label: o.label || "", emoji: o.emoji || undefined, image: o.imageUrl || undefined,
       votes: o.votes || 0, color: hexColor(o.color, OPT_FALLBACK[i % OPT_FALLBACK.length]),
     }));
     return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: s.chartType || (opts.length === 2 ? "head_to_head" : "bar"), live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
   }
   if (s.type === "path") {
-    return { ...base, type: "path", subtitle: `${s.size} kết quả`, resultCount: s.size || 0, questions: [], results: {}, comments: s.commentsCount || 0 };
+    return { ...base, type: "path", subtitle: `${s.size} kết quả`, resultCount: s.size || 0, questions: [], results: {}, comments: s.commentsCount || 0, endingsPreview: s.endings || [] };
   }
   return { ...base, type: "deck", deckMode: s.deckMode, subtitle: `${s.size} câu hỏi`, questions: [], comments: s.commentsCount || 0, answerMode: "step", graded: s.deckMode === "exam" };
 }
@@ -18499,7 +18574,8 @@ export default function RankevApp() {
               theme={theme}
               onToggleTheme={toggleTheme}
               onShareToProfile={shareToProfile}
-              onBack={() => setView("feed")}
+              // Tab Hồ sơ (thanh menu dưới) không có thanh "quay lại" — như Instagram; quay về Bảng tin
+              // bằng tab / cử chỉ vuốt quay lại.
               onPin={togglePin}
               onHide={toggleHide}
               onEdit={editPost}
