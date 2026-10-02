@@ -1780,7 +1780,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
           aria-label="RankUp"
           style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `${color}1A`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
         >
-          <RankChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={14} />
+          <RankCircleChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={16} />
           {t === 0 ? "RankUp" : info.label}
         </button>
       ) : (
@@ -1815,7 +1815,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
                 onClick={() => { if (locked) return; onSetTier?.(lv); setOpen(false); }}
                 style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 10, border: "none", background: active ? `${tinfo.color}22` : "transparent", cursor: locked ? "not-allowed" : "pointer", alignItems: "flex-start" }}
               >
-                <div style={{ marginTop: 1, flexShrink: 0 }}><RankChevrons level={lv} color={locked ? C.textFaint : tinfo.color} size={18} /></div>
+                <div style={{ marginTop: -1, flexShrink: 0 }}><RankCircleChevrons level={lv} color={locked ? C.textFaint : tinfo.color} size={20} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: locked ? C.textFaint : C.text, display: "flex", alignItems: "center", gap: 5 }}>
                     {tinfo.label}
@@ -14428,7 +14428,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
 
 // Biểu đồ thống kê hồ sơ kiểu "chỉ số game": 4 góc = rankie/path/exam/survey (diện
 // tích radar theo số bài mỗi loại), huy hiệu trung tâm = tổng bài đăng + lượt.
-function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts }) {
+function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
   // Chạm biểu đồ để bật/tắt nhãn chữ (Rankie, Path…).
   const [showLabels, setShowLabels] = useState(false);
   const cx = 150, cy = 102, R = 60;
@@ -14452,31 +14452,17 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
     "90": { x: cx, y: cy + R + 20 },
     "180": { x: cx - R - 30, y: cy + 2 },
   };
-  const rc = rankCounts || { tier1: 0, tier2: 0, tier3: 0 };
   // Mọi chip đều: SỐ bên trái, ICON bên phải (một hàng ngang) — quy tắc UI chung.
-  const Chip = ({ count, icon, label, color }) => (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+  const Chip = ({ count, icon, label, color, align }) => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: align, gap: 1 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4, color, fontFamily: monoFont, fontWeight: 800, fontSize: 13 }}>
         <span>{count}</span>{icon}
       </div>
       {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>{label}</span>}
     </div>
   );
-  const popularity = [
-    { key: "t1", color: C.teal, count: fmt(rc.tier1 || 0), label: "Quan tâm", icon: <RankChevrons level={1} color={C.teal} size={15} /> },
-    { key: "t2", color: C.gold, count: fmt(rc.tier2 || 0), label: "Yêu thích", icon: <RankChevrons level={2} color={C.gold} size={15} /> },
-    { key: "t3", color: C.coral, count: fmt(rc.tier3 || 0), label: "Fan cuồng", icon: <RankChevrons level={3} color={C.coral} size={15} /> },
-    { key: "v", color: C.gold, count: fmtCompact(views), label: "Lượt xem", icon: <Eye size={15} color={C.gold} /> },
-  ];
   return (
     <div style={{ cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
-      {/* Hàng chỉ số: TỔNG bài đăng bên trái; độ nổi tiếng + lượt xem bên phải. Đều SỐ-trái-ICON-phải. */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "0 4px 2px", flexWrap: "wrap" }}>
-        <Chip count={fmt(posts)} icon={<Grid3x3 size={15} color={C.text} />} label="Bài đăng" color={C.text} />
-        <div style={{ display: "flex", gap: 13, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {popularity.map((s) => <Chip key={s.key} count={s.count} icon={s.icon} label={s.label} color={s.color} />)}
-        </div>
-      </div>
 
       <svg viewBox="0 0 300 200" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
         {[0.34, 0.67, 1].map((f) => (
@@ -14500,8 +14486,13 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
             </g>
           );
         })}
-        {/* Trung tâm để TRỐNG — không che sơ đồ nhện (tổng bài đăng đã ở hàng chỉ số trên) */}
+        {/* Trung tâm để TRỐNG — không che sơ đồ nhện */}
       </svg>
+      {/* Hàng dưới (theo bản vẽ của user): tổng bài đăng góc TRÁI · lượt xem góc PHẢI */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", padding: "0 4px" }}>
+        <Chip count={fmt(posts)} icon={<Grid3x3 size={15} color={C.text} />} label="Bài đăng" color={C.text} align="flex-start" />
+        <Chip count={fmtCompact(views)} icon={<Eye size={15} color={C.gold} />} label="Lượt xem" color={C.gold} align="flex-end" />
+      </div>
 
       <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 8.5, color: C.textFaint, marginTop: 2 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
     </div>
@@ -14771,6 +14762,7 @@ function ProfileView({
   onMessage,
   tournaments = [],
   onOpenTournament,
+  onOpenSeries,
 }) {
   const [tab, setTab] = useState("posts"); // posts | rankies | paths | decks | trash (bộ lọc con trong tab Bài viết)
   const [mainTab, setMainTab] = useState("posts"); // posts | participation | presentation | bookmarks — tab lớn kiểu Instagram
@@ -14833,7 +14825,7 @@ function ProfileView({
   }, [isMe, profileUserId, profileV]);
   const demoChips = demo ? [
     { key: "age", val: demo.age != null ? `${demo.age} tuổi` : null }, { key: "gender", val: demo.gender }, { key: "occupation", val: demo.occupation },
-  ].filter((d) => d.val) : [];
+  ].filter((d) => d.val && (!isMe || demo.pub?.[d.key] !== false)) : [];
 
   // Nhận diện "bài của tôi" theo CẢ 3 cách: cờ mine (optimistic/mine()), author.id==="me"
   // (bản cục bộ), và author.id===UUID thật (bản đến từ FEED — allPosts dedup có thể giữ bản
@@ -14866,8 +14858,13 @@ function ProfileView({
   const theirExams = theirPosts.filter((p) => p.type === "deck" && p.deckMode === "exam");
   const totalReach = theirPostsAll.reduce((s, p) => s + (p.participants || 0), 0);
 
+  // Giải đấu của tác giả hiện như ô trong lưới (type "tournament") — trước nằm ở hàng vòng tròn.
+  const tournamentTiles = tournaments
+    .filter((t) => !query.trim() || normalizeVi(t.title || "").includes(normalizeVi(query)))
+    .map((t) => ({ ...t, type: "tournament", tournamentId: t.id, id: "tour:" + t.id, createdAt: typeof t.createdAt === "number" ? t.createdAt : Date.parse(t.createdAt) || 0, media: t.media?.url || t.media?.emoji ? t.media : t.championRef?.imageUrl ? { url: t.championRef.imageUrl } : null }));
   const visible =
-    tab === "trash" ? trashedPosts : tab === "rankies" ? theirRankies : tab === "paths" ? theirPaths : tab === "decks" ? theirDecks : tab === "exams" ? theirExams : theirPosts;
+    tab === "trash" ? trashedPosts : tab === "rankies" ? theirRankies : tab === "paths" ? theirPaths : tab === "decks" ? theirDecks : tab === "exams" ? theirExams : tab === "tournaments" ? tournamentTiles
+    : [...theirPosts, ...tournamentTiles].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.createdAt || 0) - (a.createdAt || 0));
 
   // Gom chapter cùng series thành MỘT thẻ (đúng mục đích "làm gọn hồ sơ"): chỉ giữ
   // chapter đầu (mới nhất) + nhãn "Series · N phần". Mở thẻ vẫn vào được toàn series.
@@ -14885,6 +14882,7 @@ function ProfileView({
     { id: "paths",   label: "Path",   icon: GitBranch, count: theirPaths.length },
     { id: "decks",   label: "Survey", icon: Layers,    count: theirDecks.length },
     { id: "exams",   label: "Exam",   icon: Edit3,     count: theirExams.length },
+    { id: "tournaments", label: "Giải đấu", icon: Trophy, count: tournamentTiles.length },
     ...(canManage ? [{ id: "trash", label: "Thùng rác", icon: Trash2, count: trashedPosts.length }] : []),
   ];
   const currentFilterLabel = filterOptions.find((o) => o.id === tab)?.label || "Tất cả";
@@ -14929,16 +14927,22 @@ function ProfileView({
     if (navigator.share) navigator.share({ title: author.name, url: link }).catch(() => {});
     else { try { navigator.clipboard.writeText(link); } catch { /* noop */ } done(); }
   };
-  // Hàng nổi bật: giải đấu + series của tác giả (thay cho từng thẻ giải lớn chắn đầu danh sách).
-  const highlightSeries = [];
-  const seenHl = new Set();
-  theirPosts.forEach((p) => { if (p.seriesId && !seenHl.has(p.seriesId)) { seenHl.add(p.seriesId); highlightSeries.push(p); } });
-  const highlights = [
-    ...tournaments.map((t) => ({ key: "t" + t.id, label: t.title, img: t.media?.url || t.championRef?.imageUrl, emoji: t.media?.emoji || (t.championRef?.imageUrl ? null : t.championRef?.emoji), Icon: Trophy, onClick: () => onOpenTournament?.(t.id) })),
-    ...highlightSeries.map((p) => ({ key: "s" + p.seriesId, label: p.seriesName || p.title, img: p.media?.url, emoji: p.media?.emoji, Icon: Library, onClick: () => (p.type === "path" ? onOpenPath(p.id) : p.type === "deck" ? onOpenDeck(p.id) : onOpenRankie(p.id)) })),
-  ];
+  // Hàng vòng tròn (giống "bộ sưu tập" của Instagram) = các SERIES của tác giả. Bìa = ảnh/emoji
+  // của chapter đầu tiên có hình; chạm → màn Series (của mình: sắp xếp/đổi tên) hoặc chapter đầu.
+  const seriesMap = {};
+  theirPostsAll.filter((p) => !p.deletedAt && p.seriesId).forEach((p) => { (seriesMap[p.seriesId] ||= []).push(p); });
+  const highlights = Object.entries(seriesMap)
+    .map(([sid, ps]) => {
+      const chapters = [...ps].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const withPic = chapters.find((p) => p.media?.url) || chapters.find((p) => p.media?.emoji);
+      const first = chapters[0];
+      const latest = Math.max(...chapters.map((p) => p.createdAt || 0));
+      return { key: "s" + sid, latest, label: first.seriesName || first.title, count: chapters.length, img: withPic?.media?.url, emoji: withPic?.media?.url ? null : withPic?.media?.emoji, Icon: Library,
+        onClick: () => (isMe && onOpenSeries ? onOpenSeries(sid) : first.type === "path" ? onOpenPath(first.id) : first.type === "deck" ? onOpenDeck(first.id) : onOpenRankie(first.id)) };
+    })
+    .sort((a, b) => b.latest - a.latest);
   const demoLine = demoChips.map((d) => d.val).join(" · ");
-  const demoHasHidden = isMe && demo?.pub && demoChips.some((d) => demo.pub[d.key] === false);
+
 
   return (
     <div>
@@ -14966,7 +14970,7 @@ function ProfileView({
           <div style={{ flex: 1, display: "flex", justifyContent: "space-around", alignItems: "center" }}>
             {statBtn(theirPostsAll.filter((p) => !p.deletedAt).length, <Grid3x3 size={17} color={C.textMuted} />, "Bài viết")}
             {/* Tổng số người RankUp (mọi tầng) — cùng icon với nút RankUp; chạm để xem từng tầng */}
-            {statBtn(rankCounts.total, <RankCircleChevrons level={1} color={C.gold} size={18} />, "Người đã RankUp (chạm để xem từng tầng)")}
+            {statBtn(rankCounts.total, <RankCircleChevrons level={1} color={C.textMuted} size={18} />, "Người đã RankUp (chạm để xem từng tầng)")}
             {statBtn(totalReach, <Eye size={17} color={C.textMuted} />, "Lượt tương tác")}
           </div>
         </div>
@@ -14987,8 +14991,8 @@ function ProfileView({
         <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 1 }}>{author.handle}</div>
         {author.bio && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, marginTop: 6, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{author.bio}</div>}
         {demoLine && (
-          <div title={demoHasHidden ? "Có mục đang ẩn — chỉ mình bạn thấy" : undefined} style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 4 }}>
-            {demoHasHidden && <EyeOff size={11} />}{demoLine}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 4 }}>
+            {demoLine}
           </div>
         )}
 
@@ -15003,7 +15007,6 @@ function ProfileView({
         )}
         {showStatsDetail && (
           <BottomSheet onClose={() => setShowStatsDetail(false)}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 18px 4px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}><BarChart3 size={18} color={C.gold} /> Thống kê</div>
             <div style={{ display: "flex", justifyContent: "space-around", padding: "8px 18px 4px" }}>
               {[1, 2, 3].map((t) => (
                 <div key={t} title={RANK_TIERS[t].label} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums" }}>
@@ -15012,7 +15015,7 @@ function ProfileView({
               ))}
             </div>
             <div style={{ padding: "4px 10px 6px" }}>
-              <ProfileStatRadar rankie={theirRankies.length} path={theirPaths.length} exam={theirExams.length} survey={theirDecks.length} posts={theirPostsAll.length} views={totalReach} rankCounts={rankCounts} />
+              <ProfileStatRadar rankie={theirRankies.length} path={theirPaths.length} exam={theirExams.length} survey={theirDecks.length} posts={theirPostsAll.filter((p) => !p.deletedAt).length} views={totalReach} />
             </div>
           </BottomSheet>
         )}
@@ -15062,7 +15065,7 @@ function ProfileView({
       {highlights.length > 0 && !theyBlocked && (
         <div style={{ display: "flex", gap: 14, overflowX: "auto", padding: "14px 16px 2px", scrollbarWidth: "none" }}>
           {highlights.map((h) => (
-            <button key={h.key} onClick={h.onClick} title={h.label} style={{ width: 64, flexShrink: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "center" }}>
+            <button key={h.key} onClick={h.onClick} title={`${h.label} · ${h.count} phần`} style={{ width: 64, flexShrink: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "center" }}>
               <div style={{ width: 60, height: 60, margin: "0 auto", borderRadius: 99, padding: 2, background: `conic-gradient(${C.gold}, #8a6a24, ${C.gold})` }}>
                 <div style={{ width: "100%", height: "100%", borderRadius: 99, border: `2px solid ${C.bg}`, background: C.surface, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 24 }}>
                   {h.img ? <img src={h.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : h.emoji ? h.emoji : <h.Icon size={22} color={C.gold} />}
@@ -15114,7 +15117,7 @@ function ProfileView({
         {filterOptions.map((o) => {
           const active = tab === o.id;
           const IconEl = o.icon;
-          const color = { rankies: POST_TYPE_META.rankie.color, paths: POST_TYPE_META.path.color, decks: POST_TYPE_META.survey.color, exams: POST_TYPE_META.exam.color, trash: C.coral }[o.id] || C.text;
+          const color = { rankies: POST_TYPE_META.rankie.color, paths: POST_TYPE_META.path.color, decks: POST_TYPE_META.survey.color, exams: POST_TYPE_META.exam.color, tournaments: POST_TYPE_META.tournament.color, trash: C.coral }[o.id] || C.text;
           if (o.id !== "posts" && o.id !== "trash" && !o.count) return null; // ẩn loại không có bài
           return (
             <button key={o.id} onClick={() => setTab(o.id)} title={`${o.label} (${o.count})`} aria-label={o.label}
@@ -15137,10 +15140,10 @@ function ProfileView({
             <ProfileGridTile
               key={item.id}
               item={item}
-              onOpen={() => (item.type === "share"
+              onOpen={() => (item.type === "tournament" ? onOpenTournament?.(item.tournamentId) : item.type === "share"
                 ? (item.sharedType === "path" ? onOpenPath(item.sharedId) : item.sharedType === "deck" ? onOpenDeck(item.sharedId) : onOpenRankie(item.sharedId))
                 : item.type === "path" ? onOpenPath(item.id) : item.type === "deck" ? onOpenDeck(item.id) : onOpenRankie(item.id))}
-              onLongPress={canManage ? () => setManageItem(item) : undefined}
+              onLongPress={canManage && item.type !== "tournament" ? () => setManageItem(item) : undefined}
             />
           ))}
         </div>
@@ -17658,7 +17661,7 @@ export default function RankevApp() {
     const realId = aid === "me" ? currentUser.apiId : aid;
     return tournamentFeed
       .filter((t) => t.author?.id === realId)
-      .map((t) => ({ id: t.id, title: t.title, category: t.category, tags: t.tags || [], author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes, media: t.media || null, commentCount: t.commentCount || 0, bookmarked: !!t.bookmarked }));
+      .map((t) => ({ id: t.id, title: t.title, category: t.category, createdAt: t.createdAt, tags: t.tags || [], author: (t.author && t.author.id === currentUser.apiId) ? currentUser : apiAuthorToProto(t.author), status: t.status, championRef: t.championRef, rounds: t.rounds, matchCount: t.matchCount, totalVotes: t.totalVotes, media: t.media || null, commentCount: t.commentCount || 0, bookmarked: !!t.bookmarked }));
   }, [tournamentFeed]);
 
   const rankieSaveValue = useMemo(() => ({ save: saveToRankie, toggle: toggleSave, basket: rankieBasket, openRef, openTournament }), [saveToRankie, toggleSave, rankieBasket, openRef, openTournament]);
@@ -17718,7 +17721,7 @@ export default function RankevApp() {
   // Cập nhật seriesId/seriesName của 1 post ở mọi danh sách cục bộ.
   const patchPostSeries = (postId, patch) => {
     const swap = (prev) => prev.map((x) => (x.id === postId ? { ...x, ...patch } : x));
-    setRankies(swap); setUserPaths(swap); setUserDecks(swap);
+    setRankies(swap); setUserPaths(swap); setUserDecks(swap); setApiPosts(swap); // bài từ feed/API cũng nhận series ngay
   };
   const openSeriesPicker = (post) => {
     if (!isApiId(post.id)) { showToast("Bài chưa đồng bộ máy chủ — thử lại sau."); return; }
@@ -18627,6 +18630,7 @@ export default function RankevApp() {
               authorId="me"
               tournaments={tournamentsForAuthor("me")}
               onOpenTournament={openTournament}
+              onOpenSeries={openSeriesDetail}
               onLogout={handleLogout}
               onChangeAvatar={handleChangeAvatar}
               onEditStructure={startStructEdit}
