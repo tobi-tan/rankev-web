@@ -1948,9 +1948,8 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
           {meta ? (
             <div style={{ marginTop: 2 }}>{meta}</div>
           ) : (
-            <div style={{ ...captionText, display: "flex", alignItems: "center", gap: 4 }}>
-              <Star size={11} color={C.gold} fill={C.gold} /> {fmtCompact((author.followers || 0) + (rankTier || 0))} RP
-            </div>
+            // Đã bỏ hệ thống RP → dòng phụ là @handle.
+            author.handle ? <div style={{ ...captionText, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{String(author.handle).startsWith("@") ? author.handle : "@" + author.handle}</div> : null
           )}
         </div>
       </div>
@@ -14518,7 +14517,8 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views, rankCounts
 // 1) ảnh bìa người đăng tải lên · 2) Rankie đối đầu: ảnh/emoji của 2 lựa chọn · 3) Rankie nhiều
 // lựa chọn: thanh phiếu thật của 3 lựa chọn dẫn đầu · 4) bìa emoji + màu người đăng chọn ·
 // 5) Path: ảnh/emoji các kết quả · 6) icon loại bài. Loại bài = ICON (hạn chế chữ).
-function ProfileGridTile({ item, onOpen }) {
+function ProfileGridTile({ item, onOpen, onLongPress }) {
+  const lp = useLongPress(() => onLongPress?.());
   const isShare = item.type === "share";
   const key = isShare ? (item.sharedType === "path" ? "path" : item.sharedType === "deck" ? "survey" : "rankie") : postTypeKey(item);
   const meta = POST_TYPE_META[key];
@@ -14576,8 +14576,9 @@ function ProfileGridTile({ item, onOpen }) {
     : !isShare && item.media?.color && !opts.length ? `linear-gradient(160deg, ${item.media.color}, var(--surface))`
     : `linear-gradient(160deg, color-mix(in srgb, ${meta.color} 22%, var(--surface)), var(--surface))`;
   return (
-    <button onClick={onOpen} title={title} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: bg, textAlign: "left", opacity: item.hidden ? 0.55 : 1 }}>
+    <button {...(onLongPress ? lp : {})} onClick={onOpen} title={title} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: bg, textAlign: "left", opacity: item.hidden ? 0.55 : 1, WebkitTouchCallout: "none", userSelect: "none" }}>
       {art}
+      {!cover && <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "46%", background: "linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0))", pointerEvents: "none" }} />}
       <span title={meta.label} style={{ position: "absolute", top: 5, left: 5, width: 20, height: 20, borderRadius: 6, background: "rgba(0,0,0,.45)", display: "grid", placeItems: "center" }}><TypeIcon size={12} color={meta.color} /></span>
       <span style={{ position: "absolute", top: 6, right: 6, display: "flex", alignItems: "center", gap: 4 }}>
         {item.hidden && <EyeOff size={12} color="#fff" />}
@@ -14589,13 +14590,48 @@ function ProfileGridTile({ item, onOpen }) {
   );
 }
 
-// ---------- Sửa hồ sơ (tên · @handle · tiểu sử · ảnh đại diện) ----------
+// ---------- Xem ảnh đại diện toàn màn (ảnh GỐC đã tải lên, không cắt tròn) ----------
+function AvatarViewer({ user, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", animation: "popIn .15s ease" }}>
+      <button onClick={onClose} aria-label="Đóng" style={{ position: "absolute", top: "max(14px, env(safe-area-inset-top, 14px))", right: 14, width: 38, height: 38, borderRadius: 99, background: "rgba(255,255,255,.12)", border: "none", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={20} /></button>
+      {user?.avatarUrl
+        ? <img src={user.avatarUrl} alt={user.name || ""} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "86vh", objectFit: "contain" }} />
+        : <div style={{ width: 220, height: 220, borderRadius: 99, background: user?.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", fontSize: 110 }}>{user?.avatarEmoji || "🙂"}</div>}
+    </div>,
+    document.body,
+  );
+}
+
+// ---------- Sửa hồ sơ (tên · @handle · tiểu sử · ảnh đại diện · tuổi/giới tính/nghề — ẩn/công khai) ----------
 function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
   const [name, setName] = useState(currentUser.name || "");
   const [handle, setHandle] = useState(String(currentUser.handle || "").replace(/^@/, ""));
   const [bio, setBio] = useState(currentUser.bio || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+  // Nhân khẩu học (chọn lúc giới thiệu app) — sửa được + bật/tắt công khai từng mục.
+  const [demo, setDemo] = useState(null); // { dob, gender, occupation, pub:{age,gender,occupation} } — bản gốc
+  const [dob, setDob] = useState(null);
+  const [dobOpen, setDobOpen] = useState(false);
+  const [gender, setGender] = useState(null);
+  const [occupation, setOccupation] = useState("");
+  const [pub, setPub] = useState({ age: false, gender: false, occupation: false });
+  useEffect(() => {
+    let alive = true;
+    api.auth.me().then((r) => {
+      const u = r?.user; if (!alive || !u) return;
+      const d = { dob: u.dateOfBirth ? String(u.dateOfBirth).slice(0, 10) : null, gender: u.gender || null, occupation: u.occupation || "", pub: { age: !!u.demographicsPublic?.age, gender: !!u.demographicsPublic?.gender, occupation: !!u.demographicsPublic?.occupation } };
+      setDemo(d); setDob(d.dob); setGender(d.gender); setOccupation(d.occupation); setPub(d.pub);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const demoChanged = !!demo && (dob !== demo.dob || gender !== demo.gender || occupation.trim() !== demo.occupation || ["age", "gender", "occupation"].some((k) => pub[k] !== demo.pub[k]));
   const handleOk = /^[a-zA-Z0-9_]{3,20}$/.test(handle);
   const canSave = name.trim().length > 0 && handleOk && !saving;
   const save = async () => {
@@ -14603,6 +14639,7 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
     setSaving(true); setErr(null);
     try {
       await api.auth.updateProfile({ name: name.trim(), handle, bio: bio.trim() || null });
+      if (demoChanged) await api.onboarding.demographics({ dob: dob || null, gender: gender || null, occupation: occupation.trim() || null, visible: pub });
       Object.assign(currentUser, { name: name.trim(), handle: "@" + handle, bio: bio.trim() });
       onSaved?.(); onClose();
     } catch (e) {
@@ -14635,6 +14672,47 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
         <div style={lab}>Tiểu sử</div>
         <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} rows={3} style={{ ...field, resize: "none", lineHeight: 1.45 }} />
         <div style={{ textAlign: "right", fontFamily: bodyFont, fontSize: 11, color: C.textFaint, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{bio.length}/500</div>
+        {demo && (() => {
+          // Nút mắt: công khai (hiện trên hồ sơ) ↔ ẩn (chỉ dùng cho thống kê ẩn danh).
+          const vis = (k) => (
+            <button onClick={() => setPub((p) => ({ ...p, [k]: !p[k] }))} title={pub[k] ? "Công khai trên hồ sơ — chạm để ẩn" : "Đang ẩn — chạm để công khai"} aria-label={pub[k] ? "Công khai" : "Ẩn"}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 9px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, border: `1px solid ${pub[k] ? C.border : C.gold}`, background: pub[k] ? "transparent" : C.goldSoft, color: pub[k] ? C.textMuted : C.gold }}>
+              {pub[k] ? <><Eye size={12} /> Công khai</> : <><EyeOff size={12} /> Ẩn</>}
+            </button>
+          );
+          const head = (label, k) => <div style={{ ...lab, display: "flex", alignItems: "center", justifyContent: "space-between" }}><span>{label}</span>{vis(k)}</div>;
+          const age = dob ? onbAge(dob) : null;
+          return (
+            <>
+              <div style={{ height: 1, background: C.border, margin: "16px 0 4px" }} />
+              {head("Ngày sinh", "age")}
+              {dobOpen ? (
+                <>
+                  <DobWheel value={dob} onChange={setDob} />
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                    <button onClick={() => { setDob(null); setDobOpen(false); }} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer" }}>Xoá ngày sinh</button>
+                    <button onClick={() => setDobOpen(false)} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Xong</button>
+                  </div>
+                </>
+              ) : (
+                <button onClick={() => setDobOpen(true)} style={{ ...field, textAlign: "left", cursor: "pointer", color: dob ? C.text : C.textFaint }}>
+                  {dob ? `${dob.split("-").reverse().join("/")}${age != null ? ` · ${age} tuổi` : ""}` : "Thêm ngày sinh"}
+                </button>
+              )}
+              {head("Giới tính", "gender")}
+              <div style={{ display: "flex", gap: 8 }}>
+                {["Nam", "Nữ", "Khác"].map((g) => (
+                  <button key={g} onClick={() => setGender((cur) => (cur === g ? null : g))}
+                    style={{ flex: 1, height: 40, borderRadius: 10, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, border: `1px solid ${gender === g ? C.gold : C.border}`, background: gender === g ? C.goldSoft : C.surfaceRaised, color: gender === g ? C.gold : C.text }}>{g}</button>
+                ))}
+              </div>
+              {head("Nghề nghiệp", "occupation")}
+              <input value={occupation} onChange={(e) => setOccupation(e.target.value)} maxLength={60} list="rk-occupations" placeholder="Tìm hoặc nhập nghề nghiệp" style={field} />
+              <datalist id="rk-occupations">{ONB_OCCUPATIONS.map((o) => <option key={o} value={o} />)}</datalist>
+              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Mục <b>Ẩn</b> không hiện trên hồ sơ, chỉ góp vào thống kê ẩn danh.</div>
+            </>
+          );
+        })()}
         {err && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.coral, marginTop: 6 }}>{err}</div>}
       </div>
     </BottomSheet>
@@ -14672,8 +14750,9 @@ function ProfileView({
   onSetRank,
   fanCount = 0,
   onOpenBookmarks,
-  onOpenSaved,
-  savedCount = 0,
+  savedBasket = [],
+  onRemoveSaved,
+  onCreateTournament,
   theme,
   onToggleTheme,
   onShareToProfile,
@@ -14704,10 +14783,12 @@ function ProfileView({
   const [confirmDelete, setConfirmDelete] = useState(null); // post pending permanent-delete confirmation
   const [copiedLink, setCopiedLink] = useState(false); // vừa sao chép link hồ sơ
   const [editOpen, setEditOpen] = useState(false); // màn "Sửa hồ sơ"
-  const [, setProfileV] = useState(0); // lưu hồ sơ xong → vẽ lại với currentUser mới
-  // Bài viết: lưới (mặc định) hoặc danh sách — nhớ lựa chọn trên máy.
-  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem("rankev.profileView") || "grid"; } catch { return "grid"; } });
-  const setViewModePersist = (m) => { setViewMode(m); try { localStorage.setItem("rankev.profileView", m); } catch { /* ignore */ } };
+  const [profileV, setProfileV] = useState(0); // lưu hồ sơ xong → vẽ lại với currentUser mới + tải lại nhân khẩu học
+  const rkSave = useRankieSave();
+  const [manageItem, setManageItem] = useState(null); // ô đang mở bảng quản lý (nhấn giữ)
+  const [avatarMenu, setAvatarMenu] = useState(false); // popup Xem / Chỉnh sửa ảnh đại diện
+  const [avatarView, setAvatarView] = useState(false); // xem ảnh đại diện toàn màn
+  const [savedFilter, setSavedFilter] = useState("all"); // tab Đã lưu: all | post | user | comment
 
   // Mở hồ sơ của CHÍNH MÌNH bằng id thật (từ thẻ bài trên feed) → coi như "me".
   const targetId = !authorId || (currentUser.apiId && authorId === currentUser.apiId) ? "me" : authorId;
@@ -14749,7 +14830,7 @@ function ProfileView({
     const load = isMe ? api.auth.me().then((r) => r?.user) : (profileUserId ? api.social.profile(profileUserId).then((r) => r?.user) : Promise.resolve(null));
     load.then((u) => { if (alive) setDemo(u ? { age: u.age, gender: u.gender, occupation: u.occupation, pub: u.demographicsPublic || {} } : null); }).catch(() => { if (alive) setDemo(null); });
     return () => { alive = false; };
-  }, [isMe, profileUserId]);
+  }, [isMe, profileUserId, profileV]);
   const demoChips = demo ? [
     { key: "age", val: demo.age != null ? `${demo.age} tuổi` : null }, { key: "gender", val: demo.gender }, { key: "occupation", val: demo.occupation },
   ].filter((d) => d.val) : [];
@@ -14829,10 +14910,10 @@ function ProfileView({
 
   // ---- Thiết kế hồ sơ kiểu Instagram (2026-10): đầu trang gọn, chỉ số = SỐ + ICON (không chữ),
   // radar chuyển vào bảng Thống kê, Series/Giải thành hàng vòng tròn nổi bật, bài viết dạng LƯỚI.
-  const statBtn = (n, IconEl, title, color) => (
+  const statBtn = (n, icon, title) => (
     <button onClick={() => setShowStatsDetail(true)} title={title} aria-label={title}
       style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "4px 2px", cursor: "pointer", color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>
-      {fmtCompact(n || 0)}<IconEl size={17} color={color || C.textMuted} />
+      {fmtCompact(n || 0)}{icon}
     </button>
   );
   const iconPill = (IconEl, label, onClick, active) => (
@@ -14876,16 +14957,17 @@ function ProfileView({
         {/* Hàng 1: ảnh đại diện + 3 chỉ số (bài · người RankUp · lượt xem) — chạm để xem Thống kê */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div
-            onClick={isMe && onChangeAvatar ? onChangeAvatar : undefined}
-            title={isMe && onChangeAvatar ? "Đổi ảnh đại diện" : undefined}
-            style={{ width: 82, height: 82, borderRadius: 99, background: author.avatarColor || C.surfaceRaised, boxShadow: `0 0 0 2px ${C.bg}, 0 0 0 4px ${C.gold}`, display: "grid", placeItems: "center", fontSize: 38, flexShrink: 0, overflow: "hidden", position: "relative", cursor: isMe && onChangeAvatar ? "pointer" : "default", margin: 4 }}
+            onClick={() => (isMe ? setAvatarMenu(true) : author.avatarUrl ? setAvatarView(true) : null)}
+            title={isMe ? "Ảnh đại diện" : author.avatarUrl ? "Xem ảnh đại diện" : undefined}
+            style={{ width: 82, height: 82, borderRadius: 99, background: author.avatarColor || C.surfaceRaised, boxShadow: `0 0 0 2px ${C.bg}, 0 0 0 4px ${C.gold}`, display: "grid", placeItems: "center", fontSize: 38, flexShrink: 0, overflow: "hidden", position: "relative", cursor: isMe || author.avatarUrl ? "pointer" : "default", margin: 4 }}
           >
             {author.avatarUrl ? <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (author.avatarEmoji || <User size={28} color={C.gold} />)}
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "space-around", alignItems: "center" }}>
-            {statBtn(theirPostsAll.filter((p) => !p.deletedAt).length, Grid3x3, "Bài viết")}
-            {statBtn(rankCounts.total, ChevronsUp, "Người đã RankUp", C.gold)}
-            {statBtn(totalReach, Eye, "Lượt tương tác")}
+            {statBtn(theirPostsAll.filter((p) => !p.deletedAt).length, <Grid3x3 size={17} color={C.textMuted} />, "Bài viết")}
+            {/* Tổng số người RankUp (mọi tầng) — cùng icon với nút RankUp; chạm để xem từng tầng */}
+            {statBtn(rankCounts.total, <RankCircleChevrons level={1} color={C.gold} size={18} />, "Người đã RankUp (chạm để xem từng tầng)")}
+            {statBtn(totalReach, <Eye size={17} color={C.textMuted} />, "Lượt tương tác")}
           </div>
         </div>
 
@@ -14896,17 +14978,10 @@ function ProfileView({
             {SHOW_VERIFIED && author.verified && (
               <span style={{ width: 16, height: 16, borderRadius: 99, background: C.teal, display: "grid", placeItems: "center", flexShrink: 0 }}><Check size={9} color={C.bg} strokeWidth={3} /></span>
             )}
-            <span title="Rank Points" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.gold, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-              {fmtCompact(author.followers)}<Star size={12} color={C.gold} fill={C.gold} />
-            </span>
+
           </div>
+          {isMe && iconPill(copiedLink ? Check : Share2, copiedLink ? "Đã chép link hồ sơ" : "Chia sẻ hồ sơ", shareProfile, copiedLink)}
           {canManage && iconPill(Search, "Tìm trong hồ sơ", () => setShowSearch((v) => !v), showSearch)}
-          {isMe && onOpenSaved && (
-            <button aria-label="Đã lưu" title="Đã lưu" onClick={onOpenSaved}
-              style={{ height: 34, borderRadius: 99, padding: savedCount > 0 ? "0 11px" : 0, width: savedCount > 0 ? "auto" : 34, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexShrink: 0, background: savedCount > 0 ? C.goldSoft : C.surfaceRaised, border: `1px solid ${savedCount > 0 ? C.gold : C.border}`, color: savedCount > 0 ? C.gold : C.textMuted, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
-              {savedCount > 0 ? savedCount : null}<Bookmark size={15} />
-            </button>
-          )}
           {isMe && iconPill(Settings, "Cài đặt", () => setSettingsOpen(true))}
         </div>
         <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 1 }}>{author.handle}</div>
@@ -14920,6 +14995,7 @@ function ProfileView({
         {settingsOpen && (
           <BottomSheet onClose={() => setSettingsOpen(false)}>
             <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>Cài đặt</div>
+            <SheetRow icon={Edit3} label="Sửa hồ sơ" hint="Tên, @handle, tiểu sử, tuổi · giới tính · nghề nghiệp (ẩn/công khai)" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
             {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" hint="Tài khoản đã chặn, đã ẩn bài, bài viết đã ẩn" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
             {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
             {onLogout && <SheetRow icon={LogOut} danger label="Đăng xuất" onClick={() => { setSettingsOpen(false); if (window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }} />}
@@ -14928,6 +15004,13 @@ function ProfileView({
         {showStatsDetail && (
           <BottomSheet onClose={() => setShowStatsDetail(false)}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 18px 4px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}><BarChart3 size={18} color={C.gold} /> Thống kê</div>
+            <div style={{ display: "flex", justifyContent: "space-around", padding: "8px 18px 4px" }}>
+              {[1, 2, 3].map((t) => (
+                <div key={t} title={RANK_TIERS[t].label} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums" }}>
+                  {fmtCompact(rankCounts[`tier${t}`] || 0)}<RankCircleChevrons level={t} color={RANK_TIERS[t].color} size={20} />
+                </div>
+              ))}
+            </div>
             <div style={{ padding: "4px 10px 6px" }}>
               <ProfileStatRadar rankie={theirRankies.length} path={theirPaths.length} exam={theirExams.length} survey={theirDecks.length} posts={theirPostsAll.length} views={totalReach} rankCounts={rankCounts} />
             </div>
@@ -14936,14 +15019,15 @@ function ProfileView({
         {editOpen && <EditProfileSheet onClose={() => setEditOpen(false)} onChangeAvatar={onChangeAvatar} onSaved={() => setProfileV((v) => v + 1)} />}
 
         {/* Hàng hành động */}
-        {isMe ? (
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button onClick={() => setEditOpen(true)} style={{ flex: 1, height: 36, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Sửa hồ sơ</button>
-            <button onClick={shareProfile} style={{ flex: 1, height: 36, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${copiedLink ? C.teal : C.border}`, color: copiedLink ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              {copiedLink ? <><Check size={14} /> Đã chép link</> : "Chia sẻ hồ sơ"}
-            </button>
-          </div>
-        ) : (onSetRank || onMessage) && (
+        {/* Sửa hồ sơ → trong ⚙ Cài đặt; Chia sẻ hồ sơ → icon cạnh tìm kiếm. */}
+        {avatarMenu && (
+          <BottomSheet onClose={() => setAvatarMenu(false)}>
+            <SheetRow icon={Eye} label="Xem ảnh đại diện" onClick={() => { setAvatarMenu(false); setAvatarView(true); }} />
+            {onChangeAvatar && <SheetRow icon={ImagePlus} label="Chỉnh sửa ảnh đại diện" onClick={() => { setAvatarMenu(false); onChangeAvatar(); }} />}
+          </BottomSheet>
+        )}
+        {avatarView && <AvatarViewer user={isMe ? currentUser : author} onClose={() => setAvatarView(false)} />}
+        {!isMe && (onSetRank || onMessage) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
             {onSetRank && !theyBlocked && (
               <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
@@ -15009,7 +15093,7 @@ function ProfileView({
             { id: "posts", icon: Grid3x3, label: "Bài viết" },
             { id: "participation", icon: Clock, label: "Lịch sử tham gia" },
             { id: "presentation", icon: Monitor, label: "Lịch sử trình chiếu" },
-            { id: "bookmarks", icon: null, label: "Đánh dấu" },
+            { id: "bookmarks", icon: null, label: "Đã lưu" },
           ].map((t) => {
             const active = mainTab === t.id;
             const IconEl = t.icon;
@@ -15039,26 +15123,15 @@ function ProfileView({
             </button>
           );
         })}
-        <div style={{ flex: 1 }} />
-        {tab !== "trash" && (
-          <div style={{ display: "flex", gap: 2 }}>
-            {[["grid", Grid3x3, "Dạng lưới"], ["list", List, "Dạng danh sách"]].map(([m, IconEl, label]) => (
-              <button key={m} onClick={() => setViewModePersist(m)} aria-label={label} title={label}
-                style={{ width: 32, height: 32, borderRadius: 8, display: "grid", placeItems: "center", background: viewMode === m ? C.surfaceRaised : "none", border: "none", color: viewMode === m ? C.text : C.textFaint, cursor: "pointer" }}>
-                <IconEl size={17} />
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Sessions tab content removed — sessions now live inside each Rankie's detail view */}
 
       {/* Timeline of this author's posts (pinned first, then newest) */}
       {/* Giải đấu nay nằm ở hàng vòng tròn nổi bật phía trên (không còn thẻ giải lớn chắn danh sách). */}
-      {tab !== "trash" && viewMode === "grid" && visibleGrouped.length > 0 && (
+      {tab !== "trash" && visibleGrouped.length > 0 && (
         // LƯỚI 3 cột kiểu Instagram — ô tự dựng hình từ nội dung thật (ảnh bìa → ảnh lựa chọn →
-        // thanh phiếu → emoji bìa → kết quả Path → icon loại). Quản lý bài (ghim/ẩn/xoá…) ở dạng danh sách.
+        // thanh phiếu → emoji bìa → kết quả Path → icon loại). Quản lý bài (ghim/ẩn/xoá…) = NHẤN GIỮ ô.
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }}>
           {visibleGrouped.map((item) => (
             <ProfileGridTile
@@ -15067,6 +15140,7 @@ function ProfileView({
               onOpen={() => (item.type === "share"
                 ? (item.sharedType === "path" ? onOpenPath(item.sharedId) : item.sharedType === "deck" ? onOpenDeck(item.sharedId) : onOpenRankie(item.sharedId))
                 : item.type === "path" ? onOpenPath(item.id) : item.type === "deck" ? onOpenDeck(item.id) : onOpenRankie(item.id))}
+              onLongPress={canManage ? () => setManageItem(item) : undefined}
             />
           ))}
         </div>
@@ -15089,8 +15163,7 @@ function ProfileView({
             )}
           </div>
         )}
-        {(tab === "trash" || viewMode !== "grid") && visibleGrouped.map((item) =>
-          tab === "trash" ? (
+        {tab === "trash" && visibleGrouped.map((item) => (
             // Trash rows are intentionally plain (no chart preview, no tap-to-open)
             // to make clear these posts are no longer live — only Khôi phục / Xóa apply.
             <div
@@ -15127,55 +15200,31 @@ function ProfileView({
                 <Trash2 size={15} />
               </button>
             </div>
-          ) : (
-            <SaveWrap key={item.id} item={item.type === "share" ? null : postSaveItem(item)} style={{ opacity: item.hidden ? 0.6 : 1 }}>
-              {item.hidden && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, padding: `10px ${POST_X}px 0`, fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
-                  <EyeOff size={11} /> Đã ẩn — chỉ bạn thấy
-                </div>
-              )}
-              {item.pinned && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, padding: `10px ${POST_X}px 0`, fontFamily: bodyFont, fontSize: 11, color: C.gold, fontWeight: 600 }}>
-                  <Pin size={11} /> Đã ghim
-                </div>
-              )}
-              {item.type === "path" ? (
-                <PathCard path={item} onOpen={() => onOpenPath(item.id)} onOpenAuthor={onOpenAuthor} menuSlot={optionsMenuFor(item)} moreMenu={!isMe ? <FeedPostMenu item={item} /> : null} onShare={setShareTarget} joined={participatedKeys?.has(`path:${item.id}`) || false} bookmarked={!!bookmarks?.[`path:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`path:${item.id}`]} unlockedEndings={pathUnlocks?.[item.id] || []} sessionCount={pathSessionCounts?.[item.id] || 0} sessionList={presentationHistory?.filter(h => h.type === "path" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
-              ) : item.type === "deck" ? (
-                <DeckCard deck={item} onOpen={() => onOpenDeck(item.id)} onOpenAuthor={onOpenAuthor} menuSlot={optionsMenuFor(item)} moreMenu={!isMe ? <FeedPostMenu item={item} /> : null} onShare={setShareTarget} joined={participatedKeys?.has(`deck:${item.id}`) || false} sessionCount={deckSessionCounts?.[item.id] || 0} bookmarked={!!bookmarks?.[`deck:${item.id}`]} onToggleBookmark={onToggleBookmark} myResult={participationByKey?.[`deck:${item.id}`]} sessionList={presentationHistory?.filter(h => h.type === "deck" && h.itemId === item.id) || []} onSeeAllSessions={onOpenPresentationHistory} onOpenSession={onOpenSession} />
-              ) : item.type === "share" ? (
-                <SharedPostCard
-                  post={item}
-                  onOpen={() => {
-                    if (item.sharedType === "path") onOpenPath(item.sharedId);
-                    else if (item.sharedType === "deck") onOpenDeck(item.sharedId);
-                    else onOpenRankie(item.sharedId);
-                  }}
-                  onOpenAuthor={onOpenAuthor}
-                  menuSlot={optionsMenuFor(item)}
-                />
-              ) : (
-                <RankieCard
-                  rankie={item}
-                  onOpen={onOpenRankie}
-                  onOpenAuthor={onOpenAuthor}
-                  myVoteIds={votedIdsFor(votedMap?.[item.id])}
-                  sessionCount={sessionCounts?.[item.id] || 0}
-                  sessionList={presentationHistory?.filter(h => h.type === "rankie" && h.itemId === item.id) || []}
-                  onSeeAllSessions={onOpenPresentationHistory}
-                  menuSlot={optionsMenuFor(item)}
-                  moreMenu={!isMe ? <FeedPostMenu item={item} /> : null}
-                  onShare={setShareTarget}
-                  bookmarked={!!bookmarks?.[`rankie:${item.id}`]}
-                  onToggleBookmark={onToggleBookmark}
-                />
-              )}
-            </SaveWrap>
-          )
-        )}
+        ))}
       </div>
       </>
       )}
+      {manageItem && (() => {
+        const it = manageItem;
+        const close = () => setManageItem(null);
+        const run = (fn) => () => { close(); fn(); };
+        const isShare = it.type === "share";
+        const visLabel = it.visibility === "private" ? "Chỉ mình tôi" : it.visibility === "unlisted" ? "Theo link" : "Công khai";
+        return (
+          <BottomSheet onClose={close}>
+            <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isShare ? it.sharedTitle : it.title}</div>
+            <SheetRow icon={it.pinned ? PinOff : Pin} label={it.pinned ? "Bỏ ghim" : "Ghim lên đầu"} onClick={run(() => onPin(it))} />
+            {!isShare && <SheetRow icon={Edit3} label="Chỉnh sửa" onClick={run(() => (it.type === "path" || it.type === "deck" ? onEditStructure?.(it) : setEditingPost(it)))} />}
+            {!isShare && <SheetRow icon={Copy} label="Nhân bản" onClick={run(() => onDuplicate(it))} />}
+            {!isShare && <SheetRow icon={Layers} label={it.seriesId ? "Gỡ khỏi series" : "Thêm vào series"} onClick={run(() => (it.seriesId ? onRemoveFromSeries?.(it) : onAddToSeries?.(it)))} />}
+            <SheetRow icon={it.hidden ? Eye : EyeOff} label={it.hidden ? "Bỏ ẩn" : "Ẩn bài đăng"} onClick={run(() => onHide(it))} />
+            <SheetRow icon={it.visibility === "private" ? Lock : it.visibility === "unlisted" ? Link2 : Globe} label="Quyền riêng tư" hint={visLabel + " — chạm để đổi"} onClick={run(() => onCycleVisibility(it))} />
+            {!isShare && <SheetRow icon={BarChart3} label="Thống kê chi tiết" onClick={run(() => setStatsPost(it))} />}
+            {!isShare && <SheetRow icon={Download} label="Xuất số liệu (CSV)" onClick={run(() => exportPostToCSV(it))} />}
+            <SheetRow icon={Trash2} danger label="Xoá" hint="Chuyển vào thùng rác" onClick={run(() => onSoftDelete(it))} />
+          </BottomSheet>
+        );
+      })()}
 
       {/* Tab: Lịch sử tham gia — inline, không điều hướng sang màn khác nữa */}
       {mainTab === "participation" && (
@@ -15254,17 +15303,48 @@ function ProfileView({
 
       {/* Tab: Đánh dấu — inline */}
       {mainTab === "bookmarks" && (
-        <div style={{ padding: 16 }}>
+        <div style={{ padding: "10px 16px 16px" }}>
           {(() => {
-            const list = Object.values(bookmarks || {}).sort((a, b) => (b.bookmarkedAt || 0) - (a.bookmarkedAt || 0));
-            if (list.length === 0) {
-              return (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
-                  Chưa đánh dấu bài nào. Bấm icon 🔖 trên một bài để lưu lại xem/làm sau.
-                </div>
-              );
-            }
+            // MỘT kho "Đã lưu": bài đánh dấu (🔖 trên thẻ) + mục nhấn-giữ lưu (bài / người / bình luận).
+            const marked = Object.values(bookmarks || {}).sort((a, b) => (b.bookmarkedAt || 0) - (a.bookmarkedAt || 0));
+            const markedIds = new Set(marked.map((b) => String(b.id)));
+            const saved = (savedBasket || []).filter((x) => !(x.refType === "post" && markedIds.has(String(x.refId))));
+            const counts = { post: marked.length + saved.filter((x) => x.refType === "post").length, user: saved.filter((x) => x.refType === "user").length, comment: saved.filter((x) => x.refType === "comment").length };
+            const show = (k) => savedFilter === "all" || savedFilter === k;
+            const list = show("post") ? marked : [];
+            const savedShown = saved.filter((x) => show(x.refType));
+            const chips = [["all", Bookmark, "Tất cả", counts.post + counts.user + counts.comment], ["post", Grid3x3, "Bài viết", counts.post], ["user", User, "Người dùng", counts.user], ["comment", MessageCircle, "Bình luận", counts.comment]];
+            const pool = savedBasket || [];
             return (
+              <>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  {chips.map(([k, IconEl, label, n]) => (k !== "all" && !n ? null : (
+                    <button key={k} onClick={() => setSavedFilter(k)} title={label} aria-label={label}
+                      style={{ height: 32, minWidth: 40, padding: "0 11px", borderRadius: 99, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", background: savedFilter === k ? C.text : "transparent", border: `1px solid ${savedFilter === k ? C.text : C.border}`, color: savedFilter === k ? C.bg : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
+                      {n > 0 ? n : null}<IconEl size={15} />
+                    </button>
+                  )))}
+                  <div style={{ flex: 1 }} />
+                  {pool.length >= 2 && onCreateTournament && (
+                    <button onClick={() => onCreateTournament(pool)} title={`Tạo giải đấu từ ${pool.length} mục đã lưu`} aria-label="Tạo giải đấu"
+                      style={{ height: 32, padding: "0 11px", borderRadius: 99, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 12.5 }}>
+                      {pool.length}<Trophy size={15} />
+                    </button>
+                  )}
+                </div>
+                {list.length === 0 && savedShown.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.5 }}>
+                    Chưa lưu gì. Bấm 🔖 trên một bài, hoặc nhấn giữ bài viết / người dùng / bình luận để lưu vào đây.
+                  </div>
+                )}
+                {savedShown.map((it) => (
+                  <div key={rankieRefKey(it)} style={listRow} onClick={() => rkSave?.openRef?.(it)}>
+                    <div style={{ flex: 1, minWidth: 0 }}><RankieRefPreview item={it} /></div>
+                    <button onClick={(e) => { e.stopPropagation(); onRemoveSaved?.(rankieRefKey(it)); }} title="Bỏ lưu" aria-label="Bỏ lưu" style={{ ...iconButton, color: C.textFaint, flexShrink: 0 }}>
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {list.map((item) => {
                   const Icon = item.type === "rankie" ? BarChart3 : item.type === "path" ? GitBranch : item.deckMode === "exam" ? Edit3 : Layers;
@@ -15292,6 +15372,7 @@ function ProfileView({
                   );
                 })}
               </div>
+              </>
             );
           })()}
         </div>
@@ -15926,7 +16007,7 @@ function RankieRefPreview({ item }) {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{p.handle ? "@" + String(p.handle).replace(/^@/, "") + " · " : ""}<Star size={10} color={C.gold} fill={C.gold} style={{ verticalAlign: -1 }} /> {fmtCompact(p.rp || 0)} RP</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{p.handle ? "@" + String(p.handle).replace(/^@/, "") : ""}</div>
         </div>
       </div>
     );
@@ -18569,8 +18650,9 @@ export default function RankevApp() {
               onOpenPresentationHistory={() => setView("presentationHistory")}
               onOpenSession={openSessionDetail}
               onOpenBookmarks={() => setView("bookmarks")}
-              onOpenSaved={() => setBasketOpen(true)}
-              savedCount={rankieBasket.length}
+              savedBasket={rankieBasket}
+              onRemoveSaved={removeFromBasket}
+              onCreateTournament={startCreateTournament}
               theme={theme}
               onToggleTheme={toggleTheme}
               onShareToProfile={shareToProfile}
