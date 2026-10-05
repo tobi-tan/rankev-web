@@ -62,6 +62,9 @@ const postSurface = {
   background: "transparent",
 };
 const postListStyle = { display: "flex", flexDirection: "column" };
+// Khối nội dung trong màn CHI TIẾT (bài, kết quả, phiên…): cùng ngôn ngữ feed — KHÔNG khung/nền
+// thẻ, chỉ một vạch mảnh ngăn các phần (thay cho cardSurface ở các màn chi tiết).
+const detailBlock = { padding: "4px 0 16px", borderBottom: `1px solid ${C.border}`, background: "transparent" };
 // Hàng danh sách (đánh dấu, lịch sử…): cùng ngôn ngữ — không khung, vạch ngăn mảnh.
 const listRow = { display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer" };
 const postBleed = { marginLeft: -POST_X, marginRight: -POST_X, width: `calc(100% + ${POST_X * 2}px)` };
@@ -2500,7 +2503,7 @@ function SessionFilterGroup({ title, options, selected, onToggle }) {
 
 function SessionBreakdown({ title, keys, counts, total }) {
   return (
-    <div style={{ ...cardSurface, marginBottom: 12 }}>
+    <div style={{ ...detailBlock, marginBottom: 12 }}>
       <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>{title}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {keys.map((k) => {
@@ -2584,7 +2587,7 @@ function PathCompanions({ path, ending, useGlobal }) {
     ? (useGlobal ? "Bạn là người đầu tiên trải nghiệm Path này" : `Bạn là người đầu tiên đến "${ending}"`)
     : `${first.name}${total > 1 ? ` và ${fmt(total - 1)} người khác` : ""} ${useGlobal ? "cũng đã trải nghiệm Path này" : `cũng đến "${ending}"`}`;
   return (
-    <div style={{ ...cardSurface, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+    <div style={{ ...detailBlock, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
       <div style={{ display: "flex", flexShrink: 0 }}>
         {first
           ? companions.slice(0, 5).map((u, i) => <CompanionAvatar key={u.id} u={u} i={i} />)
@@ -2643,7 +2646,7 @@ function RankieTimeline({ rankie, options }) {
   const rows = events.map((e) => ({ ...timelineRow(e), at: Date.parse(e.at) })).filter((r) => r.text).slice(0, 5);
   if (!rows.length) return null;
   return (
-    <div style={{ ...cardSurface, marginBottom: 14 }}>
+    <div style={{ ...detailBlock, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>
         <Flame size={13} color={C.coral} /> Dòng thời gian cạnh tranh
       </div>
@@ -2701,7 +2704,7 @@ function LiveSessionDetailView({ session, post, onBack }) {
       </div>
       <div style={{ padding: 16 }}>
         {/* Số liệu tổng */}
-        <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 14 }}>
           <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{session.participantCount ?? parts.length}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
           <div style={{ width: 1, background: C.border }} />
           <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.teal }}>{submitted.length}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
@@ -2711,14 +2714,14 @@ function LiveSessionDetailView({ session, post, onBack }) {
 
         {/* Phổ điểm 0–10 */}
         {isExam && scored.length > 0 && (
-          <div style={{ ...cardSurface, marginBottom: 14 }}>
+          <div style={{ ...detailBlock, marginBottom: 14 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
             <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passing} />
           </div>
         )}
 
         {/* Bảng người tham gia thật */}
-        <div style={{ ...cardSurface, marginBottom: isExam && qStats.some((s) => s.hasKey) ? 14 : 0 }}>
+        <div style={{ ...detailBlock, marginBottom: isExam && qStats.some((s) => s.hasKey) ? 14 : 0 }}>
           <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Bảng kết quả ({parts.length})</div>
           {parts.length === 0 ? (
             <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Không có người tham gia.</div>
@@ -2748,7 +2751,7 @@ function LiveSessionDetailView({ session, post, onBack }) {
 
         {/* % đúng từng câu (exam) */}
         {isExam && qStats.some((s) => s.hasKey) && (
-          <div style={{ ...cardSurface }}>
+          <div style={{ ...detailBlock }}>
             <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tỉ lệ đúng theo câu</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {qStats.map(({ q, correct, total, hasKey }, qi) => {
@@ -2876,7 +2879,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
 
       <div style={{ padding: 16 }}>
         {/* Tổng quan phiên */}
-        <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 14 }}>
           <div>
             <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.gold }}>{fmt(filtered.length)}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>{anyFilter ? "khớp lọc" : "người tham gia"}</div>
@@ -2908,7 +2911,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
 
         {/* KẾT QUẢ TỪNG HỌC SINH (exam) — điểm + đạt/chưa đạt, xếp theo điểm giảm dần. */}
         {isExam && examTab === "results" && (
-          <div style={{ ...cardSurface, marginBottom: 12 }}>
+          <div style={{ ...detailBlock, marginBottom: 12 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Kết quả từng người ({fmt(filtered.length)})</div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {[...filtered].sort((a, b) => (b.score10 || 0) - (a.score10 || 0)).map((p, i) => {
@@ -2933,7 +2936,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
           const qTotal = dist.reduce((s, o) => s + o.filteredVotes, 0) || 1;
           const sorted = [...dist].sort((a, b) => b.filteredVotes - a.filteredVotes);
           return (
-            <div key={q.id} style={{ ...cardSurface, marginBottom: 12 }}>
+            <div key={q.id} style={{ ...detailBlock, marginBottom: 12 }}>
               <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 5 }}>
                 Câu {qi + 1}{isExam ? ` · ${q.points || 0} điểm` : ""}
               </div>
@@ -2966,7 +2969,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
 
         {/* Path / Rankie — phân bố kết quả */}
         {(isPath || (!isSurvey && !isExam)) && (
-          <div style={{ ...cardSurface, marginBottom: 12 }}>
+          <div style={{ ...detailBlock, marginBottom: 12 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {(() => {
@@ -6117,7 +6120,7 @@ function CommentComposer({ value, onChange, onSubmit, placeholder, image, setIma
   const [showEmoji, setShowEmoji] = useState(false);
   const canSend = value.trim() || image;
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: compact ? 10 : 12 }}>
+    <div style={{ background: C.surfaceRaised, borderRadius: 14, padding: compact ? 10 : 12 }}>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -6332,7 +6335,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
           const supportIds = norm(c.supports);
           const supportLabels = getSupportLabel ? supportIds.map((id) => getSupportLabel(id)).filter(Boolean) : [];
           return (
-            <SaveWrap key={c.id} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, rankUp: c.rankUp, rankDown: c.rankDown, user: c.user, postId } }} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, display: "flex", gap: 10 }}>
+            <SaveWrap key={c.id} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, rankUp: c.rankUp, rankDown: c.rankDown, user: c.user, postId } }} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10 } /* không khung — như bình luận IG */}>
               {/* Rank up/down rail */}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
                 <button onClick={() => react(c.id, "up")} title="Rank up" style={{ background: "none", border: "none", cursor: "pointer", color: c.myReaction === "up" ? C.teal : C.textFaint, padding: 2, display: "grid", placeItems: "center" }}>
@@ -6429,7 +6432,7 @@ function LockedCommentsNotice() {
           <div style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${C.border}`, color: C.textMuted, fontSize: 12, fontFamily: bodyFont }}>Mới nhất</div>
         </div>
         {[0, 1].map((i) => (
-          <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+          <div key={i} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}`, marginBottom: 0 }}>
             <div style={{ height: 10, width: "40%", background: C.surfaceRaised, borderRadius: 4, marginBottom: 8 }} />
             <div style={{ height: 10, width: "92%", background: C.surfaceRaised, borderRadius: 4, marginBottom: 6 }} />
             <div style={{ height: 10, width: "70%", background: C.surfaceRaised, borderRadius: 4 }} />
@@ -7300,11 +7303,11 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         )}
 
         {(rankie.caption || rankie.media) && (
-          <PostContent caption={rankie.caption} media={rankie.media} clampLines={4} expandable mediaHeight={180} />
+          <PostContent caption={rankie.caption} media={rankie.media} clampLines={4} expandable mediaHeight={240} bleed />
         )}
 
         <div ref={resultsAreaRef} style={{ position: "relative" }}>
-        <div style={{ ...cardSurface, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
+        <div style={{ ...detailBlock, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
           {/* Hiển thị ĐÚNG biểu đồ người tạo đã chọn — không có nút đổi skin ở phần xem. */}
           {(activeChart === "head_to_head" || activeChart === "hh_classic") && (
             isUnlimited ? (
@@ -7372,7 +7375,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
 
         {/* Chủ bài điều khiển phiên LIVE ngay tại chi tiết: kết thúc sớm / gia hạn (HH:MM). */}
         {isRankieOwner && !isClosed && !notYetOpen && (
-          <div style={{ ...cardSurface, marginBottom: 16, padding: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ ...detailBlock, marginBottom: 16, padding: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button onClick={endLiveNow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}><span style={{ width: 10, height: 10, background: "#fff", borderRadius: 2 }} /> Kết thúc sớm</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
               <Clock size={15} color={C.gold} />
@@ -7917,7 +7920,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <Pill tone="muted">{resultEntries.length} kết quả</Pill>
           </div>
           {(path.caption || path.media) && (
-            <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={180} />
+            <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={240} bleed />
           )}
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
@@ -7964,7 +7967,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <Pill tone="muted">{path.questions.length} câu</Pill>
         </div>
         {(path.caption || path.media) && (
-          <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={180} />
+          <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={240} bleed />
         )}
         <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap", justifyContent: "center" }}>
           {(() => {
@@ -8051,7 +8054,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             "thực tại" khác. Ẩn với chủ bài (họ thấy toàn bộ). Khi creator bật ẩn số
             kết quả (hideCount), không lộ tổng số để giữ bí ẩn "còn bao nhiêu ending". */}
         {!revealAll && (
-          <div style={{ ...cardSurface, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ ...detailBlock, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ flexShrink: 0, position: "relative", width: 44, height: 44 }}>
               <svg width="44" height="44" viewBox="0 0 44 44">
                 <circle cx="22" cy="22" r="19" fill="none" stroke={C.surfaceRaised} strokeWidth="4" />
@@ -8077,7 +8080,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           </div>
         )}
 
-        <div style={{ ...cardSurface, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
+        <div style={{ ...detailBlock, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
           <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {Object.entries(path.results).map(([name, d]) => {
@@ -8727,26 +8730,26 @@ function DeckResultsDashboard({ deck }) {
         )}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 12 }}>
         <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{n}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
         {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
         {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
       </div>
 
       {isExam && scores.length > 0 && (
-        <div style={{ ...cardSurface, marginBottom: 12 }}>
+        <div style={{ ...detailBlock, marginBottom: 12 }}>
           <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
           <ScoreSpectrum scores={scores} passing={passing} />
         </div>
       )}
 
       {n === 0 ? (
-        <div style={{ ...cardSurface, textAlign: "center", padding: "20px 16px" }}>
+        <div style={{ ...detailBlock, textAlign: "center", padding: "20px 16px" }}>
           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>Chưa có ai làm bài.</div>
           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>Chia sẻ bài hoặc mở phiên trình chiếu để thu kết quả.</div>
         </div>
       ) : (
-        <div style={{ ...cardSurface }}>
+        <div style={{ ...detailBlock }}>
           <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {(eff?.questions || []).map((q, qi) => (
@@ -8835,7 +8838,7 @@ function DeckCardResultPreview({ deck }) {
   const moreQ = questions.length - shownQ.length;
 
   return (
-    <div style={{ ...cardSurface, marginBottom: 12 }}>
+    <div style={{ ...detailBlock, marginBottom: 12 }}>
       {/* Số liệu tổng hợp */}
       <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", marginBottom: 12 }}>
         <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
@@ -9022,7 +9025,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
           </div>
           {(deck.caption || deck.media) && (
-            <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={180} />
+            <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={240} bleed />
           )}
 
           {/* Bảng kết quả thật (tự cập nhật ~5s) — thay cho giao diện làm bài của khách. */}
@@ -9118,7 +9121,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
         </div>
         {(deck.caption || deck.media) && (
-          <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={180} />
+          <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={240} bleed />
         )}
         <button
           onClick={() => setStarted(true)}
@@ -9179,7 +9182,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               </div>
 
               {/* SECTION 2 — So sánh cộng đồng: điểm TB + chênh lệch của bạn */}
-              <div style={{ ...cardSurface, marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left" }}>
+              <div style={{ ...detailBlock, marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left" }}>
                 <div>
                   <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Điểm trung bình cộng đồng</div>
                   <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text, marginTop: 2 }}>{communityAvg}<span style={{ fontSize: 12, color: C.textFaint }}>/10</span></div>
@@ -9198,7 +9201,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               </div>
 
               {/* SECTION 3 — Histogram phân bố điểm + vị trí của bạn (thay xếp loại A–F) */}
-              <div style={{ ...cardSurface, marginTop: 16, textAlign: "left" }}>
+              <div style={{ ...detailBlock, marginTop: 16, textAlign: "left" }}>
                 <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>
                   Phân bố điểm · {fmt(allScores.length)} người đã thi
                 </div>
@@ -9236,7 +9239,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
               {/* SECTION 4 — Tiến độ: chỉ hiện khi đã có lần làm trước */}
               {prevScore != null && (
-                <div style={{ ...cardSurface, marginTop: 16, textAlign: "left" }}>
+                <div style={{ ...detailBlock, marginTop: 16, textAlign: "left" }}>
                   <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tiến bộ của bạn</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ textAlign: "center", flex: 1 }}>
@@ -9278,7 +9281,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                   return (
                     <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
                       {/* Thống kê đề */}
-                      <div style={{ ...cardSurface, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div style={{ ...detailBlock, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                         {[["Người tham gia", fmt(allScores.length)], ["Điểm trung bình", communityAvg], ["Điểm cao nhất", highestScore], ["Điểm thấp nhất", lowestScore]].map(([lbl, val]) => (
                           <div key={lbl}>
                             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 18, color: C.text }}>{val}</div>
@@ -9290,11 +9293,11 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                       {/* Câu khó & dễ nhất */}
                       {hardest && easiest && (
                         <div style={{ display: "flex", gap: 10 }}>
-                          <div style={{ flex: 1, ...cardSurface }}>
+                          <div style={{ flex: 1, ...detailBlock }}>
                             <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.coral, marginBottom: 4 }}>🔥 Khó nhất</div>
                             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>Câu {deck.questions.indexOf(hardest.q) + 1} · chỉ {hardest.s.correctRate}% đúng</div>
                           </div>
-                          <div style={{ flex: 1, ...cardSurface }}>
+                          <div style={{ flex: 1, ...detailBlock }}>
                             <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: "#4ADE80", marginBottom: 4 }}>⭐ Dễ nhất</div>
                             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>Câu {deck.questions.indexOf(easiest.q) + 1} · {easiest.s.correctRate}% đúng</div>
                           </div>
@@ -9370,7 +9373,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           return (
             <>
               {/* Tổng quan — kiểu màn kết quả phiên trình chiếu */}
-              <div style={{ ...cardSurface, marginBottom: 16, display: "flex", justifyContent: "space-around", textAlign: "center" }}>
+              <div style={{ ...detailBlock, marginBottom: 16, display: "flex", justifyContent: "space-around", textAlign: "center" }}>
                 <div>
                   <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.gold }}>{fmt(deck.participants + 1)}</div>
                   <div style={{ ...captionText, marginTop: 3 }}>người tham gia</div>
@@ -9395,7 +9398,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                 const qTotal = augOpts.reduce((s, o) => s + o.votes, 0) || 1;
                 const sortedQ = [...augOpts].sort((a, b) => b.votes - a.votes);
                 return (
-                  <div key={q.id} style={{ ...cardSurface, marginBottom: 12 }}>
+                  <div key={q.id} style={{ ...detailBlock, marginBottom: 12 }}>
                     <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
                       Câu {qi + 1} · {q.votingType === "multiple" ? "Chọn nhiều" : q.votingType === "rating" ? "Đánh giá" : "Chọn một"}
                     </div>
@@ -13958,7 +13961,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
       })()}
       <div style={{ padding: 16 }}>
         {data.media?.url && (
-          <Pic src={data.media.url} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 14 }} />
+          <Pic src={data.media.url} alt="" style={{ ...postBleed, maxHeight: 280, objectFit: "cover", display: "block", marginBottom: 14 }} /* ảnh bìa tràn viền như feed */ />
         )}
         {data.caption && (
           <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
@@ -14038,7 +14041,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         )}
 
         {/* BẢNG NHÁNH ĐẤU (kiểu liquipedia) — nội dung chính. Chạm một trận để mở chi tiết. */}
-        <div style={{ ...cardSurface, paddingBottom: 10 }}>
+        <div style={{ ...detailBlock, paddingBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Bảng nhánh đấu</div>
             {/* Chủ giải: đóng sớm mọi trận đang live của vòng (trận hết giờ vốn tự chốt + tự điền vòng trong). */}
