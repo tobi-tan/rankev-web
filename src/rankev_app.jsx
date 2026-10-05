@@ -11958,6 +11958,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       author: currentUser,
       createdAt: Date.now(),
       allowGuestPresent,
+      visibility: audience, // quyền riêng tư chọn ở trình tạo — gửi lên server
       seriesId: seriesInput.trim() ? (selectedSeriesId || ("s_" + Date.now())) : null,
       seriesName: seriesInput.trim() || null,
       caption: caption.trim() || null,
@@ -12050,6 +12051,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       author: currentUser,
       createdAt: Date.now(),
       allowGuestPresent,
+      visibility: audience, // quyền riêng tư chọn ở trình tạo — gửi lên server
       seriesId: seriesInput.trim() ? (selectedSeriesId || ("s_" + Date.now())) : null,
       seriesName: seriesInput.trim() || null,
       caption: caption.trim() || null,
@@ -12165,6 +12167,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
       notYetOpen: !!(opensAt && opensAt > Date.now()),
       closesAt,
       allowGuestPresent,
+      visibility: audience, // quyền riêng tư chọn ở trình tạo — gửi lên server
       seriesId: seriesInput.trim() ? (selectedSeriesId || ("s_" + Date.now())) : null,
       seriesName: seriesInput.trim() || null,
       caption: caption.trim() || null,
@@ -12463,8 +12466,9 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {/* Thanh icon: media · hashtag · kiểu vote · quyền · thời gian · hẹn giờ · trình chiếu */}
         {(() => {
           const btn = (id, active) => ({ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, border: "none", background: openTool === id ? C.goldSoft : "transparent", color: active ? C.gold : C.textMuted });
-          const privacyIcon = audience === "public" ? <Globe size={19} /> : audience === "private" ? <Users size={19} /> : <Lock size={19} />;
-          const privacyOpts = [{ id: "public", t: "Công khai", Icon: Globe }, { id: "private", t: "Nhóm", Icon: Users }, { id: "unlisted", t: "Chỉ mình tôi", Icon: Lock }];
+          // Cùng nghĩa với menu bài ở Hồ sơ: unlisted = chỉ ai có link; private = chỉ mình tôi.
+          const privacyIcon = audience === "public" ? <Globe size={19} /> : audience === "unlisted" ? <Link2 size={19} /> : <Lock size={19} />;
+          const privacyOpts = [{ id: "public", t: "Công khai", Icon: Globe }, { id: "unlisted", t: "Theo link", Icon: Link2 }, { id: "private", t: "Chỉ mình tôi", Icon: Lock }];
           return (
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: openTool && openTool !== "privacy" ? 6 : 18, alignItems: "center" }}>
               <button onClick={() => setOpenTool(openTool === "media" ? null : "media")} title="Ảnh / Video" style={btn("media", !!media)}><ImagePlus size={20} /></button>
@@ -16096,6 +16100,7 @@ function protoToCreatePayload(item) {
     media,
     // Quyền cho người khác trình chiếu — gửi cho MỌI loại (backend rankie/path/deck đều nhận).
     allowGuestPresent: !!item.allowGuestPresent,
+    visibility: ["unlisted", "private"].includes(item.visibility) ? item.visibility : undefined,
   };
 
   if (item.type === "path") {
@@ -16244,13 +16249,40 @@ function AuthGate({ onAuthed }) {
   const [busy, setBusy] = useState(false);
   const [socialBusy, setSocialBusy] = useState(null); // provider đang xử lý
 
+  // Lỗi đăng nhập/đăng ký → câu tiếng Việt cụ thể (trước hiện "Validation failed").
+  const authErrVi = (e) => {
+    const m = e?.message || "";
+    if (/Email already registered/i.test(m)) return "Email này đã có tài khoản — hãy chuyển sang Đăng nhập.";
+    if (/Handle already taken/i.test(m)) return "Tên người dùng này đã có người dùng, hãy chọn tên khác.";
+    if (e?.status === 401) return "Email hoặc mật khẩu không đúng.";
+    if (e?.status === 429) return "Bạn thử quá nhiều lần — đợi một lát rồi thử lại.";
+    if (e?.details) {
+      const d = e.details;
+      if (d.email) return "Email không hợp lệ.";
+      if (d.password) return "Mật khẩu cần ít nhất 8 ký tự.";
+      if (d.handle) return "Tên người dùng: 3–20 ký tự, chỉ gồm chữ không dấu, số và dấu _ (vd: gia_huy).";
+      if (d.name) return "Hãy nhập tên hiển thị.";
+    }
+    if (/failed to fetch|network/i.test(m)) return "Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.";
+    return m && !/^[A-Za-z ]+$/.test(m) ? m : "Có lỗi xảy ra, thử lại.";
+  };
   const submit = async () => {
-    setErr(null); setBusy(true);
+    setErr(null);
+    // Kiểm tra ngay trên máy — báo đúng chỗ sai, khỏi chờ server.
+    if (mode !== "login") {
+      const h = handle.trim().replace(/^@/, "");
+      if (!name.trim()) return setErr("Hãy nhập tên hiển thị.");
+      if (!/^[a-zA-Z0-9_]{3,20}$/.test(h)) return setErr("Tên người dùng: 3–20 ký tự, chỉ gồm chữ không dấu, số và dấu _ (vd: gia_huy).");
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr("Email không hợp lệ.");
+    if (mode !== "login" && password.length < 8) return setErr("Mật khẩu cần ít nhất 8 ký tự.");
+    if (mode === "login" && !password) return setErr("Hãy nhập mật khẩu.");
+    setBusy(true);
     try {
       if (mode === "login") await auth.login(email.trim(), password);
       else await auth.register(handle.trim().replace(/^@/, ""), name.trim(), email.trim(), password);
-      await onAuthed();
-    } catch (e) { setErr(e?.message || "Có lỗi xảy ra, thử lại."); }
+      await onAuthed({ isNew: mode !== "login" });
+    } catch (e) { setErr(authErrVi(e)); }
     finally { setBusy(false); }
   };
 
@@ -18387,8 +18419,11 @@ export default function RankevApp() {
       }
     })();
   }, [hydrateFromApi, loadConversations]);
-  const handleAuthed = useCallback(async () => {
+  const handleAuthed = useCallback(async (info) => {
     try { hydrateFromApi(await auth.me()); } catch { /* vẫn cho vào, dùng mock */ }
+    // Tài khoản VỪA ĐĂNG KÝ luôn đi qua phần giới thiệu (chọn sở thích + tuổi/giới tính/nghề) —
+    // trước đây cờ "đã xem giới thiệu" lưu theo MÁY nên người thứ hai dùng cùng máy bị bỏ qua.
+    if (info?.isNew) setOnboarded(false);
     setAuthed(true);
     loadConversations();
   }, [hydrateFromApi, loadConversations]);
