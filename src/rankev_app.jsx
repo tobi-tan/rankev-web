@@ -113,6 +113,61 @@ const FONT_IMPORT = (
       --text:#1C2A22; --textMuted:#55655B; --textFaint:#8B978D; --track:#E7E1D2; --frame:#E9E3D3;
       color-scheme: light;
     }
+    /* ===== Giao diện "Rankev Game" (data-theme="game") — chọn được trong ⚙ Cài đặt =====
+       Nền rừng tối; nội dung nằm trên GIẤY DA viền GỖ (thẻ bài, trang chi tiết, bảng trượt);
+       thanh menu dưới bằng gỗ; nút vàng nổi khối. Màu trong giấy da đổi bằng cách GHI ĐÈ biến
+       màu theo vùng (CSS variables kế thừa) → mọi style inline dùng var(--text)… tự đúng màu. */
+    :root[data-theme="game"] {
+      --bg:#0F1B14; --surface:#17261D; --surfaceRaised:#1F3326; --border:#2E4A39;
+      --gold:#E7BC55; --goldSoft:#3D3420; --teal:#5FC9A8; --coral:#D9583F;
+      --text:#F5F1E6; --textMuted:#A9B8AE; --textFaint:#6B7D72; --track:#0a120d; --frame:#070D09;
+      --wood:#5A3F22; --woodDark:#3A2914; --woodLight:#7A5630;
+      color-scheme: dark;
+    }
+    [data-theme="game"] .rk-post, [data-theme="game"] .rk-paper, [data-theme="game"] .rk-sheet, [data-theme="game"] .rk-card, [data-theme="game"] .rk-tile {
+      --bg:#EFE3C8; --surface:#E9DCBC; --surfaceRaised:#E2D3B0; --border:#C9B48A;
+      --gold:#A8781C; --goldSoft:#EBD9A6; --teal:#1F7A5C; --coral:#B8432F;
+      --text:#2B1E0E; --textMuted:#5A4428; --textFaint:#8B7A5A; --track:#D8C7A0;
+      color-scheme: light;
+      color: var(--text);
+    }
+    /* Thẻ bài trên feed / hồ sơ: tấm giấy da viền gỗ, tách nhau như từng "thẻ nhiệm vụ" */
+    [data-theme="game"] .rk-post {
+      background: #EFE3C8 !important; border-bottom: none !important; border-radius: 16px;
+      margin: 12px 10px 0; overflow: hidden;
+      box-shadow: 0 0 0 3px var(--wood, #5A3F22), 0 0 0 5px #2A1B0C, 0 8px 18px rgba(0,0,0,.35);
+    }
+    [data-theme="game"] .rk-carousel { border-bottom: none !important; padding-bottom: 6px !important; }
+    /* Trang chi tiết bài: một tờ giấy da lớn */
+    [data-theme="game"] .rk-paper {
+      background: #EFE3C8; border-radius: 18px; margin: 10px 8px 16px; overflow: hidden;
+      box-shadow: 0 0 0 3px #5A3F22, 0 0 0 5px #2A1B0C, 0 10px 24px rgba(0,0,0,.4);
+    }
+    /* Đầu hồ sơ = "thẻ người chơi" giấy da */
+    [data-theme="game"] .rk-card {
+      background: #EFE3C8; border-radius: 18px; margin: 10px 8px 6px; padding-bottom: 14px !important;
+      box-shadow: 0 0 0 3px #5A3F22, 0 0 0 5px #2A1B0C, 0 10px 24px rgba(0,0,0,.4);
+    }
+    /* Ô lưới hồ sơ: khung gỗ mảnh như ô túi đồ */
+    [data-theme="game"] .rk-tile { box-shadow: inset 0 0 0 2px #5A3F22; border-radius: 6px; }
+    /* Bảng trượt / hộp thoại */
+    [data-theme="game"] .rk-sheet {
+      background: #EFE3C8 !important; border: none !important;
+      box-shadow: 0 -3px 0 #5A3F22, 0 -5px 0 #2A1B0C, 0 -10px 30px rgba(0,0,0,.45) !important;
+    }
+    /* Thanh menu dưới bằng gỗ */
+    [data-theme="game"] .rk-nav {
+      background: linear-gradient(180deg, #6B4A28, #3A2914) !important;
+      border-top: 3px solid #2A1B0C !important;
+    }
+    [data-theme="game"] .rk-nav button { color: #D9C49A !important; }
+    [data-theme="game"] .rk-nav button[aria-current="page"] { color: #F3D58A !important; text-shadow: 0 0 10px rgba(243,213,138,.45); }
+    /* Nút vàng (hành động chính) nổi khối như nút game */
+    /* chỉ nút có nền ĐÚNG var(--gold) (không bắt nhầm nền pha màu như var(--gold) 12%) */
+    [data-theme="game"] button[style*="background: var(--gold);"], [data-theme="game"] button[style$="background: var(--gold)"] { box-shadow: 0 4px 0 #6E4E12 !important; }
+    [data-theme="game"] button[style*="background: var(--gold);"]:active, [data-theme="game"] button[style$="background: var(--gold)"]:active { transform: translateY(3px); box-shadow: 0 1px 0 #6E4E12 !important; }
+    /* Tiêu đề dùng chữ có chân đậm hơn một chút */
+    [data-theme="game"] .rk-post [style*="Fraunces"], [data-theme="game"] .rk-paper [style*="Fraunces"] { letter-spacing: -0.005em; }
     html, body { background: var(--bg); }
     * { box-sizing: border-box; }
     /* iOS Safari tự phóng to khi focus vào ô nhập có cỡ chữ < 16px. Ép tối thiểu 16px
@@ -1800,7 +1855,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
         <button
           onClick={tap}
           aria-label="RankUp"
-          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `${color}1A`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `color-mix(in srgb, ${color} 12%, transparent)`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
         >
           <RankCircleChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={16} />
           {t === 0 ? "RankUp" : info.label}
@@ -1810,7 +1865,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
           onClick={tap}
           title="RankUp"
           aria-label="RankUp"
-          style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 999, background: t === 0 ? "transparent" : `${color}1A`, border: "none", cursor: "pointer", padding: 0 }}
+          style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 999, background: t === 0 ? "transparent" : `color-mix(in srgb, ${color} 12%, transparent)`, border: "none", cursor: "pointer", padding: 0 }}
         >
           <RankCircleChevrons level={t === 0 ? 1 : t} color={color} size={21} />
         </button>
@@ -1835,7 +1890,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
                 key={lv}
                 disabled={locked}
                 onClick={() => { if (locked) return; onSetTier?.(lv); setOpen(false); }}
-                style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 10, border: "none", background: active ? `${tinfo.color}22` : "transparent", cursor: locked ? "not-allowed" : "pointer", alignItems: "flex-start" }}
+                style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 10, border: "none", background: active ? `color-mix(in srgb, ${tinfo.color} 14%, transparent)` : "transparent", cursor: locked ? "not-allowed" : "pointer", alignItems: "flex-start" }}
               >
                 <div style={{ marginTop: -1, flexShrink: 0 }}><RankCircleChevrons level={lv} color={locked ? C.textFaint : tinfo.color} size={20} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -2017,7 +2072,7 @@ function BottomSheet({ onClose, children }) {
   // Portal ra body: thẻ bài có thể mang transform (hiệu ứng/carousel) làm position:fixed lệch.
   return createPortal(
     <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 90, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "8px 0 max(14px, env(safe-area-inset-bottom, 14px))", maxHeight: "80vh", overflowY: "auto", animation: "slideUp .2s ease" }}>
+      <div className="rk-sheet" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "8px 0 max(14px, env(safe-area-inset-bottom, 14px))", maxHeight: "80vh", overflowY: "auto", animation: "slideUp .2s ease" }}>
         <div style={{ width: 38, height: 4, borderRadius: 99, background: C.border, margin: "4px auto 10px" }} />
         {children}
       </div>
@@ -3318,6 +3373,7 @@ function ModalShell({ title, onClose, children }) {
       }}
     >
       <div
+        className="rk-sheet"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
@@ -7306,7 +7362,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         }
       />
 
-      <div style={{ padding: 16 }}>
+      <div className="rk-paper" style={{ padding: 16 }}>
         {rankie.tournamentId && onOpenTournament && (
           <button onClick={() => onOpenTournament(rankie.tournamentId)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}`, cursor: "pointer", textAlign: "left" }}>
             <Trophy size={16} color={C.gold} />
@@ -7996,7 +8052,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     }
 
     return (
-      <div style={{ padding: 16 }}>
+      <div className="rk-paper" style={{ padding: 16 }}>
         {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
         {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
@@ -8054,7 +8110,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
     const remaining = allEndings.length - discovered;
     const hideCount = path.hideEndingCount && revealMode === "hidden" && !isOwner; // ẩn cả số lượng kết quả
     return (
-      <div style={{ padding: 16 }}>
+      <div className="rk-paper" style={{ padding: 16 }}>
         {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {path.title}
@@ -9155,7 +9211,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
     }
 
     return (
-      <div style={{ padding: 16 }}>
+      <div className="rk-paper" style={{ padding: 16 }}>
         {/* Header kiểu Rankie: tác giả · tiêu đề · nhãn · mô tả + ảnh */}
         {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
@@ -9181,7 +9237,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
   // SUBMITTED SUMMARY
   if (submitted) {
     return (
-      <div style={{ padding: 16 }}>
+      <div className="rk-paper" style={{ padding: 16 }}>
         {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
           {deck.title}
@@ -13838,7 +13894,7 @@ function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
     { id: "profile", icon: User, label: "Hồ sơ" },
   ];
   return (
-    <div
+    <div className="rk-nav"
       style={{
         display: "flex",
         borderTop: `1px solid ${C.border}`,
@@ -13861,6 +13917,7 @@ function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
           <button
             key={it.id}
             onClick={() => setView(it.id)}
+            aria-current={isActive ? "page" : undefined}
             style={{
               flex: 1,
               display: "flex",
@@ -15004,7 +15061,7 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
     : !isShare && item.media?.color && !opts.length ? `linear-gradient(160deg, ${item.media.color}, var(--surface))`
     : `linear-gradient(160deg, color-mix(in srgb, var(--text) 9%, var(--surface)), var(--surface))`;
   return (
-    <button {...(onLongPress ? lp : {})} onClick={onOpen} title={title} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: bg, textAlign: "left", opacity: item.hidden ? 0.55 : 1, WebkitTouchCallout: "none", userSelect: "none" }}>
+    <button className="rk-tile" {...(onLongPress ? lp : {})} onClick={onOpen} title={title} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: bg, textAlign: "left", opacity: item.hidden ? 0.55 : 1, WebkitTouchCallout: "none", userSelect: "none" }}>
       {art}
       {!cover && <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "46%", background: "linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0))", pointerEvents: "none" }} />}
       <span title={meta.label} style={{ position: "absolute", top: 5, left: 5, width: 20, height: 20, borderRadius: 6, background: "color-mix(in srgb, var(--surface) 88%, transparent)", display: "grid", placeItems: "center" }}><TypeIcon size={12} color={C.text} /></span>
@@ -15216,6 +15273,7 @@ function ProfileView({
   onCreateTournament,
   theme,
   onToggleTheme,
+  onSetTheme,
   onShareToProfile,
   onBack,
   onPin,
@@ -15428,7 +15486,7 @@ function ProfileView({
         </div>
       )}
 
-      <div style={{ padding: "14px 16px 0" }}>
+      <div className="rk-card" style={{ padding: "14px 16px 0" }}>
         {/* Hàng 1: ảnh đại diện + 3 chỉ số (bài · người RankUp · lượt xem) — chạm để xem Thống kê */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div
@@ -15472,7 +15530,23 @@ function ProfileView({
             <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>Cài đặt</div>
             <SheetRow icon={Edit3} label="Sửa hồ sơ" hint="Tên, @handle, tiểu sử, tuổi · giới tính · nghề nghiệp (ẩn/công khai)" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
             {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" hint="Tài khoản đã chặn, đã ẩn bài, bài viết đã ẩn" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
-            {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
+            {onSetTheme && (
+              // Chọn giao diện: Sáng · Tối · Game (giấy da + gỗ). Đổi tức thì, nhớ trên máy.
+              <div style={{ padding: "10px 18px 6px" }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Giao diện</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                  {[["light", Sun, "Sáng"], ["dark", Moon, "Tối"], ["game", Trophy, "Game"]].map(([id, IconEl, label]) => {
+                    const on = (theme || "dark") === id;
+                    return (
+                      <button key={id} onClick={() => onSetTheme(id)} aria-pressed={on}
+                        style={{ height: 64, borderRadius: 12, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, border: `2px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surfaceRaised, color: on ? C.gold : C.text }}>
+                        <IconEl size={19} />{label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {onLogout && <SheetRow icon={LogOut} danger label="Đăng xuất" onClick={() => { setSettingsOpen(false); if (window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }} />}
           </BottomSheet>
         )}
@@ -17213,7 +17287,7 @@ export default function RankevApp() {
   useEffect(() => {
     try {
       const root = document.documentElement;
-      if (theme === "light") root.setAttribute("data-theme", "light");
+      if (theme === "light" || theme === "game") root.setAttribute("data-theme", theme); // game = giao diện "Rankev Game"
       else root.removeAttribute("data-theme");
       localStorage.setItem("rankev.theme", theme);
     } catch { /* ignore */ }
@@ -19229,6 +19303,7 @@ export default function RankevApp() {
               onCreateTournament={startCreateTournament}
               theme={theme}
               onToggleTheme={toggleTheme}
+              onSetTheme={setTheme}
               onShareToProfile={shareToProfile}
               // Tab Hồ sơ (thanh menu dưới) không có thanh "quay lại" — như Instagram; quay về Bảng tin
               // bằng tab / cử chỉ vuốt quay lại.
