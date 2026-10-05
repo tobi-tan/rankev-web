@@ -12380,7 +12380,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 4, paddingBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, position: "sticky", top: 0, zIndex: 20, background: C.bg, margin: "-16px -16px 0", padding: "14px 16px 12px" /* thanh tiêu đề + nút back luôn dính trên cùng */ }}>
         <button onClick={() => (editing ? onBack?.() : setBuilding(false))} aria-label="Quay lại" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 4, marginLeft: -4 }}>
           <ChevronLeft size={22} />
         </button>
@@ -14224,6 +14224,101 @@ function pickImageUpload(apply, kind = "image", fallbackSvg = null) {
   input.click();
 }
 
+// Sơ đồ nhánh RÚT GỌN dạng ô tròn cho màn tạo giải — 2 nhánh hội tụ về cúp ở giữa (cùng bố cục
+// màn chi tiết giải). Ghép cặp ĐÚNG như server (seedRounds): đệm ô trống vào CUỐI danh sách lên
+// luỹ thừa 2, cặp vòng 1 = (0,1) (2,3)… Ô trống = miễn đấu → đối thủ vào thẳng vòng sau.
+// Chạm 2 đấu thủ để đổi chỗ (onTap(i) như trước).
+function BracketPreview({ contestants, swapSel, onTap, nameOf }) {
+  const n = contestants.length;
+  let pow = 2; while (pow < n) pow *= 2;
+  const seeds = Array.from({ length: pow }, (_, i) => (i < n ? i : null)); // chỉ số đấu thủ | null
+  const m = Math.log2(pow); // số tầng mỗi nhánh (tầng 0 = đấu thủ, tầng m-1 = người vào chung kết)
+  const half = pow / 2;
+  const [boxW, setBoxW] = useState(340);
+  const boxRef = useRef(null);
+  useLayoutEffect(() => { if (boxRef.current) setBoxW(boxRef.current.clientWidth || 340); }, []);
+  const cols = 2 * m + 1;
+  const CW = Math.max(26, Math.min(56, Math.floor(boxW / cols)));
+  const D = Math.max(20, Math.min(40, CW - 10)); // đường kính ô đấu thủ
+  const GAP = Math.max(5, Math.round(D * 0.22));
+  const H = half * (D + GAP) - GAP;
+  const W = cols * CW;
+  const cx = (side, lvl) => (side === "L" ? lvl * CW + CW / 2 : (cols - 1 - lvl) * CW + CW / 2);
+  // tâm y của node (lvl, k) trong 1 nhánh: tầng 0 cách đều, tầng sau = trung bình 2 con
+  const cy = (lvl, k) => { const span = 2 ** lvl; const first = k * span, last = first + span - 1; const y = (j) => j * (D + GAP) + D / 2; return (y(first) + y(last)) / 2; };
+  // ai chắc chắn đi tiếp (miễn đấu) ở tầng lvl, node k của nhánh — null nếu còn phải đấu
+  const winnerAt = (side, lvl, k) => {
+    if (lvl === 0) return seeds[(side === "L" ? 0 : half) + k];
+    const a = winnerAt(side, lvl - 1, 2 * k), b = winnerAt(side, lvl - 1, 2 * k + 1);
+    const aEmpty = emptyAt(side, lvl - 1, 2 * k), bEmpty = emptyAt(side, lvl - 1, 2 * k + 1);
+    if (aEmpty && !bEmpty) return b; if (bEmpty && !aEmpty) return a; return null;
+  };
+  const emptyAt = (side, lvl, k) => {
+    if (lvl === 0) return seeds[(side === "L" ? 0 : half) + k] == null;
+    return emptyAt(side, lvl - 1, 2 * k) && emptyAt(side, lvl - 1, 2 * k + 1);
+  };
+  const avatar = (i, size, { sel, gold } = {}) => {
+    const c = contestants[i];
+    return (
+      <div style={{ width: size, height: size, borderRadius: 99, overflow: "hidden", position: "relative", background: C.surfaceRaised, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), boxShadow: sel ? `0 0 0 3px ${C.gold}` : gold ? `0 0 0 2px ${C.gold}` : `0 0 0 1px ${C.border}`, transform: sel ? "scale(1.12)" : "none", transition: "transform .15s, box-shadow .15s" }}>
+        {c?.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c?.emoji || <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(size * 0.42), color: C.text }}>{(nameOf(c, i) || "?").trim().charAt(0).toUpperCase()}</span>)}
+      </div>
+    );
+  };
+  const lines = [];
+  const nodes = [];
+  ["L", "R"].forEach((side) => {
+    for (let lvl = 0; lvl < m; lvl++) {
+      const count = half / 2 ** lvl;
+      for (let k = 0; k < count; k++) {
+        const x = cx(side, lvl), y = cy(lvl, k);
+        // đường nối lên node cha (hoặc vào cúp ở giữa với tầng cuối)
+        const px = lvl + 1 < m ? cx(side, lvl + 1) : W / 2, py = lvl + 1 < m ? cy(lvl + 1, k >> 1) : H / 2;
+        const empty = emptyAt(side, lvl, k);
+        if (!empty) {
+          const mx = (x + px) / 2;
+          lines.push(<path key={`l${side}${lvl}-${k}`} d={`M${x} ${y} H${mx} V${py} H${px}`} fill="none" stroke={winnerAt(side, lvl, k) != null && lvl > 0 ? C.gold : C.border} strokeWidth={1.5} />);
+        }
+        if (lvl === 0) {
+          const si = (side === "L" ? 0 : half) + k;
+          const i = seeds[si];
+          nodes.push(
+            <div key={`n${side}${k}`} style={{ position: "absolute", left: x - D / 2, top: y - D / 2 }}>
+              {i == null ? (
+                <div title="Miễn đấu — đối thủ vào thẳng vòng sau" style={{ width: D, height: D, borderRadius: 99, border: `1.5px dashed ${C.border}`, background: C.bg }} />
+              ) : (
+                <button onClick={() => onTap(i)} title={nameOf(contestants[i], i)} aria-label={nameOf(contestants[i], i)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", display: "block" }}>
+                  {avatar(i, D, { sel: swapSel === i })}
+                </button>
+              )}
+            </div>,
+          );
+        } else if (!empty) {
+          const w = winnerAt(side, lvl, k);
+          const d = Math.round(D * (w != null ? 0.78 : 0.5));
+          nodes.push(
+            <div key={`n${side}${lvl}-${k}`} style={{ position: "absolute", left: x - d / 2, top: y - d / 2 }}>
+              {w != null ? avatar(w, d, { gold: true }) : <div style={{ width: d, height: d, borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(d * 0.5), color: C.textFaint }}>?</div>}
+            </div>,
+          );
+        }
+      }
+    }
+  });
+  const T = Math.round(D * 1.1);
+  return (
+    <div ref={boxRef} style={{ width: "100%", overflowX: "auto" }}>
+      <div style={{ position: "relative", width: W, height: H, margin: "0 auto" }}>
+        <svg width={W} height={H} style={{ position: "absolute", inset: 0 }}>{lines}</svg>
+        {nodes}
+        <div title="Vô địch" style={{ position: "absolute", left: W / 2 - T / 2, top: H / 2 - T / 2, width: T, height: T, borderRadius: 99, background: C.goldSoft, border: `2px solid ${C.gold}`, display: "grid", placeItems: "center" }}>
+          <Trophy size={Math.round(T * 0.5)} color={C.gold} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CreateTournamentView({ initialContestants = [], initialDraft = null, onCreate, onBack, showToast }) {
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
@@ -14354,7 +14449,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 4, paddingBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, position: "sticky", top: 0, zIndex: 20, background: C.bg, margin: "-16px -16px 0", padding: "14px 16px 12px" /* thanh tiêu đề + nút back luôn dính trên cùng */ }}>
         <button onClick={onBack} aria-label="Quay lại" style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", color: C.text, padding: 4, marginLeft: -4 }}>
           <ChevronLeft size={22} />
         </button>
@@ -14529,7 +14624,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
             <div style={{ display: "flex", gap: 10, padding: "11px 13px", borderRadius: 12, background: "rgba(226,114,91,0.12)", border: `1px solid ${C.coral}` }}>
               <span style={{ fontSize: 18, lineHeight: 1.2 }}>⚠️</span>
               <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, lineHeight: 1.45 }}>
-                <b>{n} đấu thủ</b> không phải số chẵn của bảng đấu (2, 4, 8, 16…) → sẽ có <b>{byes} suất miễn đấu</b>, một số đấu thủ <b>vào thẳng vòng trong</b>. Thêm <b>{byes}</b> người (đủ {pow}) hoặc bớt <b>{n - prev}</b> người (còn {prev}) để công bằng. Đấu thủ đứng đầu danh sách được ưu tiên miễn đấu.
+                <b>{n} đấu thủ</b> không phải số chẵn của bảng đấu (2, 4, 8, 16…) → sẽ có <b>{byes} suất miễn đấu</b>, một số đấu thủ <b>vào thẳng vòng trong</b>. Thêm <b>{byes}</b> người (đủ {pow}) hoặc bớt <b>{n - prev}</b> người (còn {prev}) để công bằng. Đấu thủ ở <b>cuối sơ đồ (nhánh phải)</b> được miễn đấu — đổi chỗ trên sơ đồ để chọn ai được miễn.
               </div>
             </div>
           );
@@ -14537,30 +14632,10 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
 
         {contestants.length >= 2 && (
           <div>
-            <div style={label}>Cặp đấu vòng 1 — chạm 2 đấu thủ để đổi chỗ</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {Array.from({ length: Math.ceil(contestants.length / 2) }, (_, k) => {
-                const ia = k * 2, ib = k * 2 + 1;
-                const a = contestants[ia], b = contestants[ib];
-                const chip = (c, i, align) => (
-                  <button
-                    onClick={() => tapSwap(i)}
-                    style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexDirection: align === "right" ? "row-reverse" : "row", padding: "5px 7px", borderRadius: 9, cursor: "pointer", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, background: swapSel === i ? C.goldSoft : "transparent", border: `1px solid ${swapSel === i ? C.gold : "transparent"}` }}
-                  >
-                    <span style={{ width: 26, height: 26, borderRadius: 7, overflow: "hidden", position: "relative", flexShrink: 0, background: C.surface, display: "grid", placeItems: "center", fontSize: 15 }}>
-                      {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || "🏳️")}
-                    </span>
-                    <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameOf(c, i)}</span>
-                  </button>
-                );
-                return (
-                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "4px 6px" }}>
-                    {chip(a, ia, "right")}
-                    <span style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 800, fontSize: 13, color: C.gold, flexShrink: 0 }}>VS</span>
-                    {b ? chip(b, ib, "left") : <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, paddingLeft: 7 }}>miễn đấu (vào thẳng)</span>}
-                  </div>
-                );
-              })}
+            <div style={label}>Sơ đồ nhánh — chạm 2 đấu thủ để đổi chỗ</div>
+            <BracketPreview contestants={contestants} swapSel={swapSel} onTap={tapSwap} nameOf={nameOf} />
+            <div style={{ minHeight: 18, textAlign: "center", fontFamily: bodyFont, fontSize: 12.5, color: swapSel != null ? C.gold : C.textFaint, marginTop: 8 }}>
+              {swapSel != null ? <>Đổi chỗ <b>{nameOf(contestants[swapSel], swapSel)}</b> với… (chạm đấu thủ khác)</> : "Ô nét đứt = miễn đấu · ô vàng = vào thẳng vòng sau"}
             </div>
           </div>
         )}
