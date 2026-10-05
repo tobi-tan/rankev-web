@@ -1800,7 +1800,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
         <button
           onClick={tap}
           aria-label="RankUp"
-          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `${color}1A`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `color-mix(in srgb, ${color} 12%, transparent)`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
         >
           <RankCircleChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={16} />
           {t === 0 ? "RankUp" : info.label}
@@ -1810,7 +1810,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
           onClick={tap}
           title="RankUp"
           aria-label="RankUp"
-          style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 999, background: t === 0 ? "transparent" : `${color}1A`, border: "none", cursor: "pointer", padding: 0 }}
+          style={{ width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 999, background: t === 0 ? "transparent" : `color-mix(in srgb, ${color} 12%, transparent)`, border: "none", cursor: "pointer", padding: 0 }}
         >
           <RankCircleChevrons level={t === 0 ? 1 : t} color={color} size={21} />
         </button>
@@ -1835,7 +1835,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
                 key={lv}
                 disabled={locked}
                 onClick={() => { if (locked) return; onSetTier?.(lv); setOpen(false); }}
-                style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 10, border: "none", background: active ? `${tinfo.color}22` : "transparent", cursor: locked ? "not-allowed" : "pointer", alignItems: "flex-start" }}
+                style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 10, border: "none", background: active ? `color-mix(in srgb, ${tinfo.color} 14%, transparent)` : "transparent", cursor: locked ? "not-allowed" : "pointer", alignItems: "flex-start" }}
               >
                 <div style={{ marginTop: -1, flexShrink: 0 }}><RankCircleChevrons level={lv} color={locked ? C.textFaint : tinfo.color} size={20} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -17209,7 +17209,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
 
 export default function RankevApp() {
   // Giao diện sáng/tối (dark mặc định). Áp bằng data-theme trên <html> → CSS variables tự đổi.
-  const [theme, setTheme] = useState(() => { try { return localStorage.getItem("rankev.theme") || "dark"; } catch { return "dark"; } });
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem("rankev.theme") === "light" ? "light" : "dark"; } catch { return "dark"; } }); // chỉ còn Sáng/Tối (giao diện "game" đã gỡ)
   useEffect(() => {
     try {
       const root = document.documentElement;
