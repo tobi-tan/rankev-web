@@ -256,7 +256,7 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
             <div style={{ textAlign: "center", padding: "64px 24px", color: C.textFaint }}>
               <Bell size={40} color={C.textFaint} style={{ opacity: 0.5 }} />
               <div style={{ fontFamily: bodyFont, fontSize: 14, marginTop: 12 }}>Chưa có thông báo nào.</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, marginTop: 4, color: C.textFaint }}>Khi ai đó @nhắc tên bạn trong bình luận, nó sẽ hiện ở đây.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12.5, marginTop: 4, color: C.textFaint }}>@nhắc tên trong bình luận, và bài mới từ người bạn RankUp ở mức Yêu thích / Fan cuồng sẽ hiện ở đây.</div>
             </div>
           ) : (
             items.map((n) => {
@@ -272,7 +272,9 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, lineHeight: 1.4 }}>
-                      <b style={{ fontWeight: 700 }}>{name}</b> đã nhắc bạn{n.targetTitle ? <> trong <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " trong một bình luận"}.
+                      {n.type === "new_post"
+                        ? <><b style={{ fontWeight: 700 }}>{name}</b> vừa đăng{n.targetType === "tournament" ? " giải đấu" : ""}{n.targetTitle ? <> <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " bài mới"}.</>
+                        : <><b style={{ fontWeight: 700 }}>{name}</b> đã nhắc bạn{n.targetTitle ? <> trong <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " trong một bình luận"}.</>}
                     </div>
                     {n.text && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 3, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}><MentionText text={n.text} /></div>}
                     <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 4 }}>{timeAgoShort(n.createdAt)}</div>
@@ -1859,6 +1861,9 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
 // (vd. bình luận, hồ sơ) thì vẫn hiện RP như cũ.
 function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, onSetRank, fanCount = 0, trailing, meta }) {
   const rk = useRankieSave();
+  // Số từ server đã gồm (hoặc chưa gồm) phiếu của mình lúc tải → chỉnh theo thay đổi tại chỗ.
+  const initialTierRef = useRef(rankTier);
+  const rankUpCount = Math.max(0, (author?.rankUps || 0) + (rankTier > 0 ? 1 : 0) - (initialTierRef.current > 0 ? 1 : 0));
   // Nhấn-giữ vào user → "Lưu vào Rankie" (kèm ảnh chụp avatar/tên/@/RP để preview).
   const longPress = useLongPress(() => {
     if (!author || !rk?.save) return;
@@ -1962,7 +1967,9 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
       )}
       {/* RankUp LUÔN sát mép phải → vị trí cố định với mọi thẻ, không bị tên/pill đẩy */}
       {onSetRank && !isMe && (
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
+          {/* Tổng số người RankUp tác giả — SỐ bên trái icon (cộng/trừ ngay khi mình bấm). */}
+          {rankUpCount > 0 && <span title={`${fmt(rankUpCount)} người đã RankUp`} style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: rankTier ? RANK_TIERS[Math.min(3, rankTier)].color : C.textFaint, fontVariantNumeric: "tabular-nums" }}>{fmtCompact(rankUpCount)}</span>}
           <RankUpControl tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
         </div>
       )}
@@ -15485,7 +15492,7 @@ function apiSummaryToProto(s) {
     title: s.title,
     subtitle: s.subtitle || "",
     category: s.category || "Khác", tags: s.tags || [],
-    author: apiAuthorToProto(s.author),
+    author: { ...apiAuthorToProto(s.author), rankUps: s.authorRankUps || 0 }, // tổng người RankUp tác giả
     createdAt: Date.parse(s.createdAt) || Date.now(),
     deletedAt: s.deletedAt ? (Date.parse(s.deletedAt) || Date.now()) : null, // thùng rác (persist)
     opensAt: s.opensAt ? Date.parse(s.opensAt) : null,
@@ -18132,12 +18139,12 @@ export default function RankevApp() {
   }, []);
 
   // Bấm một thông báo → mở đúng bài/giải rồi đóng panel.
-  const onNotifClick = useCallback((n) => {
+  const onNotifClick = (n) => {
     setNotifOpen(false);
-    if (n.postId) openRankie(n.postId);
+    // Mở đúng màn theo loại bài (path/survey/exam không còn rơi vào màn Rankie).
+    if (n.postId) openRef({ refType: "post", refId: n.postId, preview: { postType: n.targetType || "rankie" } });
     else if (n.tournamentId) openTournament(n.tournamentId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const loadMoreFeed = useCallback(async () => {
     if (feedLoadingMore || !apiCursor) return;
