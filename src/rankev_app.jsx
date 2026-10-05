@@ -8286,7 +8286,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <button
               key={i}
               onClick={() => answer(choice)}
-              style={{ position: "absolute", left: `${choice.hotspot.x}%`, top: `${choice.hotspot.y}%`, transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1.5px solid ${C.gold}`, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", boxShadow: "0 4px 14px rgba(0,0,0,0.4)", maxWidth: "70%", whiteSpace: "nowrap" }}
+              style={{ position: "absolute", ...hotspotAnchor(choice.hotspot), display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1.5px solid ${C.gold}`, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", boxShadow: "0 4px 14px rgba(0,0,0,0.4)", maxWidth: "70%", whiteSpace: "nowrap" }}
             >
               {choice.emoji && <span style={{ fontSize: 16 }}>{choice.emoji}</span>}
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{choice.label}</span>
@@ -16014,6 +16014,21 @@ function apiRankieToProto(r) {
 
 // Full PathView (GET /posts/:id) → shape path prototype (cây yes/no).
 // LƯU Ý: prototype nhị phân → chỉ dùng 2 đáp án đầu mỗi câu (câu >2 đáp án bị lossy).
+// Đặt nhãn điểm chạm trên ảnh cảnh: gần mép trái/phải/đáy thì neo vào trong ảnh để chữ không
+// bị cắt (trước luôn căn giữa → "Đồng cỏ bên trái" ở x=14% mất nửa chữ).
+function hotspotAnchor(h) {
+  const x = h.x, y = h.y;
+  const pos = {};
+  let tx = "-50%", ty = "-50%";
+  if (x < 28) { pos.left = `max(6px, calc(${x}% - 22px))`; tx = "0"; }
+  else if (x > 72) { pos.right = `max(6px, calc(${100 - x}% - 22px))`; tx = "0"; }
+  else pos.left = `${x}%`;
+  if (y > 84) { pos.bottom = `max(6px, calc(${100 - y}% - 18px))`; ty = "0"; }
+  else if (y < 18) { pos.top = `max(6px, calc(${y}% - 18px))`; ty = "0"; }
+  else pos.top = `${y}%`;
+  return { ...pos, transform: `translate(${tx}, ${ty})` };
+}
+
 function apiPathToProto(p) {
   const qs = (p.questions || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
   const entry = qs.find((q) => q.isEntry) || qs[0];
@@ -16033,13 +16048,16 @@ function apiPathToProto(p) {
     id: q.id,
     text: q.text || "",
     sceneImage: q.sceneImageUrl || null,
+    // ĐỦ mọi lựa chọn (trước chỉ lấy 2 cái đầu → lựa chọn thứ 3–4 biến mất khi chơi, có kết cục
+    // không bao giờ tới được). yes/no giữ lại cho chỗ cũ còn đọc.
+    answers: (q.answers || []).map((a, i) => branch(a, `Lựa chọn ${i + 1}`)),
     yes: branch(q.answers && q.answers[0], "Có"),
     no: branch(q.answers && q.answers[1], "Không"),
   }));
   const total = (p.endings || []).reduce((s, e) => s + (e.count || 0), 0) || 1;
   const results = {};
   (p.endings || []).forEach((e) => {
-    results[e.name] = { emoji: e.emoji || "🏁", image: e.imageUrl || null, pct: Math.round(((e.count || 0) / total) * 100), count: e.count || 0, comment: e.comment || "" };
+    results[e.name] = { emoji: e.emoji || "🏁", _noEmoji: !e.emoji, image: e.imageUrl || null, pct: Math.round(((e.count || 0) / total) * 100), count: e.count || 0, comment: e.comment || "" };
   });
   return {
     id: p.id, type: "path", title: p.title,
@@ -16098,7 +16116,8 @@ function apiDeckToProto(d) {
 
 // Proto path (mở để SỬA) → state builder của CreateView (endings + questions với target/hotspot).
 function protoPathToBuilder(item) {
-  const endings = Object.entries(item.results || {}).map(([name, e], i) => ({ id: "e" + (i + 1), name, emoji: e.emoji || "🎯", image: e.image || null }));
+  // Không có emoji thật → để trống (trước tự chèn 🎯 / 🏁 rồi LƯU lại khi sửa bài).
+  const endings = Object.entries(item.results || {}).map(([name, e], i) => ({ id: "e" + (i + 1), name, emoji: e._noEmoji ? null : (e.emoji || null), image: e.image || null }));
   const nameToEndingId = new Map(endings.map((e) => [e.name, e.id]));
   const questions = (item.questions || []).map((q) => {
     const branches = q.answers ? q.answers : [q.yes, q.no].filter(Boolean);
