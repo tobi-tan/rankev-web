@@ -223,6 +223,13 @@ function MentionText({ text, style }) {
 }
 
 // Thời gian tương đối gọn (vd "3 phút", "2 giờ", "4 ngày").
+// Quá 24 giờ → ghi rõ "hh:mm dd/mm/yyyy" (user 2026-10-05: không dùng "5 ngày trước", "2 tuần trước").
+function fmtDateTime(ts) {
+  const d = new Date(typeof ts === "number" ? ts : Date.parse(ts));
+  if (isNaN(d)) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())} ${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
 function timeAgoShort(ts) {
   const d = typeof ts === "number" ? ts : Date.parse(ts);
   if (!d) return "";
@@ -230,9 +237,7 @@ function timeAgoShort(ts) {
   if (s < 60) return "vừa xong";
   const m = Math.floor(s / 60); if (m < 60) return `${m} phút`;
   const h = Math.floor(m / 60); if (h < 24) return `${h} giờ`;
-  const dd = Math.floor(h / 24); if (dd < 7) return `${dd} ngày`;
-  const w = Math.floor(dd / 7); if (w < 5) return `${w} tuần`;
-  return `${Math.floor(dd / 30)} tháng`;
+  return fmtDateTime(d);
 }
 
 // Panel thông báo (toàn màn trong khung app). Hiện: @nhắc tên trong bình luận.
@@ -1098,11 +1103,7 @@ function timeAgo(ts) {
   if (m < 60) return `${m} phút trước`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h} giờ trước`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d} ngày trước`;
-  const w = Math.floor(d / 7);
-  if (w < 4) return `${w} tuần trước`;
-  return new Date(ts).toLocaleDateString("vi-VN");
+  return fmtDateTime(ts);
 }
 
 // Whether a rankie's voting window has ended.
@@ -1642,13 +1643,14 @@ function fmtExamDuration(mins) {
   return `${Math.round(mins)} phút`;
 }
 
-// Loại bài → icon + chữ + màu (thay cho viên nhãn RANKIE/PATH/SURVEY… trên đầu thẻ).
+// Loại bài → icon + tên (tooltip). MỘT màu duy nhất = màu chữ Rankev cho mọi loại
+// (user 2026-10-05: "vẽ nhiều màu quá" — không tô màu riêng từng loại nữa).
 const POST_TYPE_META = {
-  rankie: { icon: BarChart3, label: "Rankie", color: C.gold },
-  path: { icon: GitBranch, label: "Path", color: C.teal },
-  survey: { icon: Layers, label: "Survey", color: "#7EA8C4" },
-  exam: { icon: Edit3, label: "Exam", color: C.coral },
-  tournament: { icon: Trophy, label: "Giải đấu", color: C.gold },
+  rankie: { icon: BarChart3, label: "Rankie", color: C.text },
+  path: { icon: GitBranch, label: "Path", color: C.text },
+  survey: { icon: Layers, label: "Survey", color: C.text },
+  exam: { icon: Edit3, label: "Exam", color: C.text },
+  tournament: { icon: Trophy, label: "Giải đấu", color: C.text },
 };
 const postTypeKey = (item) =>
   item?.type === "deck" ? (item.deckMode === "exam" ? "exam" : "survey") : (POST_TYPE_META[item?.type] ? item.type : "rankie");
@@ -3086,7 +3088,7 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
                   onClick={() => openEntry(entry)}
                 >
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                    <Icon size={17} color={C.gold} />
+                    <Icon size={17} color={C.text} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ marginBottom: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.endedAt }} /></div>
@@ -8175,7 +8177,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Người khác → prompt trung tính (không spoil)
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <GitBranch size={18} color={C.gold} />
+            <GitBranch size={18} color={C.text} />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
             Trắc nghiệm {nq} câu · nhấn để xem giới thiệu và thử
@@ -8651,7 +8653,7 @@ function DeckCardResultPreview({ deck }) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surface, display: "grid", placeItems: "center", flexShrink: 0 }}>
-          {isExam ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
+          {isExam ? <Edit3 size={18} color={C.text} /> : <Layers size={18} color={C.text} />}
         </div>
         <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
           {isExam ? `Bài thi ${nq} câu` : `Khảo sát ${nq} câu`} · {real && !data ? "đang tải kết quả…" : "chưa có ai làm bài"}
@@ -9445,7 +9447,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Đã tham gia — hiện kết quả gần nhất của chính mình, giống Rankie/Path
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surface, display: "grid", placeItems: "center", flexShrink: 0 }}>
-            {deck.deckMode === "exam" ? <Edit3 size={17} color={C.gold} /> : <Layers size={17} color={C.gold} />}
+            {deck.deckMode === "exam" ? <Edit3 size={17} color={C.text} /> : <Layers size={17} color={C.text} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
@@ -9466,7 +9468,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Người khác + chưa tham gia → giấu nội dung câu hỏi để tránh spoil
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-            {deck.deckMode === "exam" ? <Edit3 size={18} color={C.gold} /> : <Layers size={18} color={C.gold} />}
+            {deck.deckMode === "exam" ? <Edit3 size={18} color={C.text} /> : <Layers size={18} color={C.text} />}
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
             {deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`}
@@ -12722,7 +12724,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
         <div style={field}>
           <button onClick={() => setShowFlowMap((v) => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 12px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, cursor: "pointer" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text }}>
-              <GitBranch size={15} color={C.teal} /> Sơ đồ nhánh Path
+              <GitBranch size={15} color={C.text} /> Sơ đồ nhánh Path
             </span>
             <ChevronDown size={16} color={C.textFaint} style={{ transform: showFlowMap ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
           </button>
@@ -13068,7 +13070,7 @@ function chatTimeAgo(ts) {
   if (m < 60) return `${m} phút`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h} giờ`;
-  return `${Math.floor(h / 24)} ngày`;
+  return fmtDateTime(ts);
 }
 
 function Avatar({ author, size = 42 }) {
@@ -13181,7 +13183,7 @@ function ChatShareCard({ msg, onOpenShare }) {
   if (!ref) {
     return (
       <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ ...box, padding: 10, display: "flex", alignItems: "center", gap: 8 }}>
-        <TypeIcon size={18} color={C.gold} />
+        <TypeIcon size={18} color={C.text} />
         <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{typeLabel} được chia sẻ</span>
       </button>
     );
@@ -14437,10 +14439,10 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
   // Dùng CHUNG bộ icon lucide với bộ lọc hồ sơ (Rankie=BarChart3, Path=GitBranch,
   // Exam=Edit3, Survey=Layers) — không tạo emoji riêng.
   const axes = [
-    { v: rankie, color: C.teal,    label: "Rankie", Icon: BarChart3, ang: -90 },
-    { v: path,   color: C.gold,    label: "Path",   Icon: GitBranch, ang: 0 },
-    { v: exam,   color: C.coral,   label: "Exam",   Icon: Edit3,     ang: 90 },
-    { v: survey, color: "#A594E0", label: "Survey", Icon: Layers,    ang: 180 },
+    { v: rankie, color: C.text, label: "Rankie", Icon: BarChart3, ang: -90 },
+    { v: path,   color: C.text, label: "Path",   Icon: GitBranch, ang: 0 },
+    { v: exam,   color: C.text, label: "Exam",   Icon: Edit3,     ang: 90 },
+    { v: survey, color: C.text, label: "Survey", Icon: Layers,    ang: 180 },
   ];
   const pt = (ang, rad) => [cx + Math.cos((ang * Math.PI) / 180) * rad, cy + Math.sin((ang * Math.PI) / 180) * rad];
   const ringPts = (f) => axes.map((a) => pt(a.ang, R * f).join(",")).join(" ");
@@ -14565,12 +14567,12 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
 
   const bg = cover ? C.surface
     : !isShare && item.media?.color && !opts.length ? `linear-gradient(160deg, ${item.media.color}, var(--surface))`
-    : `linear-gradient(160deg, color-mix(in srgb, ${meta.color} 22%, var(--surface)), var(--surface))`;
+    : `linear-gradient(160deg, color-mix(in srgb, var(--text) 9%, var(--surface)), var(--surface))`;
   return (
     <button {...(onLongPress ? lp : {})} onClick={onOpen} title={title} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: bg, textAlign: "left", opacity: item.hidden ? 0.55 : 1, WebkitTouchCallout: "none", userSelect: "none" }}>
       {art}
       {!cover && <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "46%", background: "linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0))", pointerEvents: "none" }} />}
-      <span title={meta.label} style={{ position: "absolute", top: 5, left: 5, width: 20, height: 20, borderRadius: 6, background: "rgba(0,0,0,.45)", display: "grid", placeItems: "center" }}><TypeIcon size={12} color={meta.color} /></span>
+      <span title={meta.label} style={{ position: "absolute", top: 5, left: 5, width: 20, height: 20, borderRadius: 6, background: "color-mix(in srgb, var(--surface) 88%, transparent)", display: "grid", placeItems: "center" }}><TypeIcon size={12} color={C.text} /></span>
       <span style={{ position: "absolute", top: 6, right: 6, display: "flex", alignItems: "center", gap: 4 }}>
         {item.hidden && <EyeOff size={12} color="#fff" />}
         {item.pinned && <Pin size={12} color={C.gold} fill={C.gold} />}
@@ -14579,6 +14581,16 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
       <div style={{ position: "absolute", left: 6, right: 6, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, lineHeight: 1.25, color: "#F5F1E6", textShadow: "0 1px 3px rgba(0,0,0,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{title}</div>
     </button>
   );
+}
+
+// Giữ một màn đã mở trong bộ nhớ (ẩn bằng display:none) thay vì huỷ/dựng lại — quay lại
+// Bảng tin / Hồ sơ là TỨC THÌ (không render lại hàng trăm thẻ, không tải lại dữ liệu, ảnh còn
+// nguyên). Khi ẩn, trả lại ĐÚNG phần tử con lần trước → React bỏ qua cả cây (không render lại).
+function KeepAlive({ active, children }) {
+  const last = useRef(null);
+  if (active) last.current = children;
+  if (!last.current) return null;
+  return <div style={active ? undefined : { display: "none" }}>{last.current}</div>;
 }
 
 // ---------- Xem ảnh đại diện toàn màn (ảnh GỐC đã tải lên, không cắt tròn) ----------
@@ -14871,8 +14883,9 @@ function ProfileView({
   const seriesAggProfile = {};
   theirPostsAll.forEach((p) => { if (p.seriesId) { (seriesAggProfile[p.seriesId] ||= { count: 0, total: 0 }); seriesAggProfile[p.seriesId].count++; seriesAggProfile[p.seriesId].total += p.participants || 0; } });
   const seenSeriesProfile = new Set();
+  // Lưới hiện MỌI bài (mỗi chapter một ô) — series đã có hàng vòng tròn riêng ở trên, nên không
+  // gộp nữa (trước gộp → đầu hồ sơ "3 bài" mà lưới chỉ 2 ô).
   const visibleGrouped = visible
-    .filter((p) => { if (!p.seriesId) return true; if (seenSeriesProfile.has(p.seriesId)) return false; seenSeriesProfile.add(p.seriesId); return true; })
     .map((p) => (p.seriesId && seriesAggProfile[p.seriesId] ? { ...p, seriesCount: seriesAggProfile[p.seriesId].count, seriesTotal: seriesAggProfile[p.seriesId].total } : p));
 
   const [filterOpen, setFilterOpen] = useState(false);
@@ -14961,9 +14974,9 @@ function ProfileView({
         {/* Hàng 1: ảnh đại diện + 3 chỉ số (bài · người RankUp · lượt xem) — chạm để xem Thống kê */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div
-            onClick={() => (isMe ? setAvatarMenu(true) : author.avatarUrl ? setAvatarView(true) : null)}
-            title={isMe ? "Ảnh đại diện" : author.avatarUrl ? "Xem ảnh đại diện" : undefined}
-            style={{ width: 82, height: 82, borderRadius: 99, background: author.avatarColor || C.surfaceRaised, boxShadow: `0 0 0 2px ${C.bg}, 0 0 0 4px ${C.gold}`, display: "grid", placeItems: "center", fontSize: 38, flexShrink: 0, overflow: "hidden", position: "relative", cursor: isMe || author.avatarUrl ? "pointer" : "default", margin: 4 }}
+            onClick={() => (isMe ? setAvatarMenu(true) : setAvatarView(true))}
+            title={isMe ? "Ảnh đại diện" : "Xem ảnh đại diện"}
+            style={{ width: 82, height: 82, borderRadius: 99, background: author.avatarColor || C.surfaceRaised, boxShadow: `0 0 0 2px ${C.bg}, 0 0 0 4px ${C.gold}`, display: "grid", placeItems: "center", fontSize: 38, flexShrink: 0, overflow: "hidden", position: "relative", cursor: "pointer", margin: 4 }}
           >
             {author.avatarUrl ? <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (author.avatarEmoji || <User size={28} color={C.gold} />)}
           </div>
@@ -15245,7 +15258,7 @@ function ProfileView({
                 return (
                   <div key={entry.key} style={listRow} onClick={openEntry}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                      <Icon size={17} color={C.gold} />
+                      <Icon size={17} color={C.text} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ marginBottom: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.timestamp }} /></div>
@@ -15285,7 +15298,7 @@ function ProfileView({
                 return (
                   <div key={entry.id} style={listRow} onClick={openEntry}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                      <Icon size={17} color={C.gold} />
+                      <Icon size={17} color={C.text} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ marginBottom: 2 }}><PostMeta item={{ type: entry.type, deckMode: entry.deckMode, createdAt: entry.endedAt }} /></div>
@@ -15360,7 +15373,7 @@ function ProfileView({
                   return (
                     <div key={`${item.type}:${item.id}`} style={listRow} onClick={openItem}>
                       <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                        <Icon size={17} color={C.gold} />
+                        <Icon size={17} color={C.text} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ marginBottom: 2 }}><PostMeta item={{ type: item.type, deckMode: item.deckMode }} /></div>
@@ -16029,7 +16042,7 @@ function RankieRefPreview({ item }) {
   const TypeIcon = p.postType === "path" ? GitBranch : p.postType === "deck" ? (p.deckMode === "exam" ? Edit3 : Layers) : BarChart3;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-      <div style={{ width: 34, height: 34, borderRadius: 9, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><TypeIcon size={16} color={C.gold} /></div>
+      <div style={{ width: 34, height: 34, borderRadius: 9, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}><TypeIcon size={16} color={C.text} /></div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{fmtCompact(p.participants || 0)} tham gia · {fmt(p.comments || 0)} bình luận</div>
@@ -17450,7 +17463,7 @@ export default function RankevApp() {
 
   const openPathFromProfile = (id) => {
     setSelectedPath(withCachedPath(allPaths.find((p) => p.id === id)) || samplePath);
-    setPrevAfterPath("profile");
+    setPrevAfterPath(view === "authorProfile" ? "authorProfile" : "profile");
     setView("pathDetail");
   };
 
@@ -17476,7 +17489,7 @@ export default function RankevApp() {
 
   const openDeckFromProfile = (id) => {
     setSelectedDeck(allDecks.find((d) => d.id === id) || sampleDeck);
-    setPrevAfterDeck("profile");
+    setPrevAfterDeck(view === "authorProfile" ? "authorProfile" : "profile");
     setView("deckDetail");
   };
 
@@ -18258,11 +18271,24 @@ export default function RankevApp() {
   // tab Hồ sơ/Tin nhắn mở ra vẫn giữ vị trí cuộn của feed (lưng chừng trang), khung chat bị che tên.
   useLayoutEffect(() => {
     if (view !== "feed") {
-      window.scrollTo(0, 0);
-      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+      // QUAY LẠI (nút back trong app / vuốt) → về đúng vị trí cuộn cũ của màn đó (như IG/FB);
+      // MỞ MỚI → đầu trang.
+      const st = navStackRef.current;
+      const isBack = restoringRef.current || (st.length >= 2 && st[st.length - 2].key === screenKey) || (isBaseScreen && st.length >= 1 && st[0].key === screenKey && st.length > 1);
+      const y = isBack ? screenScrollRef.current[screenKey] || 0 : 0;
+      window.scrollTo(0, y);
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = y;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, viewedAuthorId, selectedId, selectedDeck?.id, selectedPath?.id, selectedTournamentId, openConversation?.members?.[0]?.id || openConversation?.id]);
+  // Ghi vị trí cuộn theo từng màn (screenKey) để quay lại đúng chỗ.
+  const screenScrollRef = useRef({});
+  const screenKeyRef = useRef("");
+  useEffect(() => {
+    const rec = () => { if (screenKeyRef.current && viewRef.current !== "feed") screenScrollRef.current[screenKeyRef.current] = window.scrollY || 0; };
+    window.addEventListener("scroll", rec, { passive: true });
+    return () => window.removeEventListener("scroll", rec);
+  }, []);
 
   // Đổi màn → luôn hiện lại thanh menu dưới.
   useEffect(() => { setNavHidden(false); lastNavScrollRef.current = 0; }, [view]);
@@ -18287,6 +18313,7 @@ export default function RankevApp() {
     view === "authorProfile" ? viewedAuthorId : "",
     view === "tournament" ? selectedTournamentId : "",
   ].join("|");
+  screenKeyRef.current = screenKey;
   const navStackRef = useRef([]); // [tab (nếu khác Bảng tin), ...màn con] — ảnh chụp để khôi phục
   const guardArmedRef = useRef(false); // đã đặt mục đệm trong lịch sử trình duyệt chưa
   const ignorePopsRef = useRef(0); // popstate do chính app gây ra (gỡ đệm) → bỏ qua
@@ -18321,6 +18348,17 @@ export default function RankevApp() {
     armGuard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenKey, isBaseScreen, authed]);
+  // Nút "quay lại" trong app: lùi 1 bước theo NGĂN XẾP màn (cùng logic với vuốt quay lại) —
+  // mở bài từ hồ sơ người khác → back về đúng hồ sơ đó. Ngăn xếp trống → về `fallback`.
+  const goBack = (fallback = "feed") => {
+    const st = navStackRef.current;
+    const target = st[st.length - 2];
+    if (!target) { setOpenConversation(null); setView(st.length === 1 && !st[0].base ? "feed" : fallback); return; }
+    setSelectedId(target.selectedId); setSelectedPath(target.selectedPath); setSelectedDeck(target.selectedDeck);
+    setViewedAuthorId(target.viewedAuthorId); setSelectedTournamentId(target.selectedTournamentId);
+    setOpenConversation(!target.base && target.view === "chat" ? target.openConversation : null);
+    setView(target.view);
+  };
   useEffect(() => {
     // App tự khôi phục vị trí cuộn của feed → tắt khôi phục tự động của trình duyệt.
     try { window.history.scrollRestoration = "manual"; } catch { /* ignore */ }
@@ -18409,8 +18447,8 @@ export default function RankevApp() {
             </div>
           </div>
         )}
-        <div ref={scrollContainerRef} onScroll={handleScrollContainer} onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd} style={{ flex: 1, overflowY: "auto", paddingBottom: 8, overscrollBehaviorY: "contain" }}>
-          {view === "feed" && (
+        <div ref={scrollContainerRef} onScroll={handleScrollContainer} onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd} style={{ flex: 1, paddingBottom: 8 /* KHÔNG overflow:auto — nếu có, mọi thanh "sticky" (nút back, thanh công cụ) dính vào khung này thay vì màn hình nên trôi mất khi cuộn */ }}>
+          <KeepAlive active={view === "feed"}>
             <FeedView
               pathUnlocks={pathUnlocks}
               feedItems={feedItemsGrouped}
@@ -18447,7 +18485,7 @@ export default function RankevApp() {
               onRefresh={refreshFeed}
               refreshing={feedRefreshing}
             />
-          )}
+          </KeepAlive>
           {view === "search" && (
             <SearchView
               pathUnlocks={pathUnlocks}
@@ -18474,7 +18512,7 @@ export default function RankevApp() {
               onOpenTournament={openTournament}
               onShareToProfile={shareToProfile}
               contacts={contacts}
-              onBack={() => setView("feed")}
+              onBack={() => goBack("feed")}
             />
           )}
           {view === "detail" && selected && (
@@ -18491,7 +18529,7 @@ export default function RankevApp() {
               onParticipate={addToHistory}
               onShareToProfile={shareToProfile}
               onOpenTournament={openTournament}
-              onBack={() => setView(prevAfterDetail)}
+              onBack={() => goBack(prevAfterDetail)}
               onPresent={() => {
                 setPresenterInitialOptions(getOptions(selected));
                 setView("present");
@@ -18515,7 +18553,7 @@ export default function RankevApp() {
           {view === "pathDetail" && (
             <PathDetailWithSwipe selectedPath={selectedPath} allSeries={allSeries} navigateChapter={navigateChapter} participatedKeys={participatedKeys} resultData={chapterResultData} onOpenSeries={openSeriesDetail}>
               <TopBar
-                onBack={() => setView(prevAfterPath)}
+                onBack={() => goBack(prevAfterPath)}
                 right={
                   <DetailHeaderActions
                     item={selectedPath}
@@ -18573,7 +18611,7 @@ export default function RankevApp() {
           {view === "deckDetail" && (
             <DeckDetailWithSwipe selectedDeck={selectedDeck} allSeries={allSeries} navigateChapter={navigateChapter} participatedKeys={participatedKeys} resultData={chapterResultData} onOpenSeries={openSeriesDetail}>
               <TopBar
-                onBack={() => setView(prevAfterDeck)}
+                onBack={() => goBack(prevAfterDeck)}
                 right={
                   <DetailHeaderActions
                     item={selectedDeck}
@@ -18623,7 +18661,7 @@ export default function RankevApp() {
             <LivePresenterView deck={selectedDeck} onBack={() => setView("deckDetail")} onSessionEnd={(session) => saveDeckSession(session)} />
           )}
           {view === "create" && <CreateView onCreate={handleCreate} onUpdate={handleUpdate} editItem={editStructPost} mySeries={mySeries} onStartTournament={startCreateTournament} onResumeTournamentDraft={resumeTournamentDraft} onBack={() => setView("feed")} />}
-          {view === "profile" && (
+          <KeepAlive active={view === "profile"}>
             <ProfileView
               pathUnlocks={pathUnlocks}
               posts={allPosts}
@@ -18673,9 +18711,10 @@ export default function RankevApp() {
               onAddToSeries={openSeriesPicker}
               onRemoveFromSeries={removePostFromSeries}
             />
-          )}
-          {view === "authorProfile" && (
+          </KeepAlive>
+          <KeepAlive active={view === "authorProfile"}>
             <ProfileView
+              key={viewedAuthorId}
               pathUnlocks={pathUnlocks}
               posts={allPosts}
               authorId={viewedAuthorId}
@@ -18701,9 +18740,9 @@ export default function RankevApp() {
               onOpenAuthor={openAuthorWall}
               onShareToProfile={shareToProfile}
               onMessage={openDM}
-              onBack={() => setView(prevAfterAuthor)}
+              onBack={() => goBack(prevAfterAuthor)}
             />
-          )}
+          </KeepAlive>
           {view === "history" && (
             <ParticipationHistoryView
               history={participationHistory}
@@ -18726,7 +18765,7 @@ export default function RankevApp() {
             <SeriesView
               series={allSeries[selectedSeriesId2]}
               allSeries={allSeries}
-              onBack={() => setView(prevAfterSession || "profile")}
+              onBack={() => goBack(prevAfterSession || "profile")}
               onOpenPost={(p) => navigateChapter(p)}
               onRename={renameSeries}
               onRemove={removeFromSeries}
@@ -18736,7 +18775,7 @@ export default function RankevApp() {
             <SessionDetailView
               session={selectedSession}
               post={allPosts.find((p) => p.id === selectedSession.itemId) || null}
-              onBack={() => setView(prevAfterSession)}
+              onBack={() => goBack(prevAfterSession)}
               onOpenPost={() => openPostForSession(selectedSession)}
             />
           )}
@@ -18755,7 +18794,7 @@ export default function RankevApp() {
               tournamentId={selectedTournamentId}
               currentUserId={currentUser.apiId}
               onOpenRankie={openRankie}
-              onBack={() => setView("feed")}
+              onBack={() => goBack("feed")}
               showToast={showToast}
               contacts={contacts}
               onShareToProfile={shareToProfile}
