@@ -3418,7 +3418,7 @@ function EditPostModal({ post, onClose, onSave }) {
             {options.map((o, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button onClick={() => uploadInto((url) => setOpt(i, { image: url }))} title="Ảnh phương án" style={{ width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, cursor: "pointer", display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, fontSize: 18 }}>
-                  {o.image ? <img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (o.emoji || "🔘")}
+                  {o.image ? <Pic src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (o.emoji || "🔘")}
                 </button>
                 <input value={o.label} onChange={(e) => setOpt(i, { label: e.target.value })} placeholder={`Phương án ${i + 1}`} style={{ ...inputStyle, marginTop: 0, flex: 1 }} />
                 <button onClick={() => delOpt(i)} disabled={options.length <= 2} title="Xoá phương án" style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: "transparent", color: options.length <= 2 ? C.textFaint : "#E4634A", cursor: options.length <= 2 ? "default" : "pointer", flexShrink: 0 }}><Trash2 size={16} /></button>
@@ -3535,6 +3535,167 @@ function PostStatsModal({ post, onClose, onExport }) {
 }
 
 // Renders an emoji or an uploaded image inside a consistent tile
+// URL là video? (đuôi mp4/webm/mov hoặc đường dẫn video của Cloudinary)
+const isVideoUrl = (u) => typeof u === "string" && (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(u) || /\/video\/upload\//.test(u) || /#rk-video$/.test(u));
+// Ảnh HOẶC video (tự nhận theo URL) — dùng cho ảnh bìa, ảnh lựa chọn, đấu thủ… Video: tự phát,
+// tắt tiếng, lặp, không điều khiển (như ảnh động); giữ nguyên style/objectFit của ảnh.
+function Pic({ src, alt = "", style, onError, ...rest }) {
+  if (isVideoUrl(src)) {
+    return <video src={src} autoPlay muted loop playsInline preload="metadata" style={style} onError={onError} {...rest} />;
+  }
+  return <img src={src} alt={alt} style={style} onError={onError} {...rest} />;
+}
+
+// ---------- Bộ chọn đính kèm: 3 mục RIÊNG — Emoji · Ảnh/Video · GIF ----------
+// (user 2026-10-05: tách riêng từng mục; emoji gợi ý cũ chỉ 12 cái → dùng thư viện đầy đủ
+// ~1.900 emoji có nhãn + từ khoá TIẾNG VIỆT (emojibase), nạp lười khi mở lần đầu.)
+let EMOJI_DATA = null;
+function loadEmojiData() {
+  if (EMOJI_DATA) return Promise.resolve(EMOJI_DATA);
+  return import("emojibase-data/vi/compact.json").then((m) => {
+    // Bỏ emoji Unicode ≥ 15.1 (2023+) — nhiều máy chưa có font → hiện ô vuông.
+    const tooNew = new Set(["1F642-200D-2194","1F642-200D-2195","1FAE9","1FAEA","1FAEF","1FAC8","1F6B6-200D-27A1","1F6B6-200D-2640-200D-27A1","1F6B6-200D-2642-200D-27A1","1F9CE-200D-27A1","1F9CE-200D-2640-200D-27A1","1F9CE-200D-2642-200D-27A1","1F9D1-200D-1F9AF-200D-27A1","1F468-200D-1F9AF-200D-27A1","1F469-200D-1F9AF-200D-27A1","1F9D1-200D-1F9BC-200D-27A1","1F468-200D-1F9BC-200D-27A1","1F469-200D-1F9BC-200D-27A1","1F9D1-200D-1F9BD-200D-27A1","1F468-200D-1F9BD-200D-27A1","1F469-200D-1F9BD-200D-27A1","1F3C3-200D-27A1","1F3C3-200D-2640-200D-27A1","1F3C3-200D-2642-200D-27A1","1F9D1-200D-1FA70","1F9D1-200D-1F9D1-200D-1F9D2","1F9D1-200D-1F9D1-200D-1F9D2-200D-1F9D2","1F9D1-200D-1F9D2","1F9D1-200D-1F9D2-200D-1F9D2","1FAC6","1F426-200D-1F525","1FACD","1FABE","1F34B-200D-1F7E9","1F344-200D-1F7EB","1FADC","1F6D8","1FA8A","1FA89","1FA8E","26D3-200D-1F4A5","1FA8F","1FADF","1F1E8-1F1F6"]);
+    const list = (m.default || m).filter((e) => e.group != null && e.group !== 2 && e.unicode && !tooNew.has(e.hexcode.replace(/-FE0F/g, "")));
+    list.forEach((e) => { e._k = normalizeVi(`${e.label} ${(e.tags || []).join(" ")}`); });
+    EMOJI_DATA = list;
+    return list;
+  });
+}
+const EMOJI_GROUPS = [
+  [0, "😀", "Mặt cười & cảm xúc"], [1, "👋", "Người & cơ thể"], [3, "🐶", "Động vật & thiên nhiên"],
+  [4, "🍔", "Ăn uống"], [5, "✈️", "Du lịch & địa điểm"], [6, "⚽", "Hoạt động"], [7, "💡", "Đồ vật"],
+  [8, "🔣", "Ký hiệu"], [9, "🏁", "Cờ"],
+];
+const RECENT_EMOJI_KEY = "rankev.recentEmoji";
+const readRecentEmoji = () => { try { return JSON.parse(localStorage.getItem(RECENT_EMOJI_KEY) || "[]").slice(0, 16); } catch { return []; } };
+const pushRecentEmoji = (em) => { try { localStorage.setItem(RECENT_EMOJI_KEY, JSON.stringify([em, ...readRecentEmoji().filter((x) => x !== em)].slice(0, 16))); } catch { /* ignore */ } };
+const isGifUrl = (u) => typeof u === "string" && /\.gif(\?|#|$)/i.test(u);
+
+// Chọn file từ máy → xem trước tức thì (blob) → upload → URL thật. Video đi /uploads/video.
+function pickMediaUpload(accept, apply) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = accept;
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const video = file.type.startsWith("video/");
+    if (video && file.size > 40 * 1024 * 1024) { window.alert("Video tối đa 40MB."); return; }
+    if (!video && file.size > 8 * 1024 * 1024) { window.alert("Ảnh tối đa 8MB."); return; }
+    apply(URL.createObjectURL(file) + (video ? "#rk-video" : ""));
+    (video ? api.uploadVideo(file) : api.uploadImage(file, "image"))
+      .then((res) => { if (res && res.url) apply(res.url); })
+      .catch(() => window.alert("Tải lên thất bại, thử lại sau."));
+  };
+  input.click();
+}
+
+function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClose, allowVideo = true }) {
+  const [tab, setTab] = useState(value.image ? (isGifUrl(value.image) ? "gif" : "media") : "emoji");
+  const [data, setData] = useState(EMOJI_DATA);
+  const [group, setGroup] = useState(0);
+  const [q, setQ] = useState("");
+  const [gifLink, setGifLink] = useState("");
+  const recent = useMemo(readRecentEmoji, []);
+  useEffect(() => { if (!data) loadEmojiData().then(setData).catch(() => setData([])); }, [data]);
+  const kw = normalizeVi(q.trim());
+  const shown = !data ? [] : kw ? data.filter((e) => e._k.includes(kw)).slice(0, 320) : data.filter((e) => e.group === group);
+  const pickEmoji = (em) => { pushRecentEmoji(em); onEmoji(em); onClose(); };
+  const media = (url) => { onMedia(url); };
+  const tabBtn = (id, content, label) => (
+    <button key={id} onClick={() => setTab(id)} title={label} aria-label={label}
+      style={{ flex: 1, height: 40, display: "grid", placeItems: "center", background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.text : "transparent"}`, color: tab === id ? C.text : C.textFaint, cursor: "pointer", fontFamily: bodyFont, fontWeight: 800, fontSize: 13 }}>
+      {content}
+    </button>
+  );
+  const emojiBtn = (em, key) => (
+    <button key={key} onClick={() => pickEmoji(em)} style={{ fontSize: 26, lineHeight: 1, height: 42, borderRadius: 10, border: "none", background: value.emoji === em && !value.image ? C.goldSoft : "transparent", cursor: "pointer", padding: 0 }}>{em}</button>
+  );
+  const bigBtn = (Icon, label, onClick) => (
+    <button onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, height: 86, borderRadius: 14, border: `1px dashed ${C.border}`, background: C.surfaceRaised, color: C.text, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+      <Icon size={24} />{label}
+    </button>
+  );
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 6px" }}>
+        <div style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title || "Đính kèm"}</div>
+        {(value.emoji || value.image) && onClear && (
+          <button onClick={() => { onClear(); onClose(); }} title="Bỏ đính kèm" aria-label="Bỏ đính kèm" style={{ width: 32, height: 32, borderRadius: 99, display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.coral, cursor: "pointer" }}><Trash2 size={15} /></button>
+        )}
+      </div>
+      <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
+        {tabBtn("emoji", <Smile size={20} />, "Emoji")}
+        {tabBtn("media", allowVideo ? <span style={{ display: "flex", gap: 4 }}><ImageIcon size={20} /><Video size={20} /></span> : <ImageIcon size={20} />, allowVideo ? "Ảnh / Video" : "Ảnh")}
+        {tabBtn("gif", <span style={{ border: "2px solid currentColor", borderRadius: 6, padding: "0 5px", fontSize: 11, letterSpacing: 0.5 }}>GIF</span>, "GIF")}
+      </div>
+
+      {tab === "emoji" && (
+        <div style={{ padding: "10px 12px 4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px" }}>
+            <Search size={15} color={C.textFaint} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm emoji (vd: mèo, bóng đá, tim)…" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+            {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 0 }}><X size={14} /></button>}
+          </div>
+          {!kw && (
+            <div style={{ display: "flex", gap: 2, overflowX: "auto", scrollbarWidth: "none", margin: "8px 0 2px" }}>
+              {recent.length > 0 && (
+                <button onClick={() => setGroup(-1)} title="Dùng gần đây" style={{ flexShrink: 0, width: 38, height: 34, borderRadius: 9, border: "none", background: group === -1 ? C.surfaceRaised : "transparent", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}><Clock size={17} /></button>
+              )}
+              {EMOJI_GROUPS.map(([g, icon, label]) => (
+                <button key={g} onClick={() => setGroup(g)} title={label} style={{ flexShrink: 0, width: 38, height: 34, borderRadius: 9, border: "none", background: group === g ? C.surfaceRaised : "transparent", fontSize: 19, cursor: "pointer", opacity: group === g ? 1 : 0.6 }}>{icon}</button>
+              ))}
+            </div>
+          )}
+          <div style={{ height: "42vh", overflowY: "auto", marginTop: 6 }}>
+            {!data ? (
+              <div style={{ textAlign: "center", padding: 30, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tải emoji…</div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2 }}>
+                {!kw && group === -1 ? recent.map((em, i) => emojiBtn(em, "r" + i)) : shown.map((e) => emojiBtn(e.unicode, e.hexcode))}
+              </div>
+            )}
+            {data && kw && shown.length === 0 && <div style={{ textAlign: "center", padding: 24, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Không tìm thấy emoji nào.</div>}
+          </div>
+        </div>
+      )}
+
+      {tab === "media" && (
+        <div style={{ padding: "14px 16px 8px" }}>
+          {value.image && !isGifUrl(value.image) && (
+            <div style={{ width: 120, height: 120, margin: "0 auto 12px", borderRadius: 14, overflow: "hidden", background: C.surfaceRaised }}>
+              <Pic src={value.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            {bigBtn(ImageIcon, "Ảnh", () => pickMediaUpload("image/png,image/jpeg,image/webp", (u) => { media(u); onClose(); }))}
+            {allowVideo && bigBtn(Video, "Video", () => pickMediaUpload("video/mp4,video/webm,video/quicktime", (u) => { media(u); onClose(); }))}
+          </div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center", marginTop: 10 }}>Ảnh tối đa 8MB{allowVideo ? " · video mp4/webm/mov tối đa 40MB (tự phát, không tiếng)" : ""}</div>
+        </div>
+      )}
+
+      {tab === "gif" && (
+        <div style={{ padding: "14px 16px 8px" }}>
+          {value.image && isGifUrl(value.image) && (
+            <div style={{ width: 120, height: 120, margin: "0 auto 12px", borderRadius: 14, overflow: "hidden", background: C.surfaceRaised }}>
+              <img src={value.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            {bigBtn(ImagePlus, "Tải GIF từ máy", () => pickMediaUpload("image/gif", (u) => { media(u); onClose(); }))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <input value={gifLink} onChange={(e) => setGifLink(e.target.value)} placeholder="…hoặc dán link GIF (Giphy, Tenor…)" style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 13.5, outline: "none" }} />
+            <button disabled={!/^https?:\/\/\S+$/i.test(gifLink.trim())} onClick={() => { media(gifLink.trim()); onClose(); }}
+              style={{ padding: "0 14px", borderRadius: 10, border: "none", background: /^https?:\/\/\S+$/i.test(gifLink.trim()) ? C.gold : C.surfaceRaised, color: /^https?:\/\/\S+$/i.test(gifLink.trim()) ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Dùng</button>
+          </div>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
 function Illustration({ emoji, image, size = 56, radius = 12 }) {
   // Ảnh 404/hỏng (vd upload cũ bị xoá) → fallback về emoji/placeholder cho đỡ vỡ.
   const [broken, setBroken] = useState(false);
@@ -3554,7 +3715,7 @@ function Illustration({ emoji, image, size = 56, radius = 12 }) {
       }}
     >
       {image && !broken ? (
-        <img src={image} alt="" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Pic src={image} alt="" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span style={{ fontSize: size * 0.5, lineHeight: 1 }}>{emoji || "❓"}</span>
       )}
@@ -3621,7 +3782,7 @@ function VoteBubble({ emoji, image, avatarColor, left, bottom, drift1, drift2, d
         "--drift2": `${drift2}px`,
       }}
     >
-      {image ? <img src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : emoji || "👍"}
+      {image ? <Pic src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : emoji || "👍"}
     </div>
   );
 }
@@ -3671,7 +3832,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
   if (useContain) {
     return (
       <div style={{ position: "relative", width: "100%", maxHeight, borderRadius: radius, overflow: "hidden", background: "#0b0b0d", border: `1px solid ${C.border}`, ...edge, display: "flex", justifyContent: "center", alignItems: "center" }}>
-        <img src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
+        <Pic src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
       </div>
     );
   }
@@ -3691,11 +3852,11 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
       }}
     >
       {url ? (
-        <img src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Pic src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span style={{ fontSize: 54, opacity: 0.9 }}>{media.emoji || (media.type === "video" ? "🎬" : "🖼️")}</span>
       )}
-      {media.type === "video" && (
+      {media.type === "video" && !isVideoUrl(url) && (
         <>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.15)" }} />
           <div
@@ -4349,7 +4510,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
           {isFire && level > 0 && <FireFrame level={level} />}
           <div style={frameStyle}>
             {o.image ? (
-              <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
+              <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
             ) : (
               <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)` }} />
             )}
@@ -5104,7 +5265,7 @@ function TournamentFeedHero({ t, data, roundName }) {
     const border = v === "win" ? C.gold : v === "lose" ? "#6b6b6b" : col;
     return (
       <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), overflow: "hidden", position: "relative", flexShrink: 0, border: `${size >= 56 ? 3 : 2.5}px solid ${border}`, background: `linear-gradient(160deg, ${col}, ${col}bb)`, display: "grid", placeItems: "center", boxShadow: v === "win" ? "0 0 14px rgba(212,169,74,0.5)" : v === "live" ? `0 0 12px ${col}66` : "none", filter: v === "lose" ? "grayscale(1)" : "none", opacity: v === "lose" ? 0.5 : 1 }}>
-        {ref.imageUrl ? <img src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * 0.5) }}>{ref.emoji || "🏳️"}</span>}
+        {ref.imageUrl ? <Pic src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * 0.5) }}>{ref.emoji || "🏳️"}</span>}
         {ribbon && (
           <div style={{ position: "absolute", top: 0, right: 0, width: size * 0.8, height: size * 0.8, overflow: "hidden", pointerEvents: "none" }}>
             <div style={{ position: "absolute", top: size * 0.14, right: -size * 0.26, transform: "rotate(45deg)", width: size * 1.1, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 9, letterSpacing: 0.8, padding: "2px 0" }}>WINNER</div>
@@ -5213,7 +5374,7 @@ function TournamentFeedHero({ t, data, roundName }) {
   return (
     <div style={{ position: "relative", height: H, borderRadius: 12, overflow: "hidden", marginBottom: 10, background: C.surfaceRaised }}>
       {cover ? (
-        <img src={cover} alt="" style={{ position: "absolute", top: blur ? -16 : 0, left: blur ? -16 : 0, width: blur ? "calc(100% + 32px)" : "100%", height: blur ? "calc(100% + 32px)" : "100%", objectFit: "cover", filter: blur ? "blur(8px) brightness(0.42)" : "none" }} />
+        <Pic src={cover} alt="" style={{ position: "absolute", top: blur ? -16 : 0, left: blur ? -16 : 0, width: blur ? "calc(100% + 32px)" : "100%", height: blur ? "calc(100% + 32px)" : "100%", objectFit: "cover", filter: blur ? "blur(8px) brightness(0.42)" : "none" }} />
       ) : (
         <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 30% 20%, ${C.goldSoft}, transparent 65%), linear-gradient(135deg, ${C.surfaceRaised}, ${C.bg})` }} />
       )}
@@ -6590,7 +6751,7 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
               <div style={{ width: "100%", height: ht, borderRadius: "12px 12px 0 0", position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 10, border: `1px solid ${picked ? C.gold : "rgba(255,255,255,.10)"}`, borderBottom: "none", background: `linear-gradient(180deg, ${c.color} 0%, ${c.color} 55%, rgba(0,0,0,.34) 100%)`, transition: "height .6s cubic-bezier(.2,1,.3,1)", boxShadow: picked ? `0 0 0 2px ${C.gold} inset` : "none" }}>
                 {c.image ? (
                   <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: "12px 12px 0 0", pointerEvents: "none", background: "linear-gradient(0deg, rgba(0,0,0,.30), rgba(0,0,0,0) 62%)" }}>
-                    <img src={c.image} alt="" style={{ position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "86%", opacity: 0.5, objectFit: "contain" }} />
+                    <Pic src={c.image} alt="" style={{ position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "86%", opacity: 0.5, objectFit: "contain" }} />
                   </div>
                 ) : (
                   <span style={{ fontSize: 30, opacity: 0.92, filter: "drop-shadow(0 3px 5px rgba(0,0,0,.4))" }}>{c.emoji || ""}</span>
@@ -6613,7 +6774,7 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
               <div key={c.id} onClick={clickable ? (e) => onVote(c.id, e) : undefined} style={{ display: "flex", alignItems: "center", gap: 9, cursor: clickable ? "pointer" : "default", padding: "3px 4px", borderRadius: 8, background: picked ? C.goldSoft : "transparent" }}>
                 <span style={{ width: 24, textAlign: "center", fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: C.textMuted, flexShrink: 0 }}>#{rank}</span>
                 <span style={{ width: 26, height: 26, borderRadius: 7, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", fontSize: 15 }}>
-                  {c.image ? <img src={c.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || <span style={{ width: 8, height: 8, borderRadius: 99, background: c.color, display: "block" }} />)}
+                  {c.image ? <Pic src={c.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || <span style={{ width: 8, height: 8, borderRadius: 99, background: c.color, display: "block" }} />)}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
@@ -6653,7 +6814,7 @@ function TugViz({ options, onVote, votedId, isClosed }) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", filter: "drop-shadow(0 4px 6px rgba(0,0,0,.5))" }}>
       {o.image && (
         <div style={{ width: 34, height: 34, borderRadius: 8, overflow: "hidden", border: `2px solid ${o.color}`, marginBottom: 1, background: "#000", boxShadow: `0 0 8px ${o.color}88` }}>
-          <img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <Pic src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         </div>
       )}
       <span style={{ fontSize: 46, lineHeight: 1, display: "block", transform: `rotate(${side === "left" ? -16 : 16}deg)` }}>{emoji}</span>
@@ -6813,7 +6974,7 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   const fighter = (o, i) => (
     <div style={{ position: "absolute", top: "54%", transform: "translateY(-50%)", [i === 0 ? "left" : "right"]: 12, zIndex: 2, filter: "drop-shadow(0 6px 14px rgba(0,0,0,.6))", pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
       {o.image
-        ? <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden", border: `2px solid ${o.color}`, boxShadow: `0 0 16px ${o.color}` }}><img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+        ? <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden", border: `2px solid ${o.color}`, boxShadow: `0 0 16px ${o.color}` }}><Pic src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
         : <span style={{ fontSize: 46, lineHeight: 1, color: o.emoji ? undefined : o.color }}>{o.emoji || "●"}</span>}
     </div>
   );
@@ -7638,7 +7799,7 @@ function ChoiceButton({ choice, onClick, accent, layout = "col", imageSize = 76 
         onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = accent; }}
         onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.borderColor = C.border; }}
       >
-        <img src={choice.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <Pic src={choice.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 100%)" }} />
         <span style={{ position: "absolute", left: 12, right: 12, bottom: 10, fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: "#fff", textAlign: "left", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
           {choice.label}
@@ -7861,7 +8022,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         {r.image ? (
           // Có ảnh đính kèm → hiện LỚN dạng ảnh bìa kết quả, chữ nằm dưới.
           <div style={{ background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
-            <img src={r.image} alt={step} style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block", animation: "popIn 0.4s ease" }} />
+            <Pic src={r.image} alt={step} style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block", animation: "popIn 0.4s ease" }} />
             <div style={{ padding: 14 }}>
               <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
@@ -11653,7 +11814,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Ảnh bìa bài đăng: chọn file thật → upload lên máy chủ → lưu URL vào media.url.
   const addImageMedia = () => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='240'><rect width='400' height='240' fill='%232E5D4E'/><text x='200' y='135' font-size='64' text-anchor='middle'>🖼️</text></svg>`;
-    pickAndUpload((url) => setMedia({ type: "image", url, color: "#2E5D4E", emoji: "🖼️" }), "image", svg);
+    void svg; // ảnh bìa nhận cả VIDEO (mp4/webm/mov) — video tự phát, không tiếng
+    pickMediaUpload("image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime", (url) => setMedia({ type: isVideoUrl(url) ? "video" : "image", url, color: "#2E5D4E", emoji: isVideoUrl(url) ? "🎬" : "🖼️" }));
   };
 
   // ----- PATH builder state -----
@@ -12426,7 +12588,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 return (
                   <div key={i} style={{ position: "relative", flex: 1, minWidth: 0, minHeight: 190, borderRadius: 14, overflow: "hidden", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", display: "flex", flexDirection: "column" }}>
                     {o.image && <>
-                      <img src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                      <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                       <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${col}66, ${col}dd)` }} />
                     </>}
                     {/* Nút đính kèm / xoá ảnh */}
@@ -12483,22 +12645,16 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             })}
           </div>
           )}
-          {/* Bảng đính kèm ảnh/emoji cho phương án đang chọn (full-width, hợp cho cả 2 cột Đối đầu) */}
+          {/* Đính kèm cho phương án: bảng 3 mục riêng Emoji · Ảnh/Video · GIF */}
           {emojiPickerFor != null && opts[emojiPickerFor] && !opts[emojiPickerFor].refType && (
-            <div style={{ marginTop: 10, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Đính kèm cho <b style={{ color: C.text }}>{opts[emojiPickerFor].label.trim() || `Phương án ${emojiPickerFor + 1}`}</b></div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <button onClick={() => { mockUpload(emojiPickerFor); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
-                {(opts[emojiPickerFor].emoji || opts[emojiPickerFor].image) && (
-                  <button onClick={() => { updateOpt(emojiPickerFor, { emoji: null, image: null }); setEmojiPickerFor(null); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ</button>
-                )}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {EMOJI_CHOICES.map((em) => (
-                  <button key={em} onClick={() => { updateOpt(emojiPickerFor, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${opts[emojiPickerFor].emoji === em ? C.gold : C.border}`, background: opts[emojiPickerFor].emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-                ))}
-              </div>
-            </div>
+            <MediaPickerSheet
+              title={`Đính kèm · ${opts[emojiPickerFor].label.trim() || `Phương án ${emojiPickerFor + 1}`}`}
+              value={opts[emojiPickerFor]}
+              onEmoji={(em) => updateOpt(emojiPickerFor, { emoji: em, image: null })}
+              onMedia={((i) => (url) => updateOpt(i, { image: url }))(emojiPickerFor)}
+              onClear={() => updateOpt(emojiPickerFor, { emoji: null, image: null })}
+              onClose={() => setEmojiPickerFor(null)}
+            />
           )}
           {rankieKind !== "versus" && (
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
@@ -12667,11 +12823,14 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       </select>
                     </div>
                     {pathEmojiPickerFor === `a:${q.id}:${a.id}` && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, padding: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                        {EMOJI_CHOICES.map((em) => (
-                          <button key={em} onClick={() => { updateAnswer(q.id, a.id, { emoji: em, image: null }); setPathEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${a.emoji === em ? C.gold : C.border}`, background: a.emoji === em ? C.goldSoft : C.surface, cursor: "pointer" }}>{em}</button>
-                        ))}
-                      </div>
+                      <MediaPickerSheet
+                        title={`Đính kèm · ${a.label.trim() || "Lựa chọn"}`}
+                        value={a}
+                        onEmoji={(em) => updateAnswer(q.id, a.id, { emoji: em, image: null })}
+                        onMedia={(url) => updateAnswer(q.id, a.id, { image: url })}
+                        onClear={() => updateAnswer(q.id, a.id, { emoji: null, image: null })}
+                        onClose={() => setPathEmojiPickerFor(null)}
+                      />
                     )}
                   </div>
                 ))}
@@ -12700,8 +12859,8 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                     <Illustration emoji={e.emoji} image={e.image} size={44} radius={10} />
                   </button>
                   <input style={{ ...input, flex: 1 }} placeholder={`Kết quả ${ei + 1} (VD: Nhà quản lý)`} value={e.name} onChange={(ev) => updateEnding(e.id, { name: ev.target.value })} />
-                  <button onClick={() => (e.image ? updateEnding(e.id, { image: null }) : mockUploadEnding(e.id, e.emoji))} title={e.image ? "Xoá ảnh" : "Tải ảnh lên"} style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: e.image ? C.coral : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}>
-                    {e.image ? <X size={16} /> : <ImagePlus size={16} />}
+                  <button onClick={() => setPathEmojiPickerFor(`e:${e.id}`)} title="Đính kèm emoji / ảnh / video / GIF" style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: e.image || e.emoji ? C.gold : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}>
+                    <Paperclip size={16} />
                   </button>
                   {pathEndings.length > 2 && (
                     <button onClick={() => removeEnding(e.id)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 4 }} title="Xoá kết quả">
@@ -12710,11 +12869,14 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                   )}
                 </div>
                 {pathEmojiPickerFor === `e:${e.id}` && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    {EMOJI_CHOICES.map((em) => (
-                      <button key={em} onClick={() => { updateEnding(e.id, { emoji: em, image: null }); setPathEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${e.emoji === em ? C.gold : C.border}`, background: e.emoji === em ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-                    ))}
-                  </div>
+                  <MediaPickerSheet
+                    title={`Đính kèm · ${e.name.trim() || `Kết quả ${ei + 1}`}`}
+                    value={e}
+                    onEmoji={(em) => updateEnding(e.id, { emoji: em, image: null })}
+                    onMedia={(url) => updateEnding(e.id, { image: url })}
+                    onClear={() => updateEnding(e.id, { emoji: null, image: null })}
+                    onClose={() => setPathEmojiPickerFor(null)}
+                  />
                 )}
               </div>
             ))}
@@ -13222,7 +13384,7 @@ function ChatShareCard({ msg, onOpenShare }) {
       {ref.caption && (
         <div style={{ padding: "3px 12px 0", fontFamily: bodyFont, fontSize: 12, lineHeight: 1.4, color: C.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.caption}</div>
       )}
-      {img && <img src={img} alt="" style={{ display: "block", width: "calc(100% - 24px)", height: 130, objectFit: "cover", borderRadius: 10, margin: "8px 12px 0" }} />}
+      {img && <Pic src={img} alt="" style={{ display: "block", width: "calc(100% - 24px)", height: 130, objectFit: "cover", borderRadius: 10, margin: "8px 12px 0" }} />}
 
       {/* Nội dung theo loại */}
       {!isTour && ref.type === "rankie" && top.length > 0 && (
@@ -13234,7 +13396,7 @@ function ChatShareCard({ msg, onOpenShare }) {
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontFamily: bodyFont, fontSize: 12, marginBottom: 3 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0, color: C.text, fontWeight: i === 0 && total > 0 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {/* Ảnh của lựa chọn ưu tiên hơn emoji */}
-                    {o.imageUrl ? <img src={o.imageUrl} alt="" style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} /> : o.emoji ? <span>{o.emoji}</span> : null}
+                    {o.imageUrl ? <Pic src={o.imageUrl} alt="" style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} /> : o.emoji ? <span>{o.emoji}</span> : null}
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{o.label || `Lựa chọn ${i + 1}`}</span>
                   </span>
                   <VoteStat votes={o.votes || 0} total={total} style={{ fontSize: 12, color: C.textFaint, flexShrink: 0 }} />
@@ -13651,7 +13813,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
       })()}
       <div style={{ padding: 16 }}>
         {data.media?.url && (
-          <img src={data.media.url} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 14 }} />
+          <Pic src={data.media.url} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 12, display: "block", marginBottom: 14 }} />
         )}
         {data.caption && (
           <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
@@ -13674,7 +13836,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                 {roster.map((c) => (
                   <button key={c.name} onClick={() => { setFocusName(c.name); setRosterOpen(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", minWidth: 0, textAlign: "center" }}>
                     <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, border: `1px solid ${c.color || C.border}`, display: "grid", placeItems: "center" }}>
-                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
+                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, color: C.text, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
                   </button>
@@ -13688,7 +13850,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                   const focused = focusName === c.name;
                   const pennant = (
                     <div style={{ width: 124, height: 156, flexShrink: 0, borderRadius: "10px 10px 0 0", clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
-                      {c.imageUrl ? <img src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 52, marginTop: -18 }}>{c.emoji || "🏳️"}</span>}
+                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 52, marginTop: -18 }}>{c.emoji || "🏳️"}</span>}
                     </div>
                   );
                   const text = (
@@ -13782,7 +13944,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             const isPhantom = (m, r) => isDeadAt(r, m.position ?? 0);
             const av = (ref, size) => ref
               ? (ref.imageUrl
-                  ? <img src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
+                  ? <Pic src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
                   : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || "•"}</div>)
               : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
             const hseg = (xa, xb, y, col) => <div style={{ position: "absolute", left: Math.min(xa, xb), top: y - 1, width: Math.abs(xa - xb) || 2, height: 2, background: col }} />;
@@ -13866,7 +14028,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                     {champ ? (
                       <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "8px" }}>
                         <div style={{ width: 44, height: 44, margin: "0 auto", borderRadius: 10, overflow: "hidden", position: "relative", background: champ.color ? champ.color + "33" : C.surfaceRaised, display: "grid", placeItems: "center" }}>
-                          {champ.imageUrl ? <img src={champ.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24 }}>{champ.emoji || "🏆"}</span>}
+                          {champ.imageUrl ? <Pic src={champ.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24 }}>{champ.emoji || "🏆"}</span>}
                         </div>
                         <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{champ.name}</div>
                       </div>
@@ -13944,7 +14106,7 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
   // Avatar kiểu LÁ CỜ cổ điển (màu đội + notch dưới) — to, dễ nhìn.
   const flagAv = (ref, img, w) => (
     <div style={{ width: w, height: Math.round(w * 1.18), borderRadius: 12, overflow: "hidden", position: "relative", flexShrink: 0, clipPath: "polygon(0 0,100% 0,100% 100%,50% 86%,0 100%)", background: ref?.color ? `linear-gradient(160deg, ${ref.color}, ${ref.color}cc)` : C.surfaceRaised, border: `1px solid ${ref?.color || C.border}`, display: "grid", placeItems: "center" }}>
-      {img ? <img src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(w * 0.5) }}>{ref?.emoji || "🏳️"}</span>}
+      {img ? <Pic src={img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(w * 0.5) }}>{ref?.emoji || "🏳️"}</span>}
     </div>
   );
   const saveCustom = () => {
@@ -14073,7 +14235,8 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
   const [media, setMedia] = useState(null); // ảnh mô tả (bìa) giải: { type:'image', url }
   const addCover = () => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='200'><rect width='400' height='200' fill='%232E5D4E'/><text x='200' y='115' font-size='56' text-anchor='middle'>🏆</text></svg>`;
-    pickImageUpload((url) => setMedia({ type: "image", url }), "image", svg);
+    void svg;
+    pickMediaUpload("image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime", (url) => setMedia({ type: isVideoUrl(url) ? "video" : "image", url }));
   };
   const [contestants, setContestants] = useState(initialContestants);
   const [emojiPickerFor, setEmojiPickerFor] = useState(null);
@@ -14322,7 +14485,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
                     title={c.refType ? c.name : "Đổi ảnh / emoji"}
                     style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", padding: 0, cursor: c.refType ? "default" : "pointer", display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1.5px solid ${picking ? C.gold : C.border}` }}
                   >
-                    {c.image ? <img src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30 }}>{c.emoji || "🏳️"}</span>}
+                    {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30 }}>{c.emoji || "🏳️"}</span>}
                     {!c.refType && (
                       <span style={{ position: "absolute", right: 4, bottom: 4, width: 20, height: 20, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center", border: `2px solid ${C.surface}` }}><ImagePlus size={11} color="#231a05" /></span>
                     )}
@@ -14347,24 +14510,16 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
             </button>
           </div>
           {/* Bảng chọn ảnh / emoji cho khung đang chọn */}
-          {emojiPickerFor != null && contestants[emojiPickerFor] && !contestants[emojiPickerFor].refType && (() => {
-            const i = emojiPickerFor, c = contestants[i];
-            return (
-              <div style={{ marginTop: 10, padding: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12 }}>
-                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  <button onClick={() => { uploadFor(i); setEmojiPickerFor(null); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ImagePlus size={15} /> Tải ảnh</button>
-                  {c.image && (
-                    <button onClick={() => updateC(i, { image: null })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><X size={14} /> Bỏ ảnh</button>
-                  )}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {EMOJI_CHOICES.map((em) => (
-                    <button key={em} onClick={() => { updateC(i, { emoji: em, image: null }); setEmojiPickerFor(null); }} style={{ fontSize: 20, width: 36, height: 36, borderRadius: 8, border: `1px solid ${c.emoji === em && !c.image ? C.gold : C.border}`, background: c.emoji === em && !c.image ? C.goldSoft : C.surfaceRaised, cursor: "pointer" }}>{em}</button>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
+          {emojiPickerFor != null && contestants[emojiPickerFor] && !contestants[emojiPickerFor].refType && (
+            <MediaPickerSheet
+              title={`Đính kèm · ${contestants[emojiPickerFor].name?.trim() || `Đấu thủ ${emojiPickerFor + 1}`}`}
+              value={contestants[emojiPickerFor]}
+              onEmoji={(em) => updateC(emojiPickerFor, { emoji: em, image: null })}
+              onMedia={((i) => (url) => updateC(i, { image: url }))(emojiPickerFor)}
+              onClear={() => updateC(emojiPickerFor, { emoji: null, image: null })}
+              onClose={() => setEmojiPickerFor(null)}
+            />
+          )}
         </div>
 
         {contestants.length >= 2 && (() => {
@@ -14393,7 +14548,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
                     style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexDirection: align === "right" ? "row-reverse" : "row", padding: "5px 7px", borderRadius: 9, cursor: "pointer", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, background: swapSel === i ? C.goldSoft : "transparent", border: `1px solid ${swapSel === i ? C.gold : "transparent"}` }}
                   >
                     <span style={{ width: 26, height: 26, borderRadius: 7, overflow: "hidden", position: "relative", flexShrink: 0, background: C.surface, display: "grid", placeItems: "center", fontSize: 15 }}>
-                      {c.image ? <img src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || "🏳️")}
+                      {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || "🏳️")}
                     </span>
                     <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameOf(c, i)}</span>
                   </button>
@@ -14529,14 +14684,14 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
   const live = !isShare && item.type === "rankie" && item.live && !isRankieClosed(item);
   const pic = (o, size) => (
     <div style={{ width: size, height: size, borderRadius: 99, background: o?.color || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, fontSize: size * 0.55, fontFamily: bodyFont, fontWeight: 800, color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,.35)" }}>
-      {o?.image || o?.imageUrl ? <img src={o.image || o.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : o?.emoji ? o.emoji : (o?.label || o?.name || "?").trim().charAt(0).toUpperCase()}
+      {o?.image || o?.imageUrl ? <Pic src={o.image || o.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : o?.emoji ? o.emoji : (o?.label || o?.name || "?").trim().charAt(0).toUpperCase()}
     </div>
   );
 
   let art = null;
   if (cover) {
     art = (<>
-      <img src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <Pic src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0) 58%)" }} />
     </>);
   } else if (opts.length === 2) {
@@ -15088,7 +15243,7 @@ function ProfileView({
             <button key={h.key} onClick={h.onClick} title={`${h.label} · ${h.count} phần`} style={{ width: 64, flexShrink: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "center" }}>
               <div style={{ width: 60, height: 60, margin: "0 auto", borderRadius: 99, padding: 2, background: `conic-gradient(${C.gold}, #8a6a24, ${C.gold})` }}>
                 <div style={{ width: "100%", height: "100%", borderRadius: 99, border: `2px solid ${C.bg}`, background: C.surface, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 24 }}>
-                  {h.img ? <img src={h.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : h.emoji ? h.emoji : <h.Icon size={22} color={C.gold} />}
+                  {h.img ? <Pic src={h.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : h.emoji ? h.emoji : <h.Icon size={22} color={C.gold} />}
                 </div>
               </div>
               <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.label}</div>

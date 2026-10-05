@@ -342,6 +342,13 @@ export async function uploadImage(file, kind = 'image') {
   return apiFetch(`/uploads/${kind === 'scene' ? 'scene' : 'image'}`, { method: 'POST', body: fd });
 }
 
+/** Video ngắn (mp4/webm/mov ≤ 40MB) → { url }. */
+export async function uploadVideo(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return apiFetch('/uploads/video', { method: 'POST', body: fd });
+}
+
 // ---------------- Realtime (single shared WebSocket) ----------------
 let ws = null;
 let wsReady = false;
@@ -473,5 +480,5 @@ export function subscribeLiveState(sessionId, onState) {
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
   auth, posts, rankies, tournaments, messaging, moderation, search, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
-  uploadImage, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
+  uploadImage, uploadVideo, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
