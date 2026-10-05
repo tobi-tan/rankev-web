@@ -3381,7 +3381,7 @@ function EditPostModal({ post, onClose, onSave }) {
     input.click();
   };
   const setOpt = (i, patch) => setOptions((prev) => prev.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
-  const addOpt = () => setOptions((prev) => [...prev, { id: undefined, label: "", emoji: EMOJI_CHOICES[prev.length % EMOJI_CHOICES.length], image: null }]);
+  const addOpt = () => setOptions((prev) => [...prev, { id: undefined, label: "", emoji: null, image: null }]);
   const delOpt = (i) => setOptions((prev) => (prev.length > 2 ? prev.filter((_, idx) => idx !== i) : prev));
 
   const save = () => {
@@ -3554,6 +3554,8 @@ function PostStatsModal({ post, onClose, onExport }) {
 
 // Renders an emoji or an uploaded image inside a consistent tile
 // URL là video? (đuôi mp4/webm/mov hoặc đường dẫn video của Cloudinary)
+// Không có ảnh/emoji → chữ cái đầu của tên (thay cho emoji giữ chỗ / cờ trắng).
+const initialOf = (n) => (String(n || "?").trim().charAt(0) || "?").toUpperCase();
 const isVideoUrl = (u) => typeof u === "string" && (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(u) || /\/video\/upload\//.test(u) || /#rk-video$/.test(u));
 // Ảnh HOẶC video (tự nhận theo URL) — dùng cho ảnh bìa, ảnh lựa chọn, đấu thủ… Video: tự phát,
 // tắt tiếng, lặp, không điều khiển (như ảnh động); giữ nguyên style/objectFit của ảnh.
@@ -5306,7 +5308,7 @@ function TournamentFeedHero({ t, data, roundName }) {
     const border = v === "win" ? C.gold : v === "lose" ? "#6b6b6b" : col;
     return (
       <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), overflow: "hidden", position: "relative", flexShrink: 0, border: `${size >= 56 ? 3 : 2.5}px solid ${border}`, background: `linear-gradient(160deg, ${col}, ${col}bb)`, display: "grid", placeItems: "center", boxShadow: v === "win" ? "0 0 14px rgba(212,169,74,0.5)" : v === "live" ? `0 0 12px ${col}66` : "none", filter: v === "lose" ? "grayscale(1)" : "none", opacity: v === "lose" ? 0.5 : 1 }}>
-        {ref.imageUrl ? <Pic src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * 0.5) }}>{ref.emoji || "🏳️"}</span>}
+        {ref.imageUrl ? <Pic src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * (ref.emoji ? 0.5 : 0.42)), fontFamily: bodyFont, fontWeight: 800, color: "#fff" }}>{ref.emoji || initialOf(ref.name)}</span>}
         {ribbon && (
           <div style={{ position: "absolute", top: 0, right: 0, width: size * 0.8, height: size * 0.8, overflow: "hidden", pointerEvents: "none" }}>
             <div style={{ position: "absolute", top: size * 0.14, right: -size * 0.26, transform: "rotate(45deg)", width: size * 1.1, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 9, letterSpacing: 0.8, padding: "2px 0" }}>WINNER</div>
@@ -11874,13 +11876,13 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const pathUid = useRef(0);
   const nextPathId = (p) => `${p}${Date.now()}_${pathUid.current++}`;
   const [pathEndings, setPathEndings] = useState(pb?.endings || [
-    { id: "e1", name: "", emoji: "🎯", image: null },
-    { id: "e2", name: "", emoji: "🌟", image: null },
+    { id: "e1", name: "", emoji: null, image: null },
+    { id: "e2", name: "", emoji: null, image: null },
   ]);
   const [pathQuestions, setPathQuestions] = useState(pb?.questions || [
     { id: "q1", text: "", answers: [
-      { id: "a1", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e1" } },
-      { id: "a2", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e2" } },
+      { id: "a1", label: "", emoji: null, image: null, target: { type: "ending", id: "e1" } },
+      { id: "a2", label: "", emoji: null, image: null, target: { type: "ending", id: "e2" } },
     ] },
   ]);
   const [pathEmojiPickerFor, setPathEmojiPickerFor] = useState(null); // "ending:<id>" | "answer:<qid>:<aid>"
@@ -11890,7 +11892,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
   const updateQuestion = (qid, patch) => setPathQuestions((prev) => prev.map((q) => (q.id === qid ? { ...q, ...patch } : q)));
   const updateAnswer = (qid, aid, patch) => setPathQuestions((prev) => prev.map((q) => q.id !== qid ? q : { ...q, answers: q.answers.map((a) => (a.id === aid ? { ...a, ...patch } : a)) }));
-  const addAnswer = (qid) => setPathQuestions((prev) => prev.map((q) => q.id !== qid || q.answers.length >= 4 ? q : { ...q, answers: [...q.answers, { id: nextPathId("a"), label: "", emoji: "➡️", image: null, target: { type: "ending", id: pathEndings[0]?.id } }] }));
+  const addAnswer = (qid) => setPathQuestions((prev) => prev.map((q) => q.id !== qid || q.answers.length >= 4 ? q : { ...q, answers: [...q.answers, { id: nextPathId("a"), label: "", emoji: null, image: null, target: { type: "ending", id: pathEndings[0]?.id } }] }));
   const removeAnswer = (qid, aid) => setPathQuestions((prev) => prev.map((q) => q.id !== qid ? q : { ...q, answers: q.answers.filter((a) => a.id !== aid) }));
 
   // Đặt đích cho đáp án. Nếu chọn "câu hỏi mới", tự sinh câu hỏi mới (2 đáp án mặc định
@@ -11898,8 +11900,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   const setAnswerTarget = (qid, aid, value) => {
     if (value === "__newq__") {
       const newQ = { id: nextPathId("q"), text: "", answers: [
-        { id: nextPathId("a"), label: "", emoji: "➡️", image: null, target: { type: "ending", id: pathEndings[0]?.id } },
-        { id: nextPathId("a"), label: "", emoji: "➡️", image: null, target: { type: "ending", id: pathEndings[1]?.id || pathEndings[0]?.id } },
+        { id: nextPathId("a"), label: "", emoji: null, image: null, target: { type: "ending", id: pathEndings[0]?.id } },
+        { id: nextPathId("a"), label: "", emoji: null, image: null, target: { type: "ending", id: pathEndings[1]?.id || pathEndings[0]?.id } },
       ] };
       setPathQuestions((prev) => {
         const next = prev.map((q) => q.id !== qid ? q : { ...q, answers: q.answers.map((a) => (a.id === aid ? { ...a, target: { type: "question", id: newQ.id } } : a)) });
@@ -11920,7 +11922,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     })));
   };
 
-  const addEnding = () => pathEndings.length < 8 && setPathEndings((prev) => [...prev, { id: nextPathId("e"), name: "", emoji: EMOJI_CHOICES[(prev.length + 3) % EMOJI_CHOICES.length], image: null }]);
+  const addEnding = () => pathEndings.length < 8 && setPathEndings((prev) => [...prev, { id: nextPathId("e"), name: "", emoji: null, image: null }]);
   const updateEnding = (id, patch) => setPathEndings((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   const removeEnding = (id) => {
     if (pathEndings.length <= 2) return;
@@ -12242,10 +12244,10 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
     setVoteMarker(null); setMedia(null); setAllowGuestPresent(false); setSeriesInput(""); setSelectedSeriesId(null);
     setTimeInline(false); setDurationInput(""); setShowHashtag(false); setOpenTool(null); setEmojiPickerFor(null);
     // Đặt lại cả cấu trúc Path/Survey/Exam về mặc định (để "Hủy tạo" xoá sạch mọi loại).
-    setPathEndings([{ id: "e1", name: "", emoji: "🎯", image: null }, { id: "e2", name: "", emoji: "🌟", image: null }]);
+    setPathEndings([{ id: "e1", name: "", emoji: null, image: null }, { id: "e2", name: "", emoji: null, image: null }]);
     setPathQuestions([{ id: "q1", text: "", answers: [
-      { id: "a1", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e1" } },
-      { id: "a2", label: "", emoji: "➡️", image: null, target: { type: "ending", id: "e2" } },
+      { id: "a1", label: "", emoji: null, image: null, target: { type: "ending", id: "e1" } },
+      { id: "a2", label: "", emoji: null, image: null, target: { type: "ending", id: "e2" } },
     ] }]);
     setHidePathEndingCount(false); setPathRevealMode("hidden");
     setDeckMode("survey"); setDeckAnswerMode("step"); setExamPassingScore(5);
@@ -12843,7 +12845,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                   <div key={a.id}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <button onClick={() => setPathEmojiPickerFor(pathEmojiPickerFor === `a:${q.id}:${a.id}` ? null : `a:${q.id}:${a.id}`)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }}>
-                        <Illustration emoji={a.emoji} image={a.image} size={38} radius={9} />
+                        {a.emoji || a.image ? <Illustration emoji={a.emoji} image={a.image} size={38} radius={9} /> : <div style={{ width: 38, height: 38, borderRadius: 9, border: `1.5px dashed ${C.border}`, display: "grid", placeItems: "center", color: C.textFaint }}><ImagePlus size={16} /></div>}
                       </button>
                       <input style={{ ...input, flex: 1 }} placeholder={`Lựa chọn ${ai + 1}`} value={a.label} onChange={(e) => updateAnswer(q.id, a.id, { label: e.target.value })} />
                       {q.answers.length > 2 && (
@@ -12907,7 +12909,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
               <div key={e.id}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <button onClick={() => setPathEmojiPickerFor(pathEmojiPickerFor === `e:${e.id}` ? null : `e:${e.id}`)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }}>
-                    <Illustration emoji={e.emoji} image={e.image} size={44} radius={10} />
+                    {e.emoji || e.image ? <Illustration emoji={e.emoji} image={e.image} size={44} radius={10} /> : <div style={{ width: 44, height: 44, borderRadius: 10, border: `1.5px dashed ${C.border}`, display: "grid", placeItems: "center", color: C.textFaint }}><ImagePlus size={18} /></div>}
                   </button>
                   <input style={{ ...input, flex: 1 }} placeholder={`Kết quả ${ei + 1} (VD: Nhà quản lý)`} value={e.name} onChange={(ev) => updateEnding(e.id, { name: ev.target.value })} />
                   <button onClick={() => setPathEmojiPickerFor(`e:${e.id}`)} title="Đính kèm emoji / ảnh / video / GIF" style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: e.image || e.emoji ? C.gold : C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}>
@@ -14032,7 +14034,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                 {roster.map((c) => (
                   <button key={c.name} onClick={() => { setFocusName(c.name); setRosterOpen(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", minWidth: 0, textAlign: "center" }}>
                     <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, border: `1px solid ${c.color || C.border}`, display: "grid", placeItems: "center" }}>
-                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{c.emoji || "🏳️"}</span>}
+                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 26 : 22, fontFamily: bodyFont, fontWeight: 800 }}>{c.emoji || initialOf(c.name)}</span>}
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, color: C.text, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
                   </button>
@@ -14046,7 +14048,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                   const focused = focusName === c.name;
                   const pennant = (
                     <div style={{ width: 124, height: 156, flexShrink: 0, borderRadius: "10px 10px 0 0", clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
-                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 52, marginTop: -18 }}>{c.emoji || "🏳️"}</span>}
+                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 52 : 40, marginTop: -18, fontFamily: bodyFont, fontWeight: 800 }}>{c.emoji || initialOf(c.name)}</span>}
                     </div>
                   );
                   const text = (
@@ -14141,7 +14143,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             const av = (ref, size) => ref
               ? (ref.imageUrl
                   ? <Pic src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
-                  : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || "•"}</div>)
+                  : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(size * 0.45), color: C.text }}>{initialOf(ref.name)}</span>}</div>)
               : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
             const hseg = (xa, xb, y, col) => <div style={{ position: "absolute", left: Math.min(xa, xb), top: y - 1, width: Math.abs(xa - xb) || 2, height: 2, background: col }} />;
             const vseg = (x, ya, yb, col) => <div style={{ position: "absolute", left: x - 1, top: Math.min(ya, yb), width: 2, height: Math.abs(ya - yb) || 2, background: col }} />;
@@ -14603,7 +14605,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
   const nameRefs = useRef([]);
   const [focusIdx, setFocusIdx] = useState(null);
   useEffect(() => { if (focusIdx == null) return; nameRefs.current[focusIdx]?.focus?.(); setFocusIdx(null); }, [focusIdx]);
-  const addTile = () => { setFocusIdx(contestants.length); setContestants((p) => [...p, { name: "", emoji: EMOJI_CHOICES[p.length % EMOJI_CHOICES.length] }]); };
+  const addTile = () => { setFocusIdx(contestants.length); setContestants((p) => [...p, { name: "" }]); };
   // Đổi cặp đấu: chạm 2 đấu thủ trong "Cặp đấu vòng 1" để đổi chỗ (cặp = 2 người liền kề: 0-1, 2-3, …).
   const [swapSel, setSwapSel] = useState(null);
   const tapSwap = (i) => {
@@ -14776,7 +14778,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
                     title={c.refType ? c.name : "Đổi ảnh / emoji"}
                     style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", padding: 0, cursor: c.refType ? "default" : "pointer", display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1.5px solid ${picking ? C.gold : C.border}` }}
                   >
-                    {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30 }}>{c.emoji || "🏳️"}</span>}
+                    {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 30 : 24, fontFamily: bodyFont, fontWeight: 800, color: C.text }}>{c.emoji || initialOf(c.name)}</span>}
                     {!c.refType && (
                       <span style={{ position: "absolute", right: 4, bottom: 4, width: 20, height: 20, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center", border: `2px solid ${C.surface}` }}><ImagePlus size={11} color="#231a05" /></span>
                     )}
