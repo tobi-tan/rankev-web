@@ -175,6 +175,18 @@ const currentUser = {
   verified: false,
   bio: "Mê xếp hạng mọi thứ 📊 · Tin vào dữ liệu hơn cảm tính · Rank everything.",
 };
+// Chủ các bài MẪU có sẵn trong app (trước gán cho "người dùng hiện tại" → mọi tài khoản mới đều
+// thấy 5 bài lạ + 21K lượt tương tác là của mình).
+const authorRankevDemo = {
+  id: "u_rankev_demo",
+  name: "Rankev",
+  handle: "@rankev",
+  avatarEmoji: "🏆",
+  avatarColor: "#2E5D4E",
+  followers: 0,
+  verified: true,
+  bio: "Bài mẫu giới thiệu các dạng nội dung trên Rankev.",
+};
 const authorEsports = {
   id: "u_esports",
   name: "ESport Việt Nam",
@@ -195,7 +207,7 @@ const authorFanclub = {
   verified: true,
   bio: "Kênh chính thức đêm nhạc hội thường niên. Theo dõi để không bỏ lỡ vote thần tượng!",
 };
-const AUTHORS = { me: currentUser, u_esports: authorEsports, u_fanclub: authorFanclub };
+const AUTHORS = { me: currentUser, u_esports: authorEsports, u_fanclub: authorFanclub, u_rankev_demo: authorRankevDemo };
 
 // Cầu nối điều hướng mở hồ sơ theo @handle từ bất kỳ đâu (bình luận, caption, thông báo)
 // mà không cần luồn prop qua hàng chục component. RankevApp gán NAV.openHandle khi mount.
@@ -514,8 +526,8 @@ const sampleExamDeck = {
   title: "Bài thi Kiến thức Công nghệ",
   subtitle: "4 câu · Exam",
   category: "Công nghệ",
-  mine: true,
-  author: currentUser,
+  mine: false,
+  author: authorRankevDemo, // bài MẪU — không gán cho người dùng đang đăng nhập
   createdAt: Date.now() - 1000 * 60 * 60 * 2,
   caption: "Bài thi nhanh về kiến thức công nghệ cơ bản 🖥️",
   media: { type: "image", color: "#1E3D5A", emoji: "🖥️" },
@@ -608,9 +620,9 @@ const initialRankies = [
     subtitle: "Chọn 1 phương án",
     category: "Công nghệ",
     live: true,
-    mine: true,
+    mine: false,
     sponsored: true, // bài được đẩy/tài trợ — hiện nhãn "Được tài trợ" trong feed
-    author: currentUser,
+    author: authorRankevDemo, // bài MẪU — không gán cho người dùng đang đăng nhập
     createdAt: Date.now() - 1000 * 60 * 60 * 26, // hôm qua
     caption: "Mình đang khảo sát cộng đồng dev Việt xem ngôn ngữ nào được yêu thích nhất năm nay. Vote để mọi người cùng thấy xu hướng nhé!",
     participants: 4021,
@@ -631,8 +643,8 @@ const initialRankies = [
     subtitle: "Đánh giá 1-5 sao",
     category: "Cộng đồng",
     live: false,
-    mine: true,
-    author: currentUser,
+    mine: false,
+    author: authorRankevDemo, // bài MẪU — không gán cho người dùng đang đăng nhập
     createdAt: Date.now() - 1000 * 60 * 60 * 24 * 5, // 5 ngày trước
     participants: 892,
     options: [
@@ -680,8 +692,8 @@ const samplePath = {
   title: "Con đường sự nghiệp nào hợp với bạn?",
   subtitle: "3 câu hỏi · 4 kết quả",
   category: "Sự nghiệp",
-  mine: true,
-  author: currentUser,
+  mine: false,
+  author: authorRankevDemo, // bài MẪU — không gán cho người dùng đang đăng nhập
   createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2, // 2 ngày trước
   caption: "Bạn phân vân không biết mình hợp với công việc nào? Làm bài trắc nghiệm nhanh này để khám phá con đường sự nghiệp phù hợp với tính cách của bạn nhất. Hơn 15.000 người đã thử!",
   media: { type: "video", color: "#4A2E3D", emoji: "🎬" },
@@ -725,8 +737,8 @@ const sampleDeck = {
   title: "Khảo sát trải nghiệm người dùng Rankev",
   subtitle: "4 câu hỏi · khuyết danh",
   category: "Cộng đồng",
-  mine: true,
-  author: currentUser,
+  mine: false,
+  author: authorRankevDemo, // bài MẪU — không gán cho người dùng đang đăng nhập
   createdAt: Date.now() - 1000 * 60 * 60 * 10,
   caption: "Giúp chúng mình cải thiện Rankev nhé! Khảo sát ngắn 4 câu, hoàn toàn khuyết danh. Ý kiến của bạn rất quan trọng 💚",
   media: { type: "image", color: "#2E3D5A", emoji: "💚" },
@@ -8934,9 +8946,12 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
   // do chống gian lận → luôn ra 0) và thay peer giả lập bằng thống kê thật.
   const sr = deck.deckMode === "exam" && serverResult && serverResult.score != null ? serverResult : null;
   const realParticipants = serverStats && serverStats.participants != null ? serverStats.participants : null;
-  const realAvg = serverStats && serverStats.avgScore != null ? serverStats.avgScore : null;
+  // Server trả điểm THÔ (vd 15/20) → dùng bản quy về thang 10 (score10/avgScore10). Trước đây
+  // coi điểm thô là thang 10 nên bài có tổng điểm ≠ 10 hiện sai (vd "15/10").
+  const realAvg = serverStats ? (serverStats.avgScore10 ?? serverStats.avgScore ?? null) : null;
+  const realScores10 = Array.isArray(serverStats?.scores10) ? serverStats.scores10 : null; // phân bố điểm thật (ẩn danh)
 
-  const score10 = sr ? sr.score : localScore10;
+  const score10 = sr ? (sr.score10 ?? sr.score) : localScore10;
   const correctCount = sr ? sr.correctCount : localCorrect;
   const gradableCount = sr ? (sr.totalGradable || localGradable) : localGradable;
   const grade = deck.deckMode === "exam" ? getGrade(score10) : null;
@@ -8955,13 +8970,16 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
     : sr ? (realAvg != null ? realAvg : score10)
     : Math.round((peerScores.reduce((a, b) => a + b, 0) / peerScores.length) * 10) / 10;
   const diffFromAvg = Math.round((score10 - communityAvg) * 10) / 10;
-  const beatPct = sr ? null : (deck.deckMode === "exam" ? Math.round((peerScores.filter((s) => s < score10).length / peerScores.length) * 100) : 0);
+  const beatPct = sr
+    ? (realScores10 && realScores10.length > 1 ? Math.round((realScores10.filter((s) => s < score10).length / (realScores10.length - 1)) * 100) : null)
+    : (deck.deckMode === "exam" ? Math.round((peerScores.filter((s) => s < score10).length / peerScores.length) * 100) : 0);
   const topPct = beatPct == null ? null : Math.max(1, 100 - beatPct);
-  const highestScore = deck.deckMode === "exam" && !sr ? Math.max(...peerScores, score10) : score10;
-  const lowestScore = deck.deckMode === "exam" && !sr ? Math.min(...peerScores, score10) : score10;
+  const scorePool = deck.deckMode !== "exam" ? [score10] : sr ? (realScores10?.length ? realScores10 : [score10]) : [...peerScores, score10];
+  const highestScore = Math.max(...scorePool);
+  const lowestScore = Math.min(...scorePool);
 
   // Phân bố điểm. Deck thật: chỉ có điểm của mình (backend chưa trả phân bố) → hiện 1 điểm.
-  const allScores = deck.deckMode !== "exam" ? [] : sr ? [score10] : [...peerScores, score10];
+  const allScores = deck.deckMode !== "exam" ? [] : sr ? (realScores10 && realScores10.length ? realScores10 : [score10]) : [...peerScores, score10];
   const gradeDistribution = GRADE_SCALE.map((g) => {
     const count = allScores.filter((s) => getGrade(s).grade === g.grade).length;
     return { ...g, count, pct: allScores.length > 0 ? Math.round((count / allScores.length) * 100) : 0 };
@@ -9170,7 +9188,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                   {beatPct != null ? (
                     <>Bạn làm tốt hơn <strong style={{ color: C.text }}>{beatPct}%</strong> người tham gia</>
                   ) : realParticipants != null && realParticipants > 1 && realAvg != null ? (
-                    <>{score10 >= realAvg ? "Bạn trên mức trung bình cộng đồng 🎉" : "Bạn dưới mức trung bình — thử lại nhé"}</>
+                    <>{score10 === realAvg ? "Bạn đúng bằng mức trung bình cộng đồng" : score10 > realAvg ? "Bạn trên mức trung bình cộng đồng 🎉" : "Bạn dưới mức trung bình — thử lại nhé"}</>
                   ) : (
                     <>Hãy là một trong những người đầu tiên hoàn thành 🎯</>
                   )}
@@ -9196,7 +9214,9 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                 </div>
               </div>
               <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8, textAlign: "center" }}>
-                {diffFromAvg >= 0
+                {diffFromAvg === 0
+                  ? "Bạn bằng điểm trung bình cộng đồng"
+                  : diffFromAvg > 0
                   ? `Bạn cao hơn trung bình ${Math.abs(diffFromAvg)} điểm 🎉`
                   : `Bạn thấp hơn trung bình ${Math.abs(diffFromAvg)} điểm — thử lại để cải thiện nhé`}
               </div>
@@ -18395,8 +18415,8 @@ export default function RankevApp() {
         avatarColor: u.avatarColor || currentUser.avatarColor,
         avatarUrl: u.avatarUrl != null ? u.avatarUrl : currentUser.avatarUrl,
         verified: !!u.verified,
-        bio: u.bio != null ? u.bio : currentUser.bio,
-        followers: u.rankPoints != null ? u.rankPoints : currentUser.followers,
+        bio: u.bio || "", // chưa viết tiểu sử → để trống (không dùng câu MẪU)
+        followers: u.rankPoints || 0,
         apiId: u.id, // UUID thật, dùng cho các API cần id user
       });
     }
@@ -19124,7 +19144,11 @@ export default function RankevApp() {
                   if (e.type === "deck" && isApiId(e.itemId)) {
                     api.decks
                       .submit(e.itemId, { answers: e.answers || {} })
-                      .then((res) => setApiDeckResults((prev) => ({ ...prev, [e.itemId]: { answers: e.answers, submitted: true, result: res } })))
+                      .then((res) => {
+                        setApiDeckResults((prev) => ({ ...prev, [e.itemId]: { answers: e.answers, submitted: true, result: res } }));
+                        // Số người đã làm / điểm trung bình phải tính cả bài vừa nộp (trước vẫn hiện số cũ).
+                        return api.decks.stats(e.itemId).then((st) => setApiDeckStats((prev) => ({ ...prev, [e.itemId]: st })));
+                      })
                       .catch((err) => showToast(err?.message || "Nộp bài thất bại"));
                   }
                 }}
