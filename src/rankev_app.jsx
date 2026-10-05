@@ -4230,6 +4230,19 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
   const [showQR, setShowQR] = useState(false);
   const [selectedContact, setSelectedContact] = useState(null); // for "message" destination
   const [msgSent, setMsgSent] = useState(false);
+  const [sendErr, setSendErr] = useState(null);
+  // Tìm NGƯỜI trên toàn hệ thống để gửi (người mới chưa có hội thoại nào trước đây chỉ thấy
+  // "Chưa có liên hệ nào" và không gửi được cho ai).
+  const [peopleQ, setPeopleQ] = useState("");
+  const [people, setPeople] = useState([]);
+  useEffect(() => {
+    const t = peopleQ.trim();
+    if (t.length < 2) { setPeople([]); return; }
+    const h = setTimeout(() => {
+      api.search(t).then((r) => setPeople((r?.users || []).filter((u) => u.id !== currentUser.apiId).map((u) => ({ id: "u:" + u.id, userId: u.id, author: u })))).catch(() => setPeople([]));
+    }, 250);
+    return () => clearTimeout(h);
+  }, [peopleQ]);
 
   const link = isTournament ? `https://rankev.app/tournament/${item.id}` : `https://rankev.app/vote/${item.id}`;
   const typeLabel = { rankie: "Rankie", path: "Path", deck: "Deck", tournament: "Giải đấu" }[item.type] || "";
@@ -4265,8 +4278,13 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
       // Gửi thẻ chia sẻ thật vào hội thoại (selectedContact.id = conversationId).
       const refType = item.type === "deck" ? "deck" : item.type; // rankie|path|deck
       const done = () => { onShared?.(); setMsgSent(true); setTimeout(onClose, 900); };
-      api.messaging.send(selectedContact.id, { kind: "share", refType, refId: item.id, body: caption || undefined })
-        .then(done).catch(done);
+      setSendErr(null);
+      // Người chọn từ ô tìm kiếm → mở (hoặc lấy lại) cuộc trò chuyện trước rồi gửi.
+      const convP = selectedContact.userId ? api.messaging.openDM(selectedContact.userId).then((c) => c.id) : Promise.resolve(selectedContact.id);
+      convP
+        .then((convId) => api.messaging.send(convId, { kind: "share", refType, refId: item.id, body: caption || undefined }))
+        .then(done)
+        .catch((e) => setSendErr(e?.message || "Gửi thất bại, thử lại sau.")); // trước đây lỗi vẫn báo "Đã gửi"
     }
   };
 
@@ -4368,11 +4386,15 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
           {destination === "message" && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 8 }}>Gửi cho</div>
-              {contacts.length === 0 ? (
-                <div style={{ ...captionText, textAlign: "center", padding: "12px 0" }}>Chưa có liên hệ nào</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 10, padding: "8px 11px", marginBottom: 8 }}>
+                <Search size={15} color={C.textFaint} />
+                <input value={peopleQ} onChange={(e) => setPeopleQ(e.target.value)} placeholder="Tìm tên hoặc @handle…" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+              </div>
+              {(peopleQ.trim().length >= 2 ? people : contacts).length === 0 ? (
+                <div style={{ ...captionText, textAlign: "center", padding: "12px 0" }}>{peopleQ.trim().length >= 2 ? "Không tìm thấy người dùng." : "Tìm người ở ô trên để gửi."}</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                  {contacts.map((c) => {
+                  {(peopleQ.trim().length >= 2 ? people : contacts).map((c) => {
                     const active = selectedContact?.id === c.id;
                     return (
                       <button
@@ -4390,9 +4412,9 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
                           width: 36, height: 36, borderRadius: 999, flexShrink: 0,
                           background: c.author.avatarColor || C.goldSoft,
                           display: "grid", placeItems: "center", fontSize: 16,
-                          border: `1.5px solid ${active ? C.gold : C.border}`,
+                          border: `1.5px solid ${active ? C.gold : C.border}`, overflow: "hidden",
                         }}>
-                          {c.author.avatarEmoji}
+                          {c.author.avatarUrl ? <img src={c.author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (c.author.avatarEmoji || "🙂")}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: active ? C.gold : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -4409,6 +4431,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
             </div>
           )}
 
+          {sendErr && <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.coral, marginBottom: 8, textAlign: "center" }}>{sendErr}</div>}
           <button
             onClick={handlePost}
             disabled={!canPost}
