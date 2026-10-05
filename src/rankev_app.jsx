@@ -3962,18 +3962,15 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
 }
 
 function TopBar({ title, onBack, right }) {
+  const chapterNav = React.useContext(ChapterNavCtx); // trong series → thêm dải số chapter bên dưới
   return (
+    <div style={{ position: "sticky", top: 0, zIndex: 10, background: C.bg, borderBottom: `1px solid ${C.border}` }}>
     <div
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "14px 16px",
-        borderBottom: `1px solid ${C.border}`,
-        background: C.bg,
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -3983,10 +3980,12 @@ function TopBar({ title, onBack, right }) {
           </button>
         )}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {title}
+          {title || (chapterNav ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Layers size={15} color={C.gold} />{chapterNav.series.name}</span> : null)}
         </div>
       </div>
       <div>{right}</div>
+    </div>
+    {chapterNav && <ChapterStrip />}
     </div>
   );
 }
@@ -6563,17 +6562,6 @@ function useChapterNav({ post, allSeries }) {
   return { series, chapterIdx };
 }
 
-// Chip nhỏ cố định góc dưới-phải — vùng ít nội dung nhất trên màn hình chi tiết nên
-// không che tiêu đề/nội dung khi cuộn. Luôn bấm được, mở ChapterSwitcher.
-function ChapterQuickAccess({ current, total, onOpen }) {
-  return (
-    <button onClick={onOpen} style={{ position: "fixed", bottom: 18, right: 14, zIndex: 12, display: "flex", alignItems: "center", gap: 5, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}`, borderRadius: 999, padding: "7px 12px 7px 10px", cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}>
-      <Layers size={12} color={C.gold} />
-      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.text }}>Ch.{current}/{total}</span>
-    </button>
-  );
-}
-
 // Bộ chuyển chapter kiểu "đa nhiệm" điện thoại — overlay toàn màn hình, thẻ preview
 // cuộn ngang scroll-snap giống app switcher iOS. Chỉ để LƯỚT XEM + NHẢY THẲNG; đổi
 // tên/xoá/sắp xếp lại vẫn nằm ở SeriesView (mở qua nút quản lý góc phải).
@@ -6645,120 +6633,143 @@ function ChapterSwitcher({ series, currentIdx, participatedKeys, resultData, onS
   );
 }
 
-function RankieDetailWithSwipe({ selected, allSeries, navigateChapter, participatedKeys, resultData, onOpenSeries, children }) {
-  const { series, chapterIdx } = useChapterNav({ post: selected, allSeries });
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [skipToast, setSkipToast] = useState(null);
+// ===== Chuyển chapter trong series (màn chi tiết) =====
+// (A) DẢI SỐ CHAPTER gắn ngay dưới thanh tiêu đề (dính theo khi cuộn) — 1 chạm tới bất kỳ chapter;
+//     chapter đang xem tô vàng, chapter đã tham gia có ✓; nút cuối mở bảng xem trước + quản lý.
+// (B) VUỐT NGANG cả trang để sang chapter trước / sau — chừa mép trái (cử chỉ quay lại), bỏ qua
+//     khi ngón tay đặt trên ô nhập hoặc vùng cuộn ngang; mỗi chapter mở ra từ đầu trang.
+// TopBar tự vẽ dải này khi nằm trong ChapterNavShell (qua context) → không phải sửa từng màn.
+const ChapterNavCtx = React.createContext(null);
+
+function ChapterStrip() {
+  const nav = React.useContext(ChapterNavCtx);
+  const rowRef = useRef(null);
   useEffect(() => {
-    if (!skipToast) return;
-    const t = setTimeout(() => setSkipToast(null), 2500);
-    return () => clearTimeout(t);
-  }, [skipToast]);
-  const selectChapter = (p) => {
-    setSwitcherOpen(false);
-    const key = p.type === "rankie" ? `rankie:${p.id}` : p.type === "path" ? `path:${p.id}` : `deck:${p.id}`;
-    if (participatedKeys && !participatedKeys.has(key)) setSkipToast({ title: p.title });
-    navigateChapter?.(p);
-  };
+    const el = rowRef.current?.querySelector('[data-current="1"]');
+    el?.scrollIntoView?.({ inline: "center", block: "nearest" });
+  }, [nav?.idx]);
+  if (!nav || !nav.series) return null;
+  const { series, idx, isJoined, go, openSwitcher } = nav;
   return (
-    <>
-      {series && <ChapterQuickAccess current={chapterIdx + 1} total={series.posts.length} onOpen={() => setSwitcherOpen(true)} />}
-      {skipToast && (
-        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 13, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
-          Bạn chưa tham gia chapter này
-        </div>
-      )}
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 10px 8px 14px", marginTop: -4 }}>
+      <div ref={rowRef} style={{ flex: 1, minWidth: 0, display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", padding: "2px 2px" }} title={series.name}>
+        {series.posts.map((p, i) => {
+          const cur = i === idx;
+          const done = isJoined(p);
+          return (
+            <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} aria-label={`Chapter ${i + 1}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
+              style={{ position: "relative", flexShrink: 0, minWidth: 34, height: 34, padding: "0 8px", borderRadius: 999, cursor: cur ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, fontVariantNumeric: "tabular-nums", border: `1.5px solid ${cur ? C.gold : C.border}`, background: cur ? C.gold : C.surfaceRaised, color: cur ? "#1A1305" : C.text }}>
+              {i + 1}
+              {done && !cur && (
+                <span style={{ position: "absolute", right: -3, top: -3, width: 15, height: 15, borderRadius: 99, background: C.teal, border: `2px solid ${C.bg}`, display: "grid", placeItems: "center" }}>
+                  <Check size={8} color="#fff" strokeWidth={4} />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <button onClick={openSwitcher} title={`${series.name} — xem trước các chapter`} aria-label="Xem trước các chapter"
+        style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}>
+        <Layers size={18} />
+      </button>
+    </div>
+  );
+}
+
+function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, resultData, onOpenSeries, children }) {
+  const { series, chapterIdx } = useChapterNav({ post, allSeries });
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const { votedMap } = resultData || {};
+  const isJoined = (p) => {
+    if (p.type === "rankie") return votedIdsFor(votedMap?.[p.id]).length > 0 || !!participatedKeys?.has(`rankie:${p.id}`);
+    return !!participatedKeys?.has(p.type === "path" ? `path:${p.id}` : `deck:${p.id}`);
+  };
+  // Hiệu ứng lật trang khi đổi chapter (vuốt hoặc bấm số).
+  const [dx, setDx] = useState(0);
+  const [anim, setAnim] = useState(null); // null | "out" | "in"
+  const enterFrom = useRef(0);
+  const go = (i, dir = i > chapterIdx ? 1 : -1) => {
+    const target = series?.posts?.[i];
+    if (!target || i === chapterIdx) return;
+    setSwitcherOpen(false);
+    setAnim("out"); setDx(-dir * (window.innerWidth || 400));
+    setTimeout(() => {
+      enterFrom.current = dir * Math.round((window.innerWidth || 400) * 0.35);
+      navigateChapter?.(target);
+      setAnim("in"); setDx(enterFrom.current);
+      requestAnimationFrame(() => requestAnimationFrame(() => setDx(0)));
+      setTimeout(() => setAnim(null), 260);
+    }, 170);
+  };
+
+  // --- vuốt ngang ---
+  const wrapRef = useRef(null);
+  const touch = useRef(null);
+  const blocked = (el) => {
+    for (let n = el; n && n !== wrapRef.current; n = n.parentElement) {
+      if (n.matches?.('input, textarea, select, [contenteditable="true"], [data-noswipe]')) return true;
+      const cs = window.getComputedStyle(n);
+      if ((cs.overflowX === "auto" || cs.overflowX === "scroll") && n.scrollWidth > n.clientWidth + 2) return true;
+    }
+    return false;
+  };
+  const onTouchStart = (e) => {
+    if (!series || series.posts.length < 2 || e.touches.length !== 1) { touch.current = null; return; }
+    if (!wrapRef.current?.contains(e.target)) { touch.current = null; return; } // sheet/portal: bỏ qua
+    const t = e.touches[0];
+    if (t.clientX < 28 || blocked(e.target)) { touch.current = null; return; } // mép trái = quay lại
+    touch.current = { x: t.clientX, y: t.clientY, t: Date.now(), dir: null };
+  };
+  const onTouchMove = (e) => {
+    const s = touch.current; if (!s) return;
+    const t = e.touches[0];
+    const mx = t.clientX - s.x, my = t.clientY - s.y;
+    if (!s.dir) {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      s.dir = Math.abs(mx) > Math.abs(my) * 1.4 ? "h" : "v";
+    }
+    if (s.dir !== "h") return;
+    const atEdge = (mx > 0 && chapterIdx <= 0) || (mx < 0 && chapterIdx >= series.posts.length - 1);
+    setDx(atEdge ? mx * 0.2 : mx * 0.6); // hết chapter → kéo nặng tay (bật lại)
+  };
+  const onTouchEnd = (e) => {
+    const s = touch.current; touch.current = null;
+    if (!s || s.dir !== "h") return;
+    const t = e.changedTouches[0];
+    const mx = t.clientX - s.x;
+    const fast = Date.now() - s.t < 350 && Math.abs(mx) > 40;
+    const next = mx < 0 ? chapterIdx + 1 : chapterIdx - 1;
+    if ((Math.abs(mx) > 90 || fast) && series.posts[next]) go(next, mx < 0 ? 1 : -1);
+    else { setAnim("in"); setDx(0); setTimeout(() => setAnim(null), 220); }
+  };
+
+  const ctx = series ? { series, idx: chapterIdx, isJoined, go, openSwitcher: () => setSwitcherOpen(true) } : null;
+  const moving = dx !== 0 || anim;
+  return (
+    <ChapterNavCtx.Provider value={ctx}>
       {switcherOpen && series && (
         <ChapterSwitcher
           series={series}
           currentIdx={chapterIdx}
           participatedKeys={participatedKeys}
           resultData={resultData}
-          onSelect={selectChapter}
+          onSelect={(p) => go(series.posts.findIndex((x) => x.id === p.id))}
           onManage={() => { setSwitcherOpen(false); onOpenSeries?.(series.id); }}
           onClose={() => setSwitcherOpen(false)}
         />
       )}
-      {children}
-    </>
+      <div ref={wrapRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
+        style={moving ? { transform: `translateX(${dx}px)`, opacity: anim === "out" ? 0.2 : 1, transition: anim ? "transform .2s ease, opacity .2s ease" : "none", touchAction: "pan-y" } : { touchAction: "pan-y" }}>
+        {children}
+      </div>
+    </ChapterNavCtx.Provider>
   );
 }
-function PathDetailWithSwipe({ selectedPath, allSeries, navigateChapter, participatedKeys, resultData, onOpenSeries, children }) {
-  const { series, chapterIdx } = useChapterNav({ post: selectedPath, allSeries });
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [skipToast, setSkipToast] = useState(null);
-  useEffect(() => {
-    if (!skipToast) return;
-    const t = setTimeout(() => setSkipToast(null), 2500);
-    return () => clearTimeout(t);
-  }, [skipToast]);
-  const selectChapter = (p) => {
-    setSwitcherOpen(false);
-    const key = p.type === "rankie" ? `rankie:${p.id}` : p.type === "path" ? `path:${p.id}` : `deck:${p.id}`;
-    if (participatedKeys && !participatedKeys.has(key)) setSkipToast({ title: p.title });
-    navigateChapter?.(p);
-  };
-  return (
-    <>
-      {series && <ChapterQuickAccess current={chapterIdx + 1} total={series.posts.length} onOpen={() => setSwitcherOpen(true)} />}
-      {skipToast && (
-        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 13, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
-          Bạn chưa tham gia chapter này
-        </div>
-      )}
-      {switcherOpen && series && (
-        <ChapterSwitcher
-          series={series}
-          currentIdx={chapterIdx}
-          participatedKeys={participatedKeys}
-          resultData={resultData}
-          onSelect={selectChapter}
-          onManage={() => { setSwitcherOpen(false); onOpenSeries?.(series.id); }}
-          onClose={() => setSwitcherOpen(false)}
-        />
-      )}
-      {children}
-    </>
-  );
-}
-function DeckDetailWithSwipe({ selectedDeck, allSeries, navigateChapter, participatedKeys, resultData, onOpenSeries, children }) {
-  const { series, chapterIdx } = useChapterNav({ post: selectedDeck, allSeries });
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [skipToast, setSkipToast] = useState(null);
-  useEffect(() => {
-    if (!skipToast) return;
-    const t = setTimeout(() => setSkipToast(null), 2500);
-    return () => clearTimeout(t);
-  }, [skipToast]);
-  const selectChapter = (p) => {
-    setSwitcherOpen(false);
-    const key = p.type === "rankie" ? `rankie:${p.id}` : p.type === "path" ? `path:${p.id}` : `deck:${p.id}`;
-    if (participatedKeys && !participatedKeys.has(key)) setSkipToast({ title: p.title });
-    navigateChapter?.(p);
-  };
-  return (
-    <>
-      {series && <ChapterQuickAccess current={chapterIdx + 1} total={series.posts.length} onOpen={() => setSwitcherOpen(true)} />}
-      {skipToast && (
-        <div style={{ position: "fixed", bottom: 60, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(18,14,7,0.90)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 16px", fontFamily: bodyFont, fontSize: 13, color: C.textMuted, whiteSpace: "nowrap", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
-          Bạn chưa tham gia chapter này
-        </div>
-      )}
-      {switcherOpen && series && (
-        <ChapterSwitcher
-          series={series}
-          currentIdx={chapterIdx}
-          participatedKeys={participatedKeys}
-          resultData={resultData}
-          onSelect={selectChapter}
-          onManage={() => { setSwitcherOpen(false); onOpenSeries?.(series.id); }}
-          onClose={() => setSwitcherOpen(false)}
-        />
-      )}
-      {children}
-    </>
-  );
-}
+
+function RankieDetailWithSwipe({ selected, ...rest }) { return <ChapterNavShell post={selected} {...rest} />; }
+function PathDetailWithSwipe({ selectedPath, ...rest }) { return <ChapterNavShell post={selectedPath} {...rest} />; }
+function DeckDetailWithSwipe({ selectedDeck, ...rest }) { return <ChapterNavShell post={selectedDeck} {...rest} />; }
 
 // ---------- RANKIE DETAIL VIEW ----------
 // ===== Skin kết quả bình chọn (bản vui, vote thẳng trên hình) =====
@@ -18073,7 +18084,9 @@ export default function RankevApp() {
     setView("seriesDetail");
   };
   // Điều hướng chapter từ swipe
+  const replaceNavRef = useRef(false);
   const navigateChapter = (post) => {
+    replaceNavRef.current = true; // đổi chapter = thay màn hiện tại (back không lùi qua từng chapter)
     if (post.type === "rankie") { setSelectedId(post.id); setView("detail"); }
     else if (post.type === "path") { setSelectedPath(withCachedPath(post)); setView("pathDetail"); }
     else { setSelectedDeck(post); setView("deckDetail"); }
@@ -18840,6 +18853,7 @@ export default function RankevApp() {
   ].join("|");
   screenKeyRef.current = screenKey;
   const navStackRef = useRef([]); // [tab (nếu khác Bảng tin), ...màn con] — ảnh chụp để khôi phục
+  // replaceNavRef (khai báo sớm hơn, cạnh navigateChapter) — đổi chapter thay vì chồng thêm màn.
   const guardArmedRef = useRef(false); // đã đặt mục đệm trong lịch sử trình duyệt chưa
   const ignorePopsRef = useRef(0); // popstate do chính app gây ra (gỡ đệm) → bỏ qua
   const restoringRef = useRef(false); // đang khôi phục màn từ popstate → effect không ghi lại
@@ -18865,6 +18879,8 @@ export default function RankevApp() {
       return;
     }
     if (stack.length && stack[stack.length - 1].key === screenKey) return; // cùng màn (đổi state phụ)
+    if (replaceNavRef.current && stack.length) { replaceNavRef.current = false; stack[stack.length - 1] = snapshotNow(); armGuard(); return; }
+    replaceNavRef.current = false;
     if (stack.length >= 2 && stack[stack.length - 2].key === screenKey) {
       stack.pop(); // nút "quay lại" trong app về màn trước → lùi ngăn xếp cho khớp
     } else {
