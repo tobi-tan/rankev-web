@@ -3651,7 +3651,7 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
             {!data ? (
               <div style={{ textAlign: "center", padding: 30, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tải emoji…</div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 2 }}>
                 {!kw && group === -1 ? recent.map((em, i) => emojiBtn(em, "r" + i)) : shown.map((e) => emojiBtn(e.unicode, e.hexcode))}
               </div>
             )}
@@ -13270,61 +13270,139 @@ function OnlineDot({ online, size = 42 }) {
 // Quick-reaction emojis (TikTok DM style)
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "👏", "🔥"];
 
-function ChatListView({ conversations = [], onOpen, onRefresh, onBack }) {
+// ---------- Hộp thư (bố cục kiểu TikTok) ----------
+// Đầu trang: tìm · "Hộp thư" ở giữa · soạn tin mới. Hàng avatar người hay nhắn (cuộn ngang) →
+// dòng "Hoạt động" (thông báo) → danh sách hội thoại không kẻ vạch: avatar lớn, tên đậm, dòng
+// "tin cuối · thời gian", chấm đỏ khi chưa đọc.
+function ChatListView({ conversations = [], onOpen, onNewChat, notifCount = 0, onOpenNotifications }) {
   const [search, setSearch] = useState("");
-  const filtered = conversations.filter((c) => (c.title || "").toLowerCase().includes(search.toLowerCase()));
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const kw = normalizeVi(search.trim());
+  const filtered = conversations.filter((c) => !kw || normalizeVi(c.title || "").includes(kw));
   const totalUnread = conversations.reduce((s, c) => s + (c.unread || 0), 0);
   const other = (c) => c.members?.[0] || { name: c.title || "Nhóm", handle: "", avatarEmoji: "💬", avatarColor: C.goldSoft };
-
+  const headBtn = (Icon, label, onClick, active) => (
+    <button onClick={onClick} aria-label={label} title={label} style={{ width: 38, height: 38, display: "grid", placeItems: "center", background: "none", border: "none", color: active ? C.gold : C.text, cursor: "pointer", borderRadius: 99 }}><Icon size={22} /></button>
+  );
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ padding: "18px 16px 10px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontFamily: displayFont, fontStyle: "italic", fontSize: 22, color: C.text }}>
-            Tin nhắn
-            {totalUnread > 0 && (
-              <span style={{ marginLeft: 8, fontSize: 12, fontStyle: "normal", fontFamily: bodyFont, background: C.coral, color: "#fff", borderRadius: 999, padding: "2px 7px", verticalAlign: "middle", fontWeight: 700 }}>{totalUnread}</span>
-            )}
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
+      <div style={{ position: "sticky", top: 0, background: C.bg, zIndex: 10, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", padding: "10px 8px" }}>
+          {headBtn(Search, "Tìm hội thoại", () => setSearchOpen((v) => !v), searchOpen)}
+          <div style={{ flex: 1, textAlign: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>
+            Hộp thư{totalUnread > 0 && <span style={{ marginLeft: 6, fontSize: 11, background: C.coral, color: "#fff", borderRadius: 999, padding: "1px 6px", verticalAlign: 2, fontWeight: 800 }}>{totalUnread}</span>}
           </div>
-          <button onClick={onRefresh} title="Làm mới" style={{ ...iconButton, color: C.gold }}><RefreshCw size={18} /></button>
+          {headBtn(PlusCircle, "Tin nhắn mới", () => setComposeOpen(true))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 12, border: `1px solid ${C.border}`, padding: "9px 12px" }}>
-          <Search size={15} color={C.textFaint} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm kiếm..." style={{ background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14, flex: 1 }} />
-        </div>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "48px 28px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.7 }}>
-            Chưa có cuộc trò chuyện nào.<br />Mở hồ sơ một người và nhấn <b style={{ color: C.gold }}>Nhắn tin</b>, hoặc <b style={{ color: C.gold }}>Chia sẻ</b> một bài tới bạn bè để bắt đầu.
+        {searchOpen && (
+          <div style={{ padding: "0 14px 10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 10, padding: "8px 12px" }}>
+              <Search size={15} color={C.textFaint} />
+              <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm theo tên…" style={{ background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14, flex: 1, minWidth: 0 }} />
+              {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 0 }}><X size={15} /></button>}
+            </div>
           </div>
         )}
-        {filtered.map((c) => {
-          const a = other(c);
-          return (
-            <div key={c.id} onClick={() => onOpen(c)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", cursor: "pointer", borderBottom: `1px solid ${C.border}`, background: c.unread > 0 ? "rgba(212,169,74,0.04)" : "transparent" }}>
-              <Avatar author={a} size={50} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontFamily: bodyFont, fontWeight: c.unread > 0 ? 700 : 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {c.title}
-                    {SHOW_VERIFIED && a.verified && <span style={{ marginLeft: 4, fontSize: 11, color: C.teal }}>✓</span>}
-                  </span>
-                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0, marginLeft: 8 }}>{chatTimeAgo(Date.parse(c.lastTime))}</span>
-                </div>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, marginTop: 2, color: c.unread > 0 ? C.text : C.textFaint, fontWeight: c.unread > 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {c.lastMessage || "Bắt đầu trò chuyện…"}
-                </div>
-              </div>
-              {c.unread > 0 && (
-                <div style={{ width: 20, height: 20, borderRadius: 999, background: C.coral, color: "#fff", display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{c.unread}</div>
-              )}
-            </div>
-          );
-        })}
       </div>
+
+      {/* Hàng avatar người hay nhắn — chạm để mở nhanh */}
+      {!kw && conversations.length > 0 && (
+        <div style={{ display: "flex", gap: 14, overflowX: "auto", scrollbarWidth: "none", padding: "14px 16px 6px" }}>
+          {conversations.slice(0, 12).map((c) => {
+            const a = other(c);
+            return (
+              <button key={c.id} onClick={() => onOpen(c)} style={{ width: 62, flexShrink: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "center" }}>
+                <div style={{ position: "relative", width: 58, height: 58, margin: "0 auto" }}>
+                  <Avatar author={a} size={58} />
+                  {c.unread > 0 && <span style={{ position: "absolute", right: 1, bottom: 1, width: 14, height: 14, borderRadius: 99, background: C.coral, border: `2.5px solid ${C.bg}` }} />}
+                </div>
+                <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Hoạt động (thông báo) */}
+      {!kw && onOpenNotifications && (
+        <div onClick={onOpenNotifications} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 99, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Bell size={24} color={C.gold} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Hoạt động</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 13, color: notifCount > 0 ? C.text : C.textFaint, marginTop: 2, fontWeight: notifCount > 0 ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{notifCount > 0 ? `${notifCount} thông báo mới` : "@nhắc tên, bài mới từ người bạn RankUp"}</div>
+          </div>
+          {notifCount > 0 && <span style={{ minWidth: 20, height: 20, borderRadius: 99, background: C.coral, color: "#fff", display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: 11, padding: "0 5px", flexShrink: 0 }}>{notifCount}</span>}
+        </div>
+      )}
+
+      {filtered.length === 0 && (
+        <div style={{ textAlign: "center", padding: "48px 28px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.7 }}>
+          {kw ? "Không tìm thấy hội thoại nào." : <>Chưa có cuộc trò chuyện nào.<br />Bấm <b style={{ color: C.text }}>⊕</b> ở góc phải để nhắn tin cho ai đó.</>}
+        </div>
+      )}
+      {filtered.map((c) => {
+        const a = other(c);
+        const unread = c.unread > 0;
+        return (
+          <div key={c.id} onClick={() => onOpen(c)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" }}>
+            <Avatar author={a} size={56} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: unread ? 800 : 600, fontSize: 15, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>
+              <div style={{ display: "flex", gap: 4, fontFamily: bodyFont, fontSize: 13, marginTop: 2, color: unread ? C.text : C.textFaint, fontWeight: unread ? 600 : 400, minWidth: 0 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.lastMessage || "Bắt đầu trò chuyện…"}</span>
+                {c.lastTime && <span style={{ flexShrink: 0, color: C.textFaint, fontWeight: 400 }}>· {chatTimeAgo(Date.parse(c.lastTime))}</span>}
+              </div>
+            </div>
+            {unread && <span style={{ width: 10, height: 10, borderRadius: 99, background: C.coral, flexShrink: 0 }} />}
+          </div>
+        );
+      })}
+      {composeOpen && <NewChatSheet conversations={conversations} onPick={(u) => { setComposeOpen(false); onNewChat?.(u); }} onClose={() => setComposeOpen(false)} />}
     </div>
+  );
+}
+
+// Soạn tin mới: tìm người dùng trên toàn hệ thống (gợi ý = người đã từng nhắn).
+function NewChatSheet({ conversations = [], onPick, onClose }) {
+  const [q, setQ] = useState("");
+  const [users, setUsers] = useState([]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const t = q.trim();
+    if (t.length < 2) { setUsers([]); return; }
+    setBusy(true);
+    const h = setTimeout(() => {
+      api.search(t).then((r) => setUsers((r?.users || []).filter((u) => u.id !== currentUser.apiId))).catch(() => setUsers([])).finally(() => setBusy(false));
+    }, 250);
+    return () => clearTimeout(h);
+  }, [q]);
+  const suggested = conversations.filter((c) => !c.isGroup && c.members?.[0]?.id).map((c) => c.members[0]).slice(0, 8);
+  const list = q.trim().length >= 2 ? users : suggested;
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ padding: "0 16px 8px", textAlign: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text }}>Tin nhắn mới</div>
+      <div style={{ padding: "0 16px 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 10, padding: "9px 12px" }}>
+          <Search size={15} color={C.textFaint} />
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm tên hoặc @handle…" style={{ background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14, flex: 1, minWidth: 0 }} />
+        </div>
+      </div>
+      {!q.trim() && suggested.length > 0 && <div style={{ padding: "4px 16px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint }}>Gợi ý</div>}
+      <div style={{ maxHeight: "50vh", overflowY: "auto" }}>
+        {list.map((u) => (
+          <div key={u.id} onClick={() => onPick(u)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 16px", cursor: "pointer" }}>
+            <Avatar author={u} size={44} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.name || "Người dùng"}</div>
+              {u.handle && <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{String(u.handle).startsWith("@") ? u.handle : "@" + u.handle}</div>}
+            </div>
+          </div>
+        ))}
+        {q.trim().length >= 2 && !busy && users.length === 0 && <div style={{ textAlign: "center", padding: 20, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Không tìm thấy người dùng.</div>}
+        {busy && <div style={{ textAlign: "center", padding: 16, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tìm…</div>}
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -13376,7 +13454,7 @@ function ChatShareCard({ msg, onOpenShare }) {
         <MiniAvatar u={ref.author} size={22} />
         <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ref.author?.name || "Rankev"}</span>
         {/* Loại bài: chỉ icon (hạn chế chữ) */}
-        <span title={typeLabel} style={{ display: "inline-grid", placeItems: "center", width: 22, height: 22, borderRadius: 7, background: C.goldSoft, color: C.gold, flexShrink: 0 }}>
+        <span title={typeLabel} style={{ display: "inline-grid", placeItems: "center", width: 22, height: 22, borderRadius: 7, background: C.surfaceRaised, color: C.text, flexShrink: 0 }}>
           <TypeIcon size={12} />
         </span>
       </div>
@@ -13493,7 +13571,7 @@ function ChatPollComposer({ onCreate, onCancel }) {
   );
 }
 
-function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend, onBack }) {
+function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend, onBack, onOpenAuthor }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
@@ -13572,41 +13650,92 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
     }).catch(() => {});
   };
 
+  // ---- Giao diện kiểu TikTok: thẻ hồ sơ đầu cuộc trò chuyện, mốc giờ ở giữa giữa các cụm tin,
+  // tin cùng người gửi gộp cụm (avatar nhỏ ở tin cuối cụm), ô nhập dạng viên + emoji, nút gửi chỉ
+  // hiện khi có chữ.
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiList, setEmojiList] = useState(EMOJI_DATA);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const inputRef = useRef(null);
+  useEffect(() => { if (emojiOpen && !emojiList) loadEmojiData().then(setEmojiList).catch(() => {}); }, [emojiOpen, emojiList]);
+  const insertEmoji = (em) => { pushRecentEmoji(em); setText((t) => t + em); };
+  const quickEmoji = useMemo(() => {
+    const rec = readRecentEmoji();
+    const base = (emojiList || []).filter((e) => e.group === 0 || e.group === 1).slice(0, 120).map((e) => e.unicode);
+    return [...rec, ...base.filter((x) => !rec.includes(x))];
+  }, [emojiList, emojiOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const GAP_MS = 15 * 60 * 1000;
+  const tsOf = (m) => Date.parse(m.time) || 0;
+  const stamp = (ts) => {
+    const d = new Date(ts), now = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return d.toDateString() === now.toDateString() ? `${p(d.getHours())}:${p(d.getMinutes())}` : fmtDateTime(ts);
+  };
+  const handle = author.handle ? (String(author.handle).startsWith("@") ? author.handle : "@" + author.handle) : "";
+  const canOpenProfile = !!(onOpenAuthor && author.id && !conversation.isGroup);
+  const bubble = (msg, isMe, r) => ({ padding: "9px 14px", borderRadius: r, background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 15, lineHeight: 1.4, wordBreak: "break-word", whiteSpace: "pre-wrap" });
+  const lastMine = [...messages].reverse().find((m) => m.senderId === currentUserId);
+
   return (
     // Khung chat cao ĐÚNG phần nhìn thấy (100dvh — iOS Safari: 100vh lớn hơn màn hình vì thanh
     // địa chỉ) → trang không cuộn được nữa, thanh tên người chat luôn nằm trên cùng.
     <div className="rk-fullh" style={{ position: "fixed", top: 0, bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, zIndex: 45, display: "flex", flexDirection: "column", background: C.bg, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", paddingTop: "max(12px, env(safe-area-inset-top, 12px))", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
-        <button onClick={onBack} style={{ ...iconButton, color: C.text }}><ArrowLeft size={22} /></button>
-        <Avatar author={author} size={38} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, lineHeight: 1.1 }}>{conversation.title}</div>
-          {/* Không bịa trạng thái "Đang hoạt động" (chưa có presence thật) — hiện @handle. */}
-          {author.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{String(author.handle).startsWith("@") ? author.handle : "@" + author.handle}</div>}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 6px", paddingTop: "max(8px, env(safe-area-inset-top, 8px))", borderBottom: `1px solid ${C.border}`, background: C.bg, flexShrink: 0 }}>
+        <button onClick={onBack} aria-label="Quay lại" style={{ width: 40, height: 40, display: "grid", placeItems: "center", background: "none", border: "none", color: C.text, cursor: "pointer" }}><ChevronLeft size={26} /></button>
+        <button onClick={() => canOpenProfile && onOpenAuthor(author.id)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "none", border: "none", cursor: canOpenProfile ? "pointer" : "default", padding: 0 }}>
+          <Avatar author={author} size={30} />
+          <div style={{ minWidth: 0, textAlign: "left" }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15.5, color: C.text, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{conversation.title}</div>
+            {handle && <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.2 }}>{handle}</div>}
+          </div>
+        </button>
+        <button onClick={() => setMoreOpen(true)} aria-label="Tuỳ chọn" style={{ width: 40, height: 40, display: "grid", placeItems: "center", background: "none", border: "none", color: C.text, cursor: "pointer", visibility: conversation.isGroup ? "hidden" : "visible" }}><MoreHorizontal size={22} /></button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px", display: "flex", flexDirection: "column" }}>
+        {/* Thẻ hồ sơ đầu cuộc trò chuyện (như TikTok) */}
+        {!loading && !conversation.isGroup && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 0 22px" }}>
+            <Avatar author={author} size={84} />
+            <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 18, color: C.text, marginTop: 10 }}>{conversation.title}</div>
+            {handle && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 2 }}>{handle}</div>}
+            {canOpenProfile && <button onClick={() => onOpenAuthor(author.id)} style={{ marginTop: 12, padding: "7px 18px", borderRadius: 8, background: C.surfaceRaised, border: "none", color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Xem hồ sơ</button>}
+          </div>
+        )}
         {loading && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: 20 }}>Đang tải…</div>}
-        {!loading && messages.length === 0 && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: 20 }}>Gửi lời chào đầu tiên 👋</div>}
-        {messages.map((msg) => {
+        {!loading && messages.length === 0 && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: "0 20px 20px" }}>Gửi lời chào đầu tiên 👋</div>}
+        {messages.map((msg, i) => {
           const isMe = msg.senderId === currentUserId;
-          return (
-            <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start", opacity: msg._pending ? 0.6 : 1 }}>
-              <div style={{ maxWidth: "82%" }}>
-                {msg.kind === "poll" ? (
-                  <ChatPollCard msg={msg} onVote={votePoll} />
-                ) : msg.kind === "share" ? (
-                  <div>
-                    {msg.body && <div style={{ padding: "9px 13px", borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.45, border: isMe ? "none" : `1px solid ${C.border}`, wordBreak: "break-word" }}>{msg.body}</div>}
-                    <ChatShareCard msg={msg} onOpenShare={onOpenShare} />
-                  </div>
-                ) : (
-                  <div style={{ padding: "9px 13px", borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.45, border: isMe ? "none" : `1px solid ${C.border}`, wordBreak: "break-word" }}>{msg.body}</div>
-                )}
-              </div>
-              <div style={{ ...captionText, marginTop: 3, marginBottom: 2 }}>{chatTimeAgo(Date.parse(msg.time))}</div>
+          const prev = messages[i - 1], next = messages[i + 1];
+          const sep = !prev || tsOf(msg) - tsOf(prev) > GAP_MS;
+          const nextSep = !next || tsOf(next) - tsOf(msg) > GAP_MS;
+          const samePrev = !sep && prev && prev.senderId === msg.senderId;
+          const sameNext = !nextSep && next && next.senderId === msg.senderId;
+          const R = 20, r = 6;
+          const radius = isMe
+            ? `${R}px ${samePrev ? r : R}px ${sameNext ? r : R}px ${R}px`
+            : `${samePrev ? r : R}px ${R}px ${R}px ${sameNext ? r : R}px`;
+          const body = msg.kind === "poll" ? (
+            <ChatPollCard msg={msg} onVote={votePoll} />
+          ) : msg.kind === "share" ? (
+            <div>
+              {msg.body && <div style={{ ...bubble(msg, isMe, radius), marginBottom: 4 }}>{msg.body}</div>}
+              <ChatShareCard msg={msg} onOpenShare={onOpenShare} />
             </div>
+          ) : (
+            <div style={bubble(msg, isMe, radius)}>{msg.body}</div>
+          );
+          return (
+            <React.Fragment key={msg.id}>
+              {sep && <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, margin: i === 0 ? "0 0 10px" : "14px 0 10px" }}>{stamp(tsOf(msg))}</div>}
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: isMe ? "flex-end" : "flex-start", gap: 8, marginTop: samePrev ? 2 : 8, opacity: msg._pending ? 0.6 : 1 }}>
+                {!isMe && <div style={{ width: 28, flexShrink: 0 }}>{!sameNext && <Avatar author={author} size={28} />}</div>}
+                <div style={{ maxWidth: "76%" }}>{body}</div>
+              </div>
+              {isMe && msg === lastMine && (msg._pending || !next) && (
+                <div style={{ alignSelf: "flex-end", fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 3 }}>{msg._pending ? "Đang gửi…" : "Đã gửi"}</div>
+              )}
+            </React.Fragment>
           );
         })}
         <div ref={bottomRef} />
@@ -13618,19 +13747,35 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
       {pollOpen ? (
         <ChatPollComposer onCreate={createPoll} onCancel={() => setPollOpen(false)} />
       ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderTop: `1px solid ${C.border}`, background: C.bg, paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))" }}>
-          <button onClick={() => setPollOpen(true)} title="Bình chọn nhanh" style={{ ...iconButton, color: C.gold }}><BarChart3 size={21} /></button>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", background: C.surfaceRaised, borderRadius: 999, border: `1px solid ${C.border}`, padding: "8px 14px", gap: 8 }}>
-            <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Nhắn tin..." style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+        <div style={{ borderTop: `1px solid ${C.border}`, background: C.bg, paddingBottom: emojiOpen ? 0 : "env(safe-area-inset-bottom, 0px)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px" }}>
+            <button onClick={() => setPollOpen(true)} title="Bình chọn nhanh" aria-label="Bình chọn nhanh" style={{ width: 38, height: 38, borderRadius: 99, display: "grid", placeItems: "center", background: C.surfaceRaised, border: "none", color: C.text, cursor: "pointer", flexShrink: 0 }}><BarChart3 size={19} /></button>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", background: C.surfaceRaised, borderRadius: 999, padding: "4px 6px 4px 14px", gap: 4 }}>
+              <input ref={inputRef} value={text} onFocus={() => setEmojiOpen(false)} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Gửi tin nhắn…" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 15, padding: "6px 0" }} />
+              <button onClick={() => { setEmojiOpen((v) => !v); inputRef.current?.blur(); }} title="Emoji" aria-label="Emoji" style={{ width: 32, height: 32, borderRadius: 99, display: "grid", placeItems: "center", background: "none", border: "none", color: emojiOpen ? C.gold : C.textMuted, cursor: "pointer", flexShrink: 0 }}><Smile size={21} /></button>
+            </div>
+            {text.trim() && (
+              <button onClick={handleSend} aria-label="Gửi" style={{ width: 38, height: 38, borderRadius: 999, background: C.gold, border: "none", display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, animation: "popIn .15s ease" }}>
+                <Send size={17} color="#1A1305" />
+              </button>
+            )}
           </div>
-          <button onClick={handleSend} disabled={!text.trim()} style={{ width: 38, height: 38, borderRadius: 999, background: text.trim() ? C.gold : C.surfaceRaised, border: `1px solid ${text.trim() ? C.gold : C.border}`, display: "grid", placeItems: "center", cursor: text.trim() ? "pointer" : "default", flexShrink: 0 }}>
-            <Send size={16} color={text.trim() ? "#1A1305" : C.textFaint} />
-          </button>
+          {emojiOpen && (
+            <div style={{ height: 230, overflowY: "auto", padding: "4px 8px max(8px, env(safe-area-inset-bottom, 8px))", borderTop: `1px solid ${C.border}` }}>
+              {!emojiList ? <div style={{ textAlign: "center", padding: 24, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tải emoji…</div> : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 2 }}>
+                  {quickEmoji.map((em, k) => <button key={k} onClick={() => insertEmoji(em)} style={{ fontSize: 26, height: 42, border: "none", background: "none", cursor: "pointer", padding: 0 }}>{em}</button>)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
+      {moreOpen && <ModerationSheet author={author} onClose={() => setMoreOpen(false)} />}
     </div>
   );
 }
+
 
 function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
   const items = [
@@ -19051,8 +19196,9 @@ export default function RankevApp() {
             <ChatListView
               conversations={conversations}
               onOpen={openChat}
-              onRefresh={loadConversations}
-              onBack={() => setView("feed")}
+              onNewChat={(u) => openDM(u.id, u)}
+              notifCount={notifCount}
+              onOpenNotifications={openNotifications}
             />
           )}
           {view === "chat" && openConversation && (
@@ -19061,6 +19207,7 @@ export default function RankevApp() {
               currentUserId={currentUser.apiId}
               onOpenShare={(refType, refId, summary) => openRef({ refType: "post", refId, preview: { postType: refType, summary } })}
               onAfterSend={loadConversations}
+              onOpenAuthor={(id) => openAuthorWall(id)}
               onBack={() => { setOpenConversation(null); loadConversations(); }}
             />
           )}
