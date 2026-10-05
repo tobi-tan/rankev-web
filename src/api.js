@@ -316,6 +316,8 @@ export const series = {
   addPost(id, postId) { return apiFetch(`/series/${id}/posts`, { method: 'POST', body: { postId } }); },
   // Gỡ bài khỏi series (bài vẫn còn, thành độc lập). Trả { removed, seriesDeleted }.
   removePost(id, postId) { return apiFetch(`/series/${id}/posts/${postId}`, { method: 'DELETE' }); },
+  rename(id, name) { return apiFetch(`/series/${id}`, { method: 'PATCH', body: { name } }); },
+  reorder(id, postIds) { return apiFetch(`/series/${id}/reorder`, { method: 'PATCH', body: { postIds } }); },
 };
 
 export const sessions = {

@@ -992,7 +992,9 @@ const otherExam = {
 };
 
 // ---------- HELPERS ----------
-const fmt = (n) => n.toLocaleString("en-US");
+// An toàn với dữ liệu thiếu (bài mở từ thông báo/tin nhắn khi chưa nạp đủ): undefined → "0"
+// thay vì làm sập cả màn (trước đây trắng toàn app).
+const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0).toLocaleString("en-US");
 
 // ---------- CHẾ ĐỘ THỐNG KÊ: số phiếu ↔ % (toàn app) ----------
 // Mọi con số vote hiển thị mặc định là SỐ PHIẾU; chạm vào bất kỳ số nào để đổi
@@ -1024,7 +1026,8 @@ function VoteStat({ votes = 0, total = 0, style, title }) {
 
 // Compact follower-style counter: 128 -> "128", 4021 -> "4,0K", 284000 -> "284K"
 function fmtCompact(n) {
-  if (n == null) return "0";
+  n = Number(n);
+  if (!Number.isFinite(n)) return "0";
   if (n < 1000) return `${n}`;
   if (n < 1_000_000) {
     const v = n / 1000;
@@ -3720,7 +3723,7 @@ function Illustration({ emoji, image, size = 56, radius = 12 }) {
       {image && !broken ? (
         <Pic src={image} alt="" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
-        <span style={{ fontSize: size * 0.5, lineHeight: 1 }}>{emoji || "❓"}</span>
+        <span style={{ fontSize: size * 0.5, lineHeight: 1 }}>{emoji || ""}</span>
       )}
     </div>
   );
@@ -6459,8 +6462,7 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
   const posts = series?.posts || [];
   if (!series) return null;
 
-  const typeLabel = (p) => p.type === "rankie" ? "Rankie" : p.type === "path" ? "Path" : p.deckMode === "exam" ? "Exam" : "Survey";
-  const typeColor = (p) => p.type === "rankie" ? C.gold : p.type === "path" ? C.teal : p.deckMode === "exam" ? C.coral : "#8B7FD1";
+  const typeMeta = (p) => POST_TYPE_META[postTypeKey(p)];
 
   return (
     <div>
@@ -6492,22 +6494,21 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
         </div>
       )}
 
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column" }}>
         {posts.map((p, idx) => (
-          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 12px" }}>
+          <div key={p.id} onClick={() => onOpenPost?.(p)} style={{ ...listRow, gap: 10 }}>
             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: C.textFaint, flexShrink: 0, width: 24, textAlign: "center" }}>
               {idx + 1}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: typeColor(p), background: `${typeColor(p)}18`, padding: "2px 7px", borderRadius: 999 }}>{typeLabel(p)}</span>
+                {(() => { const M = typeMeta(p); const I = M.icon; return <span title={M.label} style={{ display: "inline-flex" }}><I size={13} color={C.text} /></span>; })()}
                 <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{timeAgo(p.createdAt)}</span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-              <button onClick={() => onOpenPost?.(p)} style={{ ...iconButton, color: C.teal }}><Eye size={16} /></button>
-              <button onClick={() => onRemove?.(series.id, p.id)} style={{ ...iconButton, color: C.textFaint }}><X size={15} /></button>
+              <button onClick={(e) => { e.stopPropagation(); onRemove?.(series.id, p.id); }} title="Gỡ khỏi series" aria-label="Gỡ khỏi series" style={{ ...iconButton, color: C.textFaint }}><X size={15} /></button>
             </div>
           </div>
         ))}
@@ -7836,7 +7837,7 @@ function ChoiceButton({ choice, onClick, accent, layout = "col", imageSize = 76 
         e.currentTarget.style.borderColor = C.border;
       }}
     >
-      <Illustration emoji={choice.emoji} image={choice.image} size={imageSize} radius={16} />
+      {(choice.emoji || choice.image) && <Illustration emoji={choice.emoji} image={choice.image} size={imageSize} radius={16} />}
       <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, textAlign: isRow ? "left" : "center", lineHeight: 1.25, flex: isRow ? 1 : "none" }}>
         {choice.label}
       </span>
@@ -14971,6 +14972,29 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
 // Giữ một màn đã mở trong bộ nhớ (ẩn bằng display:none) thay vì huỷ/dựng lại — quay lại
 // Bảng tin / Hồ sơ là TỨC THÌ (không render lại hàng trăm thẻ, không tải lại dữ liệu, ảnh còn
 // nguyên). Khi ẩn, trả lại ĐÚNG phần tử con lần trước → React bỏ qua cả cây (không render lại).
+// Lưới an toàn: một màn bị lỗi khi vẽ → hiện thông báo + nút quay lại thay vì TRẮNG CẢ APP.
+// resetKey đổi (sang màn khác) → tự thử vẽ lại.
+class ScreenBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { console.error("[ScreenBoundary]", err, info?.componentStack); }
+  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div style={{ padding: "64px 24px", textAlign: "center", fontFamily: bodyFont, color: C.text }}>
+        <AlertTriangle size={36} color={C.coral} />
+        <div style={{ fontWeight: 800, fontSize: 17, marginTop: 12 }}>Không mở được nội dung này</div>
+        <div style={{ fontSize: 13.5, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>Có thể bài đã bị xoá hoặc chưa tải xong. Thử lại sau nhé.</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
+          <button onClick={() => { this.setState({ err: null }); this.props.onBack?.(); }} style={{ padding: "10px 18px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, cursor: "pointer" }}>Quay lại</button>
+          <button onClick={() => this.setState({ err: null })} style={{ padding: "10px 18px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, cursor: "pointer" }}>Thử lại</button>
+        </div>
+      </div>
+    );
+  }
+}
+
 function KeepAlive({ active, children }) {
   const last = useRef(null);
   if (active) last.current = children;
@@ -15880,6 +15904,7 @@ function apiSummaryToProto(s) {
     caption: s.caption || "",
     participants: s.engagement || 0,
     shares: s.sharesCount || 0, // lượt gửi qua tin nhắn (thật, từ server)
+    visibility: s.visibility || "public", pinned: !!s.pinned, hidden: !!s.hidden, // lưu ở server (0032)
     questionCount: s.questionCount ?? 0,
     seriesId: s.seriesId || null,
     seriesName: s.seriesName || null,
@@ -17600,9 +17625,16 @@ export default function RankevApp() {
     setPostMeta((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
   // ----- Profile management actions (pin, hide, delete/restore, duplicate, visibility) -----
-  const togglePin = (post) => updateMeta(post.id, { pinned: !metaFor(post.id).pinned });
-  const toggleHide = (post) => updateMeta(post.id, { hidden: !metaFor(post.id).hidden });
-  const setVisibilityFor = (post, visibility) => updateMeta(post.id, { visibility });
+  // Ghim / Ẩn / Quyền riêng tư: LƯU LÊN SERVER (trước chỉ lưu trên máy → người khác vẫn thấy bài
+  // "Chỉ mình tôi", tải lại là mất). Optimistic + hoàn tác khi lỗi.
+  const persistFlag = (post, patch, undo) => {
+    updateMeta(post.id, patch);
+    if (isApiId(post.id)) api.posts.update(post.id, patch).catch((e) => { updateMeta(post.id, undo); showToast(e?.message || "Không lưu được thay đổi"); });
+  };
+  const flagOf = (post, k, dflt) => (metaFor(post.id)[k] ?? post[k] ?? dflt);
+  const togglePin = (post) => { const cur = !!flagOf(post, "pinned", false); persistFlag(post, { pinned: !cur }, { pinned: cur }); };
+  const toggleHide = (post) => { const cur = !!flagOf(post, "hidden", false); persistFlag(post, { hidden: !cur }, { hidden: cur }); };
+  const setVisibilityFor = (post, visibility) => { const cur = flagOf(post, "visibility", "public"); persistFlag(post, { visibility }, { visibility: cur }); };
   // Cycles Công khai -> Theo link -> Chỉ mình tôi -> Công khai, so the menu's single
   // "Quyền riêng tư" item can just be tapped repeatedly instead of opening a submenu.
   const cycleVisibility = (post) => {
@@ -17926,10 +17958,19 @@ export default function RankevApp() {
   };
 
   // Series management handlers
-  const renameSeries = (seriesId, name) => setSeriesOverrides((prev) => ({ ...prev, [seriesId]: { ...prev[seriesId], name } }));
+  // Đổi tên series: LƯU LÊN SERVER (trước chỉ đổi trên máy → tải lại là mất, người khác vẫn thấy tên cũ).
+  const renameSeries = (seriesId, name) => {
+    const nm = (name || "").trim(); if (!nm) return;
+    const prevName = allSeries[seriesId]?.name;
+    setSeriesOverrides((prev) => ({ ...prev, [seriesId]: { ...prev[seriesId], name: nm } }));
+    const swapName = (n) => (prev) => prev.map((x) => (x.seriesId === seriesId ? { ...x, seriesName: n } : x));
+    setRankies(swapName(nm)); setUserPaths(swapName(nm)); setUserDecks(swapName(nm)); setApiPosts(swapName(nm));
+    if (isApiId(seriesId)) api.series.rename(seriesId, nm).then(loadMySeries).catch((e) => { setSeriesOverrides((prev) => ({ ...prev, [seriesId]: { ...prev[seriesId], name: prevName } })); showToast(e?.message || "Đổi tên series thất bại"); });
+  };
+  // Gỡ chapter khỏi series (từ màn Series) — dùng đúng API như menu bài (trước chỉ sửa trên máy).
   const removeFromSeries = (seriesId, postId) => {
-    // Đánh dấu bài bị loại khỏi series bằng cách xoá seriesId của nó
-    editPost(rankies.find((r) => r.id === postId) || allPaths.find((p) => p.id === postId) || allDecks.find((d) => d.id === postId), { seriesId: null, seriesName: null });
+    const p = allPosts.find((x) => x.id === postId);
+    if (p) removePostFromSeries({ ...p, seriesId, seriesName: allSeries[seriesId]?.name });
   };
   const openSeriesDetail = (seriesId) => {
     setSelectedSeriesId2(seriesId);
@@ -18833,6 +18874,7 @@ export default function RankevApp() {
           </div>
         )}
         <div ref={scrollContainerRef} onScroll={handleScrollContainer} onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd} style={{ flex: 1, paddingBottom: 8 /* KHÔNG overflow:auto — nếu có, mọi thanh "sticky" (nút back, thanh công cụ) dính vào khung này thay vì màn hình nên trôi mất khi cuộn */ }}>
+          <ScreenBoundary resetKey={screenKey} onBack={() => goBack("feed")}>
           <KeepAlive active={view === "feed"}>
             <FeedView
               pathUnlocks={pathUnlocks}
@@ -18971,11 +19013,32 @@ export default function RankevApp() {
                   if (e.type === "path") {
                     unlockPathEnding(e.itemId, e.detail);
                     // Path thật: ghi kết quả lên backend (mở khoá ending + cộng lượt).
+                    // Màn kết quả hiện NGAY số liệu có tính lượt của mình (trước hiện "0% · 0 người" vì
+                    // dùng số liệu nạp trước khi chơi). Kết thúc cũ (nếu chơi lại) trừ 1, kết mới cộng 1.
+                    const prevEnding = participationByKey[`path:${e.itemId}`]?.detail;
+                    if (prevEnding !== e.detail) {
+                      setSelectedPath((cur) => {
+                        if (!cur || cur.id !== e.itemId || !cur.results?.[e.detail]) return cur;
+                        const res = {};
+                        Object.entries(cur.results).forEach(([k, v]) => { res[k] = { ...v, count: Math.max(0, (v.count || 0) + (k === e.detail ? 1 : k === prevEnding ? -1 : 0)) }; });
+                        const tot = Object.values(res).reduce((t, v) => t + v.count, 0) || 1;
+                        Object.values(res).forEach((v) => { v.pct = Math.round((v.count / tot) * 100); });
+                        return { ...cur, results: res };
+                      });
+                    }
                     if (isApiId(e.itemId)) {
                       pathFullCache.delete(e.itemId); // số liệu phân bố kết quả vừa đổi
                       api.paths
                         .complete(e.itemId, e.detail)
-                        .then((r) => { if (r && r.unlockedEndings) setPathUnlocks((prev) => ({ ...prev, [e.itemId]: r.unlockedEndings })); })
+                        .then((r) => {
+                          if (r && r.unlockedEndings) setPathUnlocks((prev) => ({ ...prev, [e.itemId]: r.unlockedEndings }));
+                          // đồng bộ lại số liệu thật (người khác có thể vừa chơi cùng lúc)
+                          return api.posts.get(e.itemId).then((full) => {
+                            if (!full || full.type !== "path") return;
+                            const fresh = apiPathToProto(full);
+                            setSelectedPath((cur) => (cur && cur.id === e.itemId ? { ...cur, results: fresh.results } : cur));
+                          });
+                        })
                         .catch((err) => showToast(err?.message || "Lưu kết quả thất bại"));
                     }
                   }
@@ -19214,6 +19277,7 @@ export default function RankevApp() {
               onBack={() => { setOpenConversation(null); loadConversations(); }}
             />
           )}
+          </ScreenBoundary>
         </div>
         {navPresent && (
           <BottomNav active={view} setView={(v) => {
