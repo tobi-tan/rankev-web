@@ -3980,7 +3980,7 @@ function TopBar({ title, onBack, right }) {
           </button>
         )}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {title || (chapterNav ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Layers size={15} color={C.gold} />{chapterNav.series.name}</span> : null)}
+          {title || (chapterNav ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{chapterNav.series._tournamentId ? <Trophy size={15} color={C.gold} /> : <Layers size={15} color={C.gold} />}{chapterNav.series.name}</span> : null)}
         </div>
       </div>
       <div>{right}</div>
@@ -6657,7 +6657,7 @@ function ChapterStrip() {
           const cur = i === idx;
           const done = isJoined(p);
           return (
-            <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} aria-label={`Chapter ${i + 1}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
+            <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} title={p._roundLabel ? `${p._roundLabel} · ${p.title}` : p.title} aria-label={`${series._tournamentId ? "Trận" : "Chapter"} ${i + 1}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
               style={{ position: "relative", flexShrink: 0, minWidth: 34, height: 34, padding: "0 8px", borderRadius: 999, cursor: cur ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, fontVariantNumeric: "tabular-nums", border: `1.5px solid ${cur ? C.gold : C.border}`, background: cur ? C.gold : C.surfaceRaised, color: cur ? "#1A1305" : C.text }}>
               {i + 1}
               {done && !cur && (
@@ -6669,7 +6669,7 @@ function ChapterStrip() {
           );
         })}
       </div>
-      <button onClick={openSwitcher} title={`${series.name} — xem trước các chapter`} aria-label="Xem trước các chapter"
+      <button onClick={openSwitcher} title={`${series.name} — xem trước ${series._tournamentId ? "các trận" : "các chapter"}`} aria-label={series._tournamentId ? "Xem trước các trận" : "Xem trước các chapter"}
         style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}>
         <Layers size={18} />
       </button>
@@ -6677,11 +6677,40 @@ function ChapterStrip() {
   );
 }
 
+// Trận trong GIẢI ĐẤU không mang seriesId (feed hiện nhãn giải thay cho series) → dựng "series ảo"
+// từ các trận của giải để màn chi tiết trận cũng có dải số + vuốt chuyển trận như series thường.
+function useTournamentChapters(tournamentId) {
+  const [data, setData] = useState(() => (tournamentId ? tournamentCache.get(tournamentId) || null : null));
+  useEffect(() => {
+    if (!tournamentId) { setData(null); return; }
+    const cached = tournamentCache.get(tournamentId);
+    if (cached) setData(cached);
+    let alive = true;
+    api.tournaments.get(tournamentId).then((t) => { if (!alive || !t) return; tournamentCache.set(tournamentId, t); setData(t); }).catch(() => {});
+    return () => { alive = false; };
+  }, [tournamentId]);
+  return useMemo(() => {
+    if (!data || !tournamentId) return null;
+    const author = data.author ? apiAuthorToProto(data.author) : null;
+    const posts = (data.matches || [])
+      .filter((m) => m.rankiePostId)
+      .sort((a, b) => a.round - b.round || a.position - b.position)
+      .map((m) => ({ ...matchToRankieProto(m, author), tournamentId, tournamentTitle: data.title, _joined: !!m.myPick, _roundLabel: `Vòng ${m.round + 1}` }));
+    if (posts.length < 2) return null;
+    return { id: "tour:" + tournamentId, name: data.title, posts, _tournamentId: tournamentId };
+  }, [data, tournamentId]);
+}
+
 function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, resultData, onOpenSeries, children }) {
-  const { series, chapterIdx } = useChapterNav({ post, allSeries });
+  const realNav = useChapterNav({ post, allSeries });
+  const tourSeries = useTournamentChapters(!realNav.series && post?.tournamentId ? post.tournamentId : null);
+  const rkSave = useRankieSave();
+  const series = realNav.series || tourSeries;
+  const chapterIdx = realNav.series ? realNav.chapterIdx : tourSeries ? tourSeries.posts.findIndex((p) => p.id === post?.id) : -1;
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const { votedMap } = resultData || {};
   const isJoined = (p) => {
+    if (p._joined) return true;
     if (p.type === "rankie") return votedIdsFor(votedMap?.[p.id]).length > 0 || !!participatedKeys?.has(`rankie:${p.id}`);
     return !!participatedKeys?.has(p.type === "path" ? `path:${p.id}` : `deck:${p.id}`);
   };
@@ -6744,7 +6773,7 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     else { setAnim("in"); setDx(0); setTimeout(() => setAnim(null), 220); }
   };
 
-  const ctx = series ? { series, idx: chapterIdx, isJoined, go, openSwitcher: () => setSwitcherOpen(true) } : null;
+  const ctx = series && chapterIdx >= 0 ? { series, idx: chapterIdx, isJoined, go, openSwitcher: () => setSwitcherOpen(true) } : null;
   const moving = dx !== 0 || anim;
   return (
     <ChapterNavCtx.Provider value={ctx}>
@@ -6755,7 +6784,7 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
           participatedKeys={participatedKeys}
           resultData={resultData}
           onSelect={(p) => go(series.posts.findIndex((x) => x.id === p.id))}
-          onManage={() => { setSwitcherOpen(false); onOpenSeries?.(series.id); }}
+          onManage={() => { setSwitcherOpen(false); if (series._tournamentId) rkSave?.openTournament?.(series._tournamentId); else onOpenSeries?.(series.id); }}
           onClose={() => setSwitcherOpen(false)}
         />
       )}
@@ -18087,7 +18116,7 @@ export default function RankevApp() {
   const replaceNavRef = useRef(false);
   const navigateChapter = (post) => {
     replaceNavRef.current = true; // đổi chapter = thay màn hiện tại (back không lùi qua từng chapter)
-    if (post.type === "rankie") { setSelectedId(post.id); setView("detail"); }
+    if (post.type === "rankie") { const keep = prevAfterDetail; openRankie(post.id, post); setPrevAfterDetail(keep); }
     else if (post.type === "path") { setSelectedPath(withCachedPath(post)); setView("pathDetail"); }
     else { setSelectedDeck(post); setView("deckDetail"); }
   };
