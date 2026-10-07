@@ -162,6 +162,13 @@ const FONT_IMPORT = (
       100% { opacity: 0; }
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Màn giữ sẵn (KeepAlive) đang ẩn: content-visibility giữ nguyên layout đã tính → hiện lại ~3ms
+       thay vì ~40ms dàn trang lại cả feed. Trình duyệt cũ không hỗ trợ → display:none như trước. */
+    .rk-ka-off { display: none; }
+    /* Thẻ feed ngoài màn hình: bỏ qua layout/paint → quay lại Bảng tin ~2× nhanh hơn. Menu nổi trong
+       thẻ PHẢI dùng portal (createPortal) vì containment làm position:fixed bám theo thẻ. */
+    .rk-feedlist > * { content-visibility: auto; contain-intrinsic-size: auto 560px; }
+    @supports (content-visibility: hidden) { .rk-ka-off { display: block; content-visibility: hidden; height: 0; overflow: hidden; } }
     .rk-legal h1 { font-size: 18px; font-weight: 700; margin: 14px 0 4px; }
     .rk-legal h2 { font-size: 16px; font-weight: 700; margin: 22px 0 6px; padding-top: 14px; border-top: 1px solid var(--border); }
     .rk-legal ul { padding-left: 20px; margin: 6px 0; } .rk-legal li { margin: 4px 0; }
@@ -1159,15 +1166,26 @@ function formatRemaining(closesAt) {
   return "Còn dưới 1 phút";
 }
 
+// Màn đang hiển thị? (KeepAlive cung cấp). Đồng hồ trong màn ĐANG ẨN (vd. feed khi mở chi tiết)
+// ngừng nhảy — mỗi lần nhảy làm bẩn layout của cả feed ẩn → lúc quay lại phải dàn trang lại
+// toàn bộ (~27ms máy tính, ~100ms+ điện thoại). Hiện lại thì cập nhật giờ ngay.
+const ScreenActiveCtx = React.createContext(true);
+function useSecondTick(enabled) {
+  const screenActive = React.useContext(ScreenActiveCtx);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!enabled || !screenActive) return;
+    setNow(Date.now());
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [enabled, screenActive]);
+  return now;
+}
+
 // Live-updating remaining time to an absolute closesAt timestamp. Re-renders every
 // second so a Rankie countdown ticks in real time. Returns null when there's no deadline.
 function useLiveRemaining(closesAt) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!closesAt) return;
-    const iv = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(iv);
-  }, [closesAt]);
+  const now = useSecondTick(!!closesAt);
   if (!closesAt) return null;
   return Math.max(0, closesAt - now);
 }
@@ -1184,8 +1202,7 @@ function fmtCountdown(ms) {
 // Đồng hồ đếm ngược DÙNG CHUNG (feed + chi tiết): nền tối cố định, chữ SÁNG mono,
 // icon đồng hồ; đỏ-nhạt khi sắp hết (<5 phút). Thống nhất 1 kiểu trên toàn Rankev.
 function CountdownChip({ toTs, prefix, urgentUnder = 300, style }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { if (!toTs) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv); }, [toTs]);
+  const now = useSecondTick(!!toTs);
   if (!toTs) return null;
   const ms = Math.max(0, toTs - now);
   const urgent = Math.floor(ms / 1000) <= urgentUnder;
@@ -1259,8 +1276,9 @@ function normalizeVi(str) {
 // onTick(optionIndex), if given, fires once per tick so callers can react to
 // "someone just voted" (e.g. spawning a reaction bubble) without duplicating the timer.
 function useLiveTicker(setOptions, isActive, isLive, simulateVoters = false, onTick) {
+  const screenActive = React.useContext(ScreenActiveCtx);
   useEffect(() => {
-    if (!isActive || !isLive) return;
+    if (!isActive || !isLive || !screenActive) return;
     const interval = setInterval(() => {
       const idx = Math.floor(Math.random() * 1e9); // resolved against current length below
       setOptions((prev) => {
@@ -1276,7 +1294,7 @@ function useLiveTicker(setOptions, isActive, isLive, simulateVoters = false, onT
       });
     }, 1400);
     return () => clearInterval(interval);
-  }, [isActive, isLive, setOptions, simulateVoters, onTick]);
+  }, [isActive, isLive, setOptions, simulateVoters, onTick, screenActive]);
 }
 
 // Self-contained live votes for ephemeral contexts (presenter mode) that keep
@@ -1691,8 +1709,7 @@ const postTypeKey = (item) =>
 
 // Đếm ngược dạng CHỮ (không phải viên) để nằm gọn trong dòng thông tin dưới tên.
 function InlineCountdown({ toTs, prefix }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { if (!toTs) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv); }, [toTs]);
+  const now = useSecondTick(!!toTs);
   if (!toTs) return null;
   const ms = Math.max(0, toTs - now);
   const urgent = ms <= 300000;
@@ -1789,9 +1806,10 @@ function RankChevrons({ level, color = "currentColor", size = 18 }) {
 function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, variant = "icon", align = "right" }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const menuRef = useRef(null);
   useEffect(() => {
     if (!open) return;
-    const h = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
+    const h = (e) => { if (rootRef.current && !rootRef.current.contains(e.target) && !menuRef.current?.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
@@ -1839,7 +1857,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
           ? Math.max(8, Math.min(r ? r.left : 8, window.innerWidth - width - 8))
           : Math.max(8, Math.min((r ? r.right : width) - width, window.innerWidth - width - 8));
         return (
-        <div style={{ position: "fixed", top, left, width, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", zIndex: 3000 }}>
+        createPortal(<div ref={menuRef} onClick={(e) => e.stopPropagation()} style={{ position: "fixed", top, left, width, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 14, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", zIndex: 3000 }}>
           {[1, 2, 3].map((lv) => {
             const tinfo = RANK_TIERS[lv];
             const locked = lv === 3 && !fanUnlocked;
@@ -1879,7 +1897,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
               </button>
             </>
           )}
-        </div>
+        </div>, document.body)
         );
       })()}
     </div>
@@ -3134,7 +3152,7 @@ function PresentationHistoryView({ history, onOpenSession, onBack }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
-        <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
+        <button aria-label="Quay lại" onClick={onBack} style={{ ...iconButton, color: C.text }}>
           <ChevronLeft size={20} />
         </button>
         <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Lịch sử trình chiếu</div>
@@ -3212,7 +3230,7 @@ function BookmarksView({ bookmarks, onOpenRankie, onOpenPath, onOpenDeck, onTogg
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
-        <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
+        <button aria-label="Quay lại" onClick={onBack} style={{ ...iconButton, color: C.text }}>
           <ChevronLeft size={20} />
         </button>
         <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Đánh dấu</div>
@@ -3288,7 +3306,7 @@ function ParticipationHistoryView({ history, onOpenRankie, onOpenPath, onOpenDec
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ ...iconButton, color: C.text }}>
             <ChevronLeft size={20} />
           </button>
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Lịch sử tham gia</div>
@@ -3368,7 +3386,8 @@ function ParticipationHistoryView({ history, onOpenRankie, onOpenPath, onOpenDec
 
 
 function ModalShell({ title, onClose, children }) {
-  return (
+  // Portal ra body: modal có thể mở từ trong thẻ feed (content-visibility / transform làm fixed lệch).
+  return createPortal(
     <div
       onClick={onClose}
       style={{
@@ -3404,7 +3423,8 @@ function ModalShell({ title, onClose, children }) {
         </div>
         <div style={{ padding: 18 }}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -4044,7 +4064,7 @@ function TopBar({ title, onBack, right }) {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         {onBack && (
-          <button onClick={onBack} style={{ ...iconButton, color: C.text }}>
+          <button onClick={onBack} title="Quay lại" aria-label="Quay lại" style={{ ...iconButton, color: C.text }}>
             <ChevronLeft size={20} />
           </button>
         )}
@@ -5851,13 +5871,14 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
       </div>
 
       {/* Danh sách bài: sát mép, KHÔNG khung — mỗi bài tự lo lề trong và vạch ngăn (postSurface). */}
-      <div style={{ ...postListStyle, borderTop: `1px solid ${C.border}`, marginTop: 8 }}>
+      <div className="rk-feedlist" style={{ ...postListStyle, borderTop: `1px solid ${C.border}`, marginTop: 8 }}>
         {feedItems.length === 0 && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             Chưa có bài đăng nào{typeFilter !== "all" ? ` (${currentLabel})` : ""}.
           </div>
         )}
         {feedItems.map((item) => {
+          // (khung chứa có class rk-feedlist: mỗi thẻ content-visibility:auto — xem CSS toàn cục)
           // Series nhiều chapter → carousel vuốt ngang ngay trên feed (kiểu ảnh nhiều slide của IG).
           const chapters = item.seriesId ? (seriesMap?.[item.seriesId]?.posts || []) : [];
           if (chapters.length > 1) {
@@ -8678,7 +8699,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> PHÒNG CHỜ</Pill>
@@ -8708,7 +8729,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+        <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Đóng
         </button>
         <Pill tone="muted">KẾT QUẢ PATH</Pill>
@@ -10584,7 +10605,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> PHÒNG CHỜ</Pill>
@@ -10653,7 +10674,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -10714,7 +10735,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+        <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Đóng
         </button>
         <Pill tone="muted">KẾT QUẢ BÀI THI</Pill>
@@ -11050,7 +11071,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> PHÒNG CHỜ</Pill>
@@ -11086,7 +11107,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Đóng
           </button>
           <Pill tone="muted">KẾT QUẢ KHẢO SÁT</Pill>
@@ -11217,7 +11238,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+        <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Thoát
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -11502,7 +11523,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
+        <button aria-label="Quay lại" onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Thoát trình chiếu
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -15286,9 +15307,30 @@ class ScreenBoundary extends React.Component {
 
 function KeepAlive({ active, name, children }) {
   const last = useRef(null);
-  if (active) last.current = children;
+  const wasActive = useRef(active);
+  const [gen, refresh] = useState(0);
+  const staleAt = useRef(null); // gen lúc vừa quay lại; còn khác null = đang dùng bản cũ
+  // Vừa quay lại màn này: hiện NGAY bản đã vẽ sẵn (cùng element → React bỏ qua cả cây con),
+  // rồi mới nạp props mới ở chế độ nền (startTransition — không chặn khung hình). Mọi lượt render
+  // ĐỒNG BỘ chen giữa (effect khác setState…) vẫn giữ bản cũ; chỉ lượt render nền (gen tăng) mới
+  // nạp props mới. Trước đây về Bảng tin vẽ lại toàn bộ thẻ trong một nhịp (~45–85ms máy tính).
+  if (active && !wasActive.current && staleAt.current == null) staleAt.current = gen;
+  if (staleAt.current != null && gen > staleAt.current) staleAt.current = null;
+  if ((active && staleAt.current == null) || !last.current) last.current = children;
+  useEffect(() => {
+    const ret = active && !wasActive.current;
+    wasActive.current = active;
+    if (!ret) return;
+    // Đợi trình duyệt VẼ XONG khung hình đầu (bản cũ) rồi mới nạp props mới ở chế độ nền —
+    // gọi startTransition ngay trong effect có thể bị React gộp vào lượt flush đồng bộ.
+    let done = false, t = 0;
+    const fire = () => { if (done) return; done = true; React.startTransition(() => refresh((n) => n + 1)); };
+    const raf = requestAnimationFrame(() => { t = setTimeout(fire, 0); });
+    const fb = setTimeout(fire, 300); // dự phòng khi rAF bị hoãn (tab nền)
+    return () => { done = true; cancelAnimationFrame(raf); clearTimeout(t); clearTimeout(fb); };
+  }, [active]);
   if (!last.current) return null;
-  return <div data-keepalive={name} style={active ? undefined : { display: "none" }}>{last.current}</div>;
+  return <div data-keepalive={name} className={active ? undefined : "rk-ka-off"}><ScreenActiveCtx.Provider value={active}>{last.current}</ScreenActiveCtx.Provider></div>;
 }
 
 // ---------- Xem ảnh đại diện toàn màn (ảnh GỐC đã tải lên, không cắt tròn) ----------
@@ -15666,7 +15708,7 @@ function ProfileView({
           the root app wires a back target for its bottom-nav tab). */}
       {onBack && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
-          <button onClick={onBack} style={{ ...iconButton, color: C.text, flexShrink: 0 }}>
+          <button aria-label="Quay lại" onClick={onBack} style={{ ...iconButton, color: C.text, flexShrink: 0 }}>
             <ChevronLeft size={20} />
           </button>
         </div>
@@ -18458,7 +18500,10 @@ export default function RankevApp() {
   }, [openAuthorByHandle]);
 
   // "Lưu vào Rankie": mở đúng thực thể mà một option tham chiếu (bài/user/comment).
-  const openRef = useCallback((opt) => {
+  // Hàm thật đọc state mới nhất mỗi lần render; openRef giữ NGUYÊN identity → context RankieSave
+  // không đổi theo từng lần điều hướng (trước đây đổi → mọi thẻ feed, kể cả khi feed đang ẩn, vẽ lại).
+  const openRefLatest = useRef(null);
+  openRefLatest.current = (opt) => {
     if (!opt || !opt.refType) return;
     if (opt.refType === "user") return openAuthorWall(opt.refId);
     const id = opt.refType === "comment" ? opt.preview?.postId : opt.refId;
@@ -18479,8 +18524,8 @@ export default function RankevApp() {
       if (!d) return openDeckFromProfile(id);
       setSelectedDeck(d); setPrevAfterDeck(view); setView("deckDetail");
     } else openRankie(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, allPaths, allDecks]);
+  };
+  const openRef = useCallback((opt) => openRefLatest.current(opt), []);
 
   // Giải đấu (đấu loại)
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
@@ -19208,7 +19253,7 @@ export default function RankevApp() {
     const el = document.querySelector('[data-keepalive="feed"]');
     if (!el) return null;
     const node = el.cloneNode(true);
-    node.style.display = "block";
+    node.classList.remove("rk-ka-off");
     node.querySelectorAll("*").forEach((n) => { if (n.style && n.style.position === "sticky") { n.style.position = "relative"; n.style.transform = `translateY(${feedScrollTopRef.current || 0}px)`; n.style.zIndex = 5; } });
     return { node, top: -(feedScrollTopRef.current || 0) };
   };
