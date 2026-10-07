@@ -12,7 +12,7 @@ import {
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
   MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText,
-  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2,
+  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
 
@@ -1367,167 +1367,78 @@ function CountdownBadge({ remainingSec, expired }) {
 }
 
 // Duration picker used on presenter setup screens. null = "Không giới hạn".
-function DurationPicker({ value, onChange }) {
-  const presets = [null, 1, 3, 5, 10, 15];
-  const [customOpen, setCustomOpen] = useState(false);
-  const [customVal, setCustomVal] = useState("");
-
+// ===== THỜI GIAN — thống nhất toàn app =====
+// Giờ / thời lượng: số điện tử "00:00" (clockFont). Ngày: dd/mm/yyyy. Chạm ô → bộ chọn GỐC của
+// điện thoại (input date/time trong suốt phủ lên ô hiển thị).
+const pad2 = (n) => String(n).padStart(2, "0");
+const fmtHM = (min) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`; // phút → "hh:mm"
+const digitalBox = (on) => ({ position: "relative", display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 12px", borderRadius: 10, border: `1px solid ${on ? C.gold : C.border}`, background: C.surfaceRaised, color: on ? C.text : C.textFaint, cursor: "pointer", boxSizing: "border-box" });
+const ghostInput = { position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0, margin: 0 };
+function DateTimeField({ value, onChange, min }) {
+  const [d, t] = value ? value.split("T") : ["", ""];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  const pick = (e) => { try { e.currentTarget.showPicker?.(); } catch { /* trình duyệt cũ: tự mở khi chạm */ } };
   return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {presets.map((p) => {
-          const active = value === p && !customOpen;
-          return (
-            <button
-              key={String(p)}
-              onClick={() => {
-                setCustomOpen(false);
-                onChange(p);
-              }}
-              style={{
-                padding: "8px 13px",
-                borderRadius: 999,
-                border: `1px solid ${active ? C.gold : C.border}`,
-                background: active ? C.goldSoft : C.surface,
-                color: active ? C.gold : C.textMuted,
-                fontFamily: bodyFont,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {p == null ? "Không giới hạn" : `${p} phút`}
-            </button>
-          );
-        })}
-        <button
-          onClick={() => setCustomOpen(true)}
-          style={{
-            padding: "8px 13px",
-            borderRadius: 999,
-            border: `1px solid ${customOpen ? C.gold : C.border}`,
-            background: customOpen ? C.goldSoft : C.surface,
-            color: customOpen ? C.gold : C.textMuted,
-            fontFamily: bodyFont,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Tùy chỉnh
-        </button>
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <label style={{ ...digitalBox(!!d), flex: 1 }} title="Ngày">
+        <CalendarDays size={18} color={d ? C.gold : C.textFaint} />
+        <span style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600 }}>{d ? d.split("-").reverse().join("/") : "dd/mm/yyyy"}</span>
+        <input type="date" value={d} min={min ? min.slice(0, 10) : undefined} onClick={pick} aria-label="Chọn ngày"
+          onChange={(e) => onChange(e.target.value ? `${e.target.value}T${t || "20:00"}` : "")} style={ghostInput} />
+      </label>
+      <label style={{ ...digitalBox(!!t), width: 104, justifyContent: "center" }} title="Giờ">
+        <span style={{ fontFamily: clockFont, fontSize: 20, fontWeight: 700, letterSpacing: 1, color: t ? C.gold : C.textFaint }}>{t || "--:--"}</span>
+        <input type="time" value={t} onClick={pick} aria-label="Chọn giờ"
+          onChange={(e) => onChange(`${d || today}T${e.target.value || "00:00"}`)} style={ghostInput} />
+      </label>
+      {value && <button onClick={() => onChange("")} aria-label="Xoá" title="Xoá" style={{ width: 36, height: 36, borderRadius: 99, border: "none", background: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center" }}><X size={18} /></button>}
+    </div>
+  );
+}
+
+// Thời lượng (phút) — droplist số điện tử "hh:mm"; "∞" = không giới hạn; gõ số để tự nhập.
+function DurationPicker({ value, onChange, presets = [5, 10, 15, 30, 45, 60, 90] }) {
+  const [open, setOpen] = useState(false);
+  const [typing, setTyping] = useState(null); // chuỗi đang gõ "h:mm"
+  const shown = typing != null ? typing : value == null ? "∞" : fmtHM(value);
+  const onType = (raw) => {
+    const dg = raw.replace(/\D/g, "").slice(0, 4);
+    const disp = dg.length <= 2 ? dg : `${dg.slice(0, dg.length - 2)}:${dg.slice(dg.length - 2)}`;
+    setTyping(disp);
+    const [h, m] = disp.includes(":") ? disp.split(":").map(Number) : [0, Number(disp || 0)];
+    const total = h * 60 + m;
+    onChange(total > 0 ? total : null);
+  };
+  return (
+    <div style={{ position: "relative", display: "inline-flex", gap: 6 }}>
+      <div style={{ ...digitalBox(value != null), width: 132 }}>
+        <Timer size={18} color={value != null ? C.gold : C.textFaint} />
+        <input value={shown === "∞" && typing == null ? "" : shown} placeholder="∞" inputMode="numeric" aria-label="Thời lượng (giờ:phút)"
+          onFocus={() => setTyping(value == null ? "" : fmtHM(value))} onBlur={() => setTyping(null)} onChange={(e) => onType(e.target.value)}
+          style={{ width: 70, border: "none", background: "transparent", outline: "none", color: value != null ? C.gold : C.textFaint, fontFamily: clockFont, fontSize: 20, fontWeight: 700, letterSpacing: 1, padding: 0 }} />
       </div>
-      {customOpen && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-          <input
-            type="number"
-            min={1}
-            max={180}
-            value={customVal}
-            onChange={(e) => {
-              setCustomVal(e.target.value);
-              const n = parseInt(e.target.value, 10);
-              if (n > 0) onChange(n);
-            }}
-            placeholder="Số phút"
-            style={{
-              width: 90,
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: `1px solid ${C.border}`,
-              background: C.surface,
-              color: C.text,
-              fontFamily: bodyFont,
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
-          <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>phút</span>
-        </div>
+      <button onClick={() => setOpen((o) => !o)} aria-label="Chọn nhanh thời lượng" aria-expanded={open} style={{ ...digitalBox(false), width: 44, padding: 0, justifyContent: "center" }}><ChevronDown size={18} /></button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+          <div role="listbox" style={{ position: "absolute", top: 50, left: 0, zIndex: 21, minWidth: 180, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: 6, boxShadow: "0 8px 24px rgba(0,0,0,.35)" }}>
+            {[null, ...presets].map((p) => {
+              const on = value === p;
+              return (
+                <button key={String(p)} role="option" aria-selected={on} onClick={() => { onChange(p); setOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", background: on ? C.goldSoft : "transparent", color: on ? C.gold : C.text, cursor: "pointer", fontFamily: clockFont, fontSize: 16, fontWeight: 700 }}>
+                  {p == null ? "∞" : fmtHM(p)} {on && <Check size={14} />}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-// Picker for when a Rankie's voting window ends. value: null = vô hạn, a number = hours from
-// now presets, or { custom: "YYYY-MM-DDTHH:mm" } for a specific date/time chosen by the creator.
-function ClosingTimePicker({ value, onChange }) {
-  const presets = [
-    { id: "unlimited", label: "Vô hạn", hours: null },
-    { id: "1h", label: "1 giờ", hours: 1 },
-    { id: "6h", label: "6 giờ", hours: 6 },
-    { id: "1d", label: "1 ngày", hours: 24 },
-    { id: "3d", label: "3 ngày", hours: 72 },
-    { id: "1w", label: "1 tuần", hours: 168 },
-  ];
-  const isCustom = value && typeof value === "object" && value.custom;
-  const activePresetId = isCustom ? null : presets.find((p) => p.hours === value)?.id ?? "unlimited";
-
-  return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {presets.map((p) => {
-          const active = activePresetId === p.id;
-          return (
-            <button
-              key={p.id}
-              onClick={() => onChange(p.hours)}
-              style={{
-                padding: "8px 13px",
-                borderRadius: 999,
-                border: `1px solid ${active ? C.gold : C.border}`,
-                background: active ? C.goldSoft : C.surface,
-                color: active ? C.gold : C.textMuted,
-                fontFamily: bodyFont,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {p.label}
-            </button>
-          );
-        })}
-        <button
-          onClick={() => onChange({ custom: "" })}
-          style={{
-            padding: "8px 13px",
-            borderRadius: 999,
-            border: `1px solid ${isCustom ? C.gold : C.border}`,
-            background: isCustom ? C.goldSoft : C.surface,
-            color: isCustom ? C.gold : C.textMuted,
-            fontFamily: bodyFont,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Chọn mốc giờ...
-        </button>
-      </div>
-      {isCustom && (
-        <div style={{ marginTop: 10 }}>
-          <input
-            type="datetime-local"
-            value={value.custom}
-            onChange={(e) => onChange({ custom: e.target.value })}
-            style={{
-              padding: "9px 12px",
-              borderRadius: 8,
-              border: `1px solid ${C.border}`,
-              background: C.surface,
-              color: C.text,
-              fontFamily: bodyFont,
-              fontSize: 14,
-              outline: "none",
-              colorScheme: "dark",
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Compact dropdown trigger + menu, used to keep option pickers (chart type, result filters)
 // small and out of the way instead of a full row of pill buttons.
@@ -7544,7 +7455,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             <button onClick={endLiveNow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}><span style={{ width: 10, height: 10, background: "#fff", borderRadius: 2 }} /> Kết thúc sớm</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
               <Clock size={15} color={C.gold} />
-              <input value={extendInput} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setExtendInput(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, outline: "none" }} />
+              <input value={extendInput} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setExtendInput(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: clockFont, letterSpacing: 1, fontSize: 14, fontWeight: 700, outline: "none" }} />
               <button onClick={extendLive} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}>+ Gia hạn</button>
             </div>
           </div>
@@ -10465,7 +10376,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
           {/* Passing score — free text input, e.g. "7,5/10" */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Điểm đạt (thang 10)</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Điểm đạt</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="number" min={0} max={10} step={0.1}
@@ -10473,7 +10384,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                 onChange={(e) => setPassingScore(Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
                 style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
               />
-              <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>/10</span>
             </div>
           </div>
 
@@ -11968,10 +11879,6 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Shared post content across all three content types (caption + optional media placeholder)
   const [caption, setCaption] = useState(editItem?.caption || "");
   const [media, setMedia] = useState(editItem?.media || null); // { type: "image"|"video", color, emoji, url }
-  const addMockMedia = (type) => {
-    const colors = ["#2E5D4E", "#5A4A2E", "#4A2E3D", "#2E3D5A"];
-    setMedia({ type, color: colors[Math.floor(Math.random() * colors.length)], emoji: type === "video" ? "🎬" : "🖼️" });
-  };
   // Ảnh bìa bài đăng: chọn file thật → upload lên máy chủ → lưu URL vào media.url.
   const addImageMedia = () => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='240'><rect width='400' height='240' fill='%232E5D4E'/><text x='200' y='135' font-size='64' text-anchor='middle'>🖼️</text></svg>`;
@@ -12663,9 +12570,10 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                       const h = parseDurationToHours(disp); setClosingTime(h ? h : null);
                     }}
                     onBlur={() => setTimeInline(false)}
-                    placeholder="24:30"
+                    placeholder="00:00"
                     inputMode="numeric"
-                    style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 16, fontWeight: 700, padding: 0 }}
+                    title="Thời lượng bình chọn (giờ:phút) — trống = không giới hạn"
+                    style={{ width: 70, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: clockFont, fontSize: 18, fontWeight: 700, letterSpacing: 1, padding: 0 }}
                   />
                 </div>
               ) : (
@@ -12677,20 +12585,16 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           );
         })()}
 
-        {timeInline && (
-          <div style={{ marginTop: -8, marginBottom: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới hạn thời gian.
-          </div>
-        )}
 
         {/* Popover cho icon đang mở (privacy dùng popup nhỏ neo dưới icon, không vào đây) */}
         {openTool && openTool !== "privacy" && (
           <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
             {openTool === "media" && (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => { addImageMedia(); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ImagePlus size={15} /> Thêm ảnh</button>
-                <button onClick={() => { addMockMedia("video"); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Play size={15} /> Thêm video</button>
-              </div>
+              <MediaPickerSheet allowEmoji={false} title="Ảnh · video · GIF" value={{ image: media?.url || null }}
+                onEmoji={() => {}}
+                onMedia={(url) => { setMedia({ type: isVideoUrl(url) ? "video" : "image", url, color: "#2E5D4E" }); setOpenTool(null); }}
+                onClear={() => { setMedia(null); setOpenTool(null); }}
+                onClose={() => setOpenTool(null)} />
             )}
             {openTool === "vote" && (
               <div>
@@ -12706,16 +12610,11 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                     <OptionRow opt={{ text: "🔥 Không giới hạn", active: votingType === "unlimited" }} on={() => setVotingType("unlimited")} />
                   </div>
                 )}
-                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-                  <b style={{ color: C.textMuted }}>Bình chọn không giới hạn</b>: mỗi người được bình chọn nhiều lần.
-                </div>
               </div>
             )}
             {openTool === "schedule" && (
               <div>
-                <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${openAtLocal ? C.gold : C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box" }} />
-                {openAtLocal && <button onClick={() => setOpenAtLocal("")} style={{ marginTop: 8, background: "none", border: "none", color: C.coral, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Xoá giờ hẹn</button>}
-                <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Không điền thì đăng luôn Rankie. Trước giờ lên sóng, Rankie hiện "sắp diễn ra".</div>
+                <DateTimeField value={openAtLocal} onChange={setOpenAtLocal} />
               </div>
             )}
             {openTool === "present" && (
@@ -13183,13 +13082,12 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             <span style={label}>Kiểu trả lời</span>
             <div style={{ display: "flex", gap: 8 }}>
               {[
-                { id: "step", label: "Từng câu một", desc: "Xong mới qua câu sau" },
-                { id: "scroll", label: "Một trang", desc: "Cuộn trả lời tất cả" },
+                { id: "step", label: "Từng câu", desc: "Xong mới qua câu sau", Icon: ChevronRight },
+                { id: "scroll", label: "Một trang", desc: "Cuộn trả lời tất cả", Icon: List },
               ].map((m) => (
-                <button key={m.id} onClick={() => setDeckAnswerMode(m.id)}
-                  style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${deckAnswerMode === m.id ? C.gold : C.border}`, background: deckAnswerMode === m.id ? C.goldSoft : C.surface, color: deckAnswerMode === m.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", lineHeight: 1.3, textAlign: "center" }}>
-                  {m.label}
-                  <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.85, marginTop: 2 }}>{m.desc}</div>
+                <button key={m.id} onClick={() => setDeckAnswerMode(m.id)} title={m.desc}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 8px", borderRadius: 10, border: `1px solid ${deckAnswerMode === m.id ? C.gold : C.border}`, background: deckAnswerMode === m.id ? C.goldSoft : C.surface, color: deckAnswerMode === m.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+                  <m.Icon size={16} /> {m.label}
                 </button>
               ))}
             </div>
@@ -13199,43 +13097,15 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
         {deckMode === "exam" && (
           <div style={field}>
             <span style={label}>Thời gian làm bài</span>
-            <div style={{ display: "flex", gap: 8, marginBottom: examDurationUnlimited ? 0 : 10 }}>
-              {[
-                { id: true, text: "Không giới hạn" },
-                { id: false, text: "Có giới hạn" },
-              ].map((o) => (
-                <button key={String(o.id)} onClick={() => setExamDurationUnlimited(o.id)}
-                  style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: `1px solid ${examDurationUnlimited === o.id ? C.gold : C.border}`, background: examDurationUnlimited === o.id ? C.goldSoft : C.surface, color: examDurationUnlimited === o.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-                  {o.text}
-                </button>
-              ))}
-            </div>
-            {!examDurationUnlimited && (
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="number" min={1} step={1}
-                  value={examDurationValue}
-                  onChange={(e) => setExamDurationValue(Math.max(1, parseInt(e.target.value) || 1))}
-                  style={{ width: 76, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
-                />
-                <select
-                  value={examDurationUnit}
-                  onChange={(e) => setExamDurationUnit(e.target.value)}
-                  style={{ padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
-                >
-                  <option value="giay">Giây</option>
-                  <option value="phut">Phút</option>
-                  <option value="gio">Giờ</option>
-                  <option value="ngay">Ngày</option>
-                </select>
-              </div>
-            )}
+            <DurationPicker
+              value={examDurationMinutes == null ? null : Math.max(1, Math.round(examDurationMinutes))}
+              onChange={(m) => { if (m == null) setExamDurationUnlimited(true); else { setExamDurationUnlimited(false); setExamDurationValue(m); setExamDurationUnit("phut"); } }} />
           </div>
         )}
 
         {deckMode === "exam" && (
           <div style={field}>
-            <span style={label}>Điểm đạt (thang 10)</span>
+            <span style={label}>Điểm đạt</span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="number" min={0} max={10} step={0.1}
@@ -13243,18 +13113,13 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 onChange={(e) => setExamPassingScore(Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
                 style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
               />
-              <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>/10</span>
             </div>
           </div>
         )}
 
         <div style={field}>
           <span style={label}>Danh sách câu hỏi</span>
-          {deckMode === "exam" && (
-            <div style={{ ...captionText, marginBottom: 10, lineHeight: 1.4 }}>
-              Điểm mỗi câu tự chia đều, tổng luôn bằng 10. Bấm vào ô điểm để tự chỉnh — phần còn lại tự tính lại cho đủ 10.
-            </div>
-          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {deckMediaFor && deckQuestions[deckMediaFor.qi] && (() => {
               const { qi, oi } = deckMediaFor;
@@ -13385,8 +13250,8 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       </div>
                     ))}
                     {deckMode === "exam" && !q.options.some((o) => o.correct) && (
-                      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 2 }}>
-                        ⚠️ Chọn ít nhất 1 đáp án đúng (bấm vào ô tròn/vuông bên trái)
+                      <div title="Bấm ô tròn/vuông bên trái phương án đúng" style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 2 }}>
+                        <AlertTriangle size={13} /> Chọn đáp án đúng
                       </div>
                     )}
                     <button onClick={() => addDeckOpt(qi)}
@@ -13402,14 +13267,11 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             style={{ marginTop: 12, width: "100%", padding: 11, borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", color: C.teal, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <PlusCircle size={15} /> Thêm câu hỏi
           </button>
-          <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
-            {deckMode === "exam" ? "Bài thi chấm điểm tự động · Kết quả hiện sau khi host kết thúc" : "Survey khảo sát · Bấm Trình chiếu để thu thập phản hồi tại chỗ."}
-          </div>
         </div>
 
         <button onClick={submitDeck} disabled={!canSubmitDeck}
           style={{ width: "100%", padding: 15, borderRadius: 12, border: "none", background: canSubmitDeck ? C.gold : C.surfaceRaised, color: canSubmitDeck ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, cursor: canSubmitDeck ? "pointer" : "not-allowed", marginTop: 8 }}>
-          {editing ? "Lưu thay đổi" : (deckMode === "exam" ? "📝 Đăng Bài thi" : "📋 Đăng Survey")}
+          {editing ? "Lưu thay đổi" : (deckMode === "exam" ? "Đăng Exam" : "Đăng Survey")}
         </button>
         {!canSubmitDeck && deckSubmitIssues.length > 0 && (
           <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.coral, lineHeight: 1.5 }}>
@@ -14509,13 +14371,13 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: C.bg, border: `1px solid ${C.border}` }}>
                 <Clock size={17} color={C.gold} />
                 <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, flex: 1 }}>Thời lượng</span>
-                <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="24:00" style={{ width: 74, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 16, fontWeight: 700, outline: "none" }} />
+                <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="24:00" style={{ width: 74, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 0", color: C.gold, fontFamily: clockFont, letterSpacing: 1, fontSize: 16, fontWeight: 700, outline: "none" }} />
               </div>
               <button onClick={goLiveNow} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "13px", borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, cursor: "pointer" }}>
                 <span style={{ width: 10, height: 10, borderRadius: 99, background: "#fff" }} /> Lên sóng ngay
               </button>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input type="datetime-local" value={schAt} onChange={(e) => setSchAt(e.target.value)} style={{ flex: 1, minWidth: 0, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 10px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", colorScheme: "dark" }} />
+                <div style={{ flex: 1, minWidth: 0 }}><DateTimeField value={schAt} onChange={setSchAt} /></div>
                 <button onClick={scheduleAt} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}><CalendarClock size={16} /> Hẹn giờ</button>
               </div>
             </div>
@@ -14536,7 +14398,7 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
               {tie && !isPrediction && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, flex: 1 }}>hoặc mở lại bình chọn thêm</span>
-                  <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, outline: "none" }} />
+                  <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: clockFont, letterSpacing: 1, fontSize: 14, fontWeight: 700, outline: "none" }} />
                   <button onClick={() => onSchedule({ closesAt: new Date(Date.now() + hrs() * 3600000).toISOString() })} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}>Gia hạn</button>
                 </div>
               )}
