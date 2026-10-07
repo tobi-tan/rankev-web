@@ -154,6 +154,8 @@ export const auth = {
   },
   me() { return apiFetch('/users/me'); }, // → { user, rankUps }
   updateProfile(patch) { return apiFetch('/users/me', { method: 'PATCH', body: patch }); },
+  // Xoá tài khoản vĩnh viễn (App Store 5.1.1(v)) → bỏ token cục bộ.
+  async deleteAccount() { await apiFetch('/users/me', { method: 'DELETE' }); clearTokens(); },
 };
 
 // ---------------- Posts / Feed ----------------

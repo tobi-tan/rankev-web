@@ -11,9 +11,9 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText,
 } from "lucide-react";
-import api, { auth, setAuthLostHandler } from "./api.js";
+import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
 
 // ---------- DESIGN TOKENS ----------
 // Màu qua CSS variable → đổi light/dark tức thì bằng data-theme, không cần re-render.
@@ -162,6 +162,11 @@ const FONT_IMPORT = (
       100% { opacity: 0; }
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .rk-legal h1 { font-size: 18px; font-weight: 700; margin: 14px 0 4px; }
+    .rk-legal h2 { font-size: 16px; font-weight: 700; margin: 22px 0 6px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .rk-legal ul { padding-left: 20px; margin: 6px 0; } .rk-legal li { margin: 4px 0; }
+    .rk-legal a { color: var(--gold); } .rk-legal .muted { color: var(--textFaint); font-size: 12px; }
+    .rk-legal .box { border: 1px solid var(--border); border-radius: 12px; padding: 8px 14px; margin: 12px 0; background: var(--surfaceRaised); }
     @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
     @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
     @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
@@ -2029,6 +2034,54 @@ function BottomSheet({ onClose, children }) {
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: C.surface, borderTop: `1px solid ${C.border}`, borderRadius: "18px 18px 0 0", padding: "8px 0 max(14px, env(safe-area-inset-bottom, 14px))", maxHeight: "80vh", overflowY: "auto", animation: "slideUp .2s ease" }}>
         <div style={{ width: 38, height: 4, borderRadius: 99, background: C.border, margin: "4px auto 10px" }} />
         {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// Điều khoản & cam kết / Quyền riêng tư — nội dung lấy từ backend (/legal/*, nguồn duy nhất,
+// cũng là URL khai báo với App Store). Lấy phần <body> (HTML tĩnh do chính backend sinh, không
+// có script) rồi vẽ bằng màu/chữ của app (.rk-legal) — sáng/tối tự theo.
+const legalCache = {};
+function LegalSheet({ doc = "terms", onClose }) {
+  const [tab, setTab] = useState(doc);
+  const [html, setHtml] = useState(legalCache[doc] || null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (legalCache[tab]) { setHtml(legalCache[tab]); return; }
+    setHtml(null); setFailed(false);
+    let alive = true;
+    fetch(`${BASE_URL}/legal/${tab}`).then((r) => r.text()).then((t) => {
+      const m = t.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      const body = (m ? m[1] : "").replace(/<script[\s\S]*?<\/script>/gi, "");
+      if (!body) throw new Error("empty");
+      legalCache[tab] = body; if (alive) setHtml(body);
+    }).catch(() => alive && setFailed(true));
+    return () => { alive = false; };
+  }, [tab]);
+  const tabBtn = (id, Icon, label) => (
+    <button onClick={() => setTab(id)} title={label} aria-label={label} aria-pressed={tab === id}
+      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.text : "transparent"}`, color: tab === id ? C.text : C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+      <Icon size={18} />{label}
+    </button>
+  );
+  return createPortal(
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 95, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "88vh", background: C.surface, borderRadius: "18px 18px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", animation: "slideUp .2s ease" }}>
+        <div style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${C.border}` }}>
+          {tabBtn("terms", FileText, "Điều khoản")}
+          {tabBtn("privacy", ShieldCheck, "Quyền riêng tư")}
+          <button onClick={onClose} aria-label="Đóng" style={{ width: 44, background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}><X size={20} /></button>
+        </div>
+        {html
+          ? <div className="rk-legal" dangerouslySetInnerHTML={{ __html: html }}
+              onClick={(e) => { const a = e.target.closest && e.target.closest("a"); if (!a) return; const h = a.getAttribute("href") || "";
+                if (h.endsWith("/legal/privacy")) { e.preventDefault(); setTab("privacy"); } else if (h.endsWith("/legal/terms")) { e.preventDefault(); setTab("terms"); } else if (!h.startsWith("mailto:")) { e.preventDefault(); window.open(h, "_blank", "noopener"); } }}
+              style={{ flex: 1, overflowY: "auto", padding: "4px 18px 32px", fontFamily: bodyFont, fontSize: 14, lineHeight: 1.6, color: C.text }} />
+          : <div style={{ flex: 1, display: "grid", placeItems: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
+              {failed ? <a href={`${BASE_URL}/legal/${tab}`} target="_blank" rel="noreferrer" style={{ color: C.gold }}>Mở trong trình duyệt</a> : <div style={{ width: 22, height: 22, borderRadius: 99, border: `2px solid ${C.border}`, borderTopColor: C.text, animation: "spin .8s linear infinite" }} />}
+            </div>}
       </div>
     </div>,
     document.body,
@@ -15281,6 +15334,7 @@ function ProfileView({
   onLogout,
   onChangeAvatar,
   onEditStructure,
+  onDeleteAccount,
   votedMap,
   participatedKeys,
   participationByKey,
@@ -15360,6 +15414,9 @@ function ProfileView({
   const [userSheet, setUserSheet] = useState(false); // "⋯" trên hồ sơ người khác
   const [privacyOpen, setPrivacyOpen] = useState(false); // Quyền riêng tư (hồ sơ của mình)
   const [settingsOpen, setSettingsOpen] = useState(false); // ⚙ Cài đặt (hồ sơ của mình)
+  const [legalOpen, setLegalOpen] = useState(null); // "terms" | "privacy"
+  const [deleteOpen, setDeleteOpen] = useState(false); // xác nhận xoá tài khoản (App Store 5.1.1(v))
+  const [deleting, setDeleting] = useState(false);
   const theyBlocked = !isMe && !!mod?.isBlocked(targetId);
   const theyMuted = !isMe && !!mod?.isMuted(targetId);
   const profileUserId = isMe ? (currentUser.apiId || null) : (isUuid(targetId) ? targetId : null);
@@ -15565,10 +15622,27 @@ function ProfileView({
         {settingsOpen && (
           <BottomSheet onClose={() => setSettingsOpen(false)}>
             <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Cài đặt</div>
-            <SheetRow icon={Edit3} label="Sửa hồ sơ" hint="Tên, @handle, tiểu sử, tuổi · giới tính · nghề nghiệp (ẩn/công khai)" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
-            {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" hint="Tài khoản đã chặn, đã ẩn bài, bài viết đã ẩn" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
+            <SheetRow icon={Edit3} label="Sửa hồ sơ" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
+            {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
             {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
+            <SheetRow icon={FileText} label="Điều khoản & quyền riêng tư" onClick={() => { setSettingsOpen(false); setLegalOpen("terms"); }} />
             {onLogout && <SheetRow icon={LogOut} danger label="Đăng xuất" onClick={() => { setSettingsOpen(false); if (window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }} />}
+            {onDeleteAccount && <SheetRow icon={Trash2} danger label="Xoá tài khoản" onClick={() => { setSettingsOpen(false); setDeleteOpen(true); }} />}
+          </BottomSheet>
+        )}
+        {legalOpen && <LegalSheet doc={legalOpen} onClose={() => setLegalOpen(null)} />}
+        {deleteOpen && (
+          <BottomSheet onClose={() => !deleting && setDeleteOpen(false)}>
+            <div style={{ padding: "4px 18px 6px", textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 99, margin: "0 auto 10px", display: "grid", placeItems: "center", background: "color-mix(in srgb, var(--coral) 15%, transparent)" }}><Trash2 size={24} color={C.coral} /></div>
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Xoá vĩnh viễn {currentUser.handle}?</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 6, lineHeight: 1.45 }}>Bài viết, phiếu bầu, bình luận, tin nhắn sẽ bị xoá. Không thể khôi phục.</div>
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button disabled={deleting} onClick={() => setDeleteOpen(false)} style={{ ...primaryButton, flex: 1, background: "transparent", border: `1px solid ${C.border}`, color: C.text }}>Huỷ</button>
+                <button disabled={deleting} onClick={async () => { setDeleting(true); try { await onDeleteAccount(); } catch (e) { setDeleting(false); window.alert(e?.message || "Chưa xoá được, thử lại sau."); } }}
+                  style={{ ...primaryButton, flex: 1, background: C.coral, borderColor: C.coral, color: "#fff", opacity: deleting ? 0.6 : 1 }}>{deleting ? "Đang xoá…" : "Xoá vĩnh viễn"}</button>
+              </div>
+            </div>
           </BottomSheet>
         )}
         {showStatsDetail && (
@@ -16401,6 +16475,7 @@ function BrandIcon({ provider, size = 18 }) {
 // Màn Đăng nhập / Đăng ký kiểu Facebook/Instagram: nút MXH nổi bật + form email.
 function AuthGate({ onAuthed }) {
   const [mode, setMode] = useState("login"); // login | register
+  const [legalDoc, setLegalDoc] = useState(null); // xem Điều khoản / Quyền riêng tư
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [handle, setHandle] = useState("");
@@ -16544,7 +16619,10 @@ function AuthGate({ onAuthed }) {
           </button>
         </div>
         <div style={{ textAlign: "center", marginTop: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
-          Bằng việc tiếp tục, bạn đồng ý với Điều khoản & Chính sách bảo mật của Rankev.
+          Bằng việc tiếp tục, bạn đồng ý với{" "}
+          <button onClick={() => setLegalDoc("terms")} style={{ background: "none", border: "none", padding: 0, color: C.gold, font: "inherit", cursor: "pointer", textDecoration: "underline" }}>Điều khoản</button>{" & "}
+          <button onClick={() => setLegalDoc("privacy")} style={{ background: "none", border: "none", padding: 0, color: C.gold, font: "inherit", cursor: "pointer", textDecoration: "underline" }}>Quyền riêng tư</button>.
+          {legalDoc && <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />}
         </div>
       </div>
     </div>
@@ -16915,6 +16993,16 @@ const ONB_TYPES = [
   { id: "survey", label: "Survey", sub: "Khảo sát nhiều câu" },
   { id: "exam", label: "Exam", sub: "Đố vui có chấm điểm" },
 ];
+// Câu hỏi "điều khoản" (đọc thật hay bấm đồng ý?) + câu hỏi tò mò — chọn xong hiện kết quả cộng đồng.
+const ONB_TERMS = [
+  { id: "all", tag: "A", label: "Đọc hết rồi, từng chữ một!" },
+  { id: "skim", tag: "B", label: "Đọc lướt mấy ý chính" },
+  { id: "agree", tag: "C", label: "Bấm đồng ý như mọi người 😅" },
+];
+const ONB_FLAT = [
+  { id: "yes", tag: "🫓", label: "Có" },
+  { id: "no", tag: "🌍", label: "Không" },
+];
 const ONB_AGE_BUCKETS = ["<18", "18-24", "25-34", "35-44", "45+"];
 const ONB_GENDERS = ["Nam", "Nữ", "Khác"];
 // Gợi ý nghề (search droplist) — không ép chọn, có thể tự nhập.
@@ -17015,7 +17103,8 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   const [busy, setBusy] = useState(false);
   const [occQuery, setOccQuery] = useState(""); // ô tìm nghề
   const [occOpen, setOccOpen] = useState(false);
-  const steps = ["intro", "theme", "type", "age", "gender", "occupation", "rating", "outro"];
+  const steps = ["intro", "terms", "theme", "type", "age", "gender", "occupation", "flat_earth", "rating", "outro"];
+  const [legalDoc, setLegalDoc] = useState(null);
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
   const back = () => setStep((i) => Math.max(i - 1, 0));
@@ -17050,6 +17139,32 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   };
 
   const primaryFull = { ...primaryButton, width: "100%", marginTop: 22 };
+
+  const pollStep = (key, title, opts, extra) => (
+    <div>
+      <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 16, lineHeight: 1.25 }}>{title}</div>
+      {extra}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {opts.map((o) => {
+          const on = choice[key] === o.id;
+          const st = stats[key]; const pct = revealed[key] && st?.voters ? Math.round(((st.counts?.[o.id] || 0) / st.voters) * 100) : null;
+          return (
+            <button key={o.id} disabled={busy || revealed[key]} onClick={() => { setChoice((c) => ({ ...c, [key]: o.id })); submitVote(key, [o.id]); }}
+              style={{ position: "relative", overflow: "hidden", display: "flex", alignItems: "center", gap: 12, padding: "14px 14px", borderRadius: 14, textAlign: "left", cursor: revealed[key] ? "default" : "pointer", border: `1.5px solid ${on ? C.gold : C.border}`, background: C.surface }}>
+              {pct != null && <div style={{ position: "absolute", inset: 0, width: pct + "%", background: on ? C.goldSoft : "color-mix(in srgb, var(--teal) 14%, transparent)", transition: "width .5s cubic-bezier(.2,.7,.2,1)" }} />}
+              <span style={{ position: "relative", width: 30, height: 30, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : C.surfaceRaised, color: on ? C.bg : C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>{o.tag}</span>
+              <span style={{ position: "relative", flex: 1, fontFamily: bodyFont, fontWeight: 600, fontSize: 16, color: C.text }}>{o.label}</span>
+              {pct != null && <span style={{ position: "relative", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: on ? C.gold : C.textMuted }}>{pct}%</span>}
+            </button>
+          );
+        })}
+      </div>
+      {revealed[key] && stats[key]?.voters > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 10, fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{stats[key].voters} <Users size={12} /></div>
+      )}
+      <button onClick={next} disabled={!revealed[key]} style={{ ...primaryFull, opacity: revealed[key] ? 1 : 0.5, cursor: revealed[key] ? "pointer" : "default" }}>Tiếp tục</button>
+    </div>
+  );
 
   // Công tắc Ẩn/Công khai cho một field nhân khẩu học.
   const visToggle = (key) => (
@@ -17100,6 +17215,14 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 26, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Bắt đầu <ChevronRight size={18} /></button>
             </div>
           )}
+
+          {s === "terms" && pollStep("terms", "Bạn đã đọc hết điều khoản và cam kết của chúng tôi rồi chứ?", ONB_TERMS,
+            <button onClick={() => setLegalDoc("terms")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 14px", marginBottom: 14, borderRadius: 12, border: `1px dashed ${C.border}`, background: "transparent", color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+              <FileText size={18} /> <span style={{ flex: 1, textAlign: "left" }}>Điều khoản & quyền riêng tư</span> <ChevronRight size={16} color={C.textFaint} />
+            </button>)}
+          {legalDoc && <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />}
+
+          {s === "flat_earth" && pollStep("flat_earth", "Bạn có tin rằng Trái Đất phẳng không?", ONB_FLAT)}
 
           {s === "theme" && (
             <div>
@@ -18590,6 +18713,11 @@ export default function RankevApp() {
     loadConversations();
   }, [hydrateFromApi, loadConversations]);
 
+  // Xoá tài khoản vĩnh viễn → dọn state như đăng xuất. Lỗi ném lên cho sheet hiện thông báo.
+  const handleDeleteAccount = useCallback(async () => {
+    await auth.deleteAccount();
+    setApiPosts([]); setApiCursor(null); setBookmarks({}); setAuthed(false); setView("feed");
+  }, []);
   const handleLogout = useCallback(() => {
     auth.logout().finally(() => {
       // Dọn dữ liệu thật khỏi state → về màn đăng nhập, mock lại làm nền.
@@ -19322,6 +19450,7 @@ export default function RankevApp() {
               onOpenTournament={openTournament}
               onOpenSeries={openSeriesDetail}
               onLogout={handleLogout}
+              onDeleteAccount={handleDeleteAccount}
               onChangeAvatar={handleChangeAvatar}
               onEditStructure={startStructEdit}
               votedMap={votedMap}
