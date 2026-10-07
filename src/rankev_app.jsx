@@ -12,6 +12,7 @@ import {
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
   MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText,
+  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
 
@@ -4310,269 +4311,174 @@ function DetailHeaderActions({ item, onPresent, isOwner = false, participated = 
 // Facebook-style share sheet: write a caption, pick who can see the share, pick where
 // it goes (only "Hồ sơ cá nhân" is functional today — Nhóm/Tin nhắn are placeholders
 // for once groups/messaging exist), plus the existing copy-link and QR options.
-function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, onShareToChat }) {
+// Bảng CHIA SẺ kiểu Instagram/TikTok — gọn, ít chữ:
+//  [ô tìm người] → lưới avatar (chạm chọn NHIỀU người) → khi đã chọn: ô lời nhắn + nút Gửi
+//  hàng icon tròn: Hồ sơ (đăng lại) · Sao chép · QR · Khác (chia sẻ của hệ điều hành)
+// Quyền riêng tư khi đăng lại = droplist icon (Công khai / Theo link / Chỉ mình tôi).
+const SHARE_VIS = [
+  { id: "public", label: "Công khai", Icon: Globe },
+  { id: "unlisted", label: "Theo link", Icon: Link2 },
+  { id: "private", label: "Chỉ mình tôi", Icon: Lock },
+];
+function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }) {
+  const isTournament = item.type === "tournament";
+  const [q, setQ] = useState("");
+  const [people, setPeople] = useState([]);
+  const [picked, setPicked] = useState([]); // người nhận đã chọn (nhiều)
+  const [note, setNote] = useState("");
+  const [panel, setPanel] = useState(null); // null | "profile" | "qr"
   const [caption, setCaption] = useState("");
   const [visibility, setVisibility] = useState("public");
-  const isTournament = item.type === "tournament";
-  const [destination, setDestination] = useState(isTournament ? "message" : "profile");
-  const [posted, setPosted] = useState(false);
+  const [visOpen, setVisOpen] = useState(false);
+  const [done, setDone] = useState(null); // "sent" | "posted"
   const [copied, setCopied] = useState(false);
-  const [showQR, setShowQR] = useState(false);
-  const [selectedContact, setSelectedContact] = useState(null); // for "message" destination
-  const [msgSent, setMsgSent] = useState(false);
-  const [sendErr, setSendErr] = useState(null);
-  // Tìm NGƯỜI trên toàn hệ thống để gửi (người mới chưa có hội thoại nào trước đây chỉ thấy
-  // "Chưa có liên hệ nào" và không gửi được cho ai).
-  const [peopleQ, setPeopleQ] = useState("");
-  const [people, setPeople] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  // Tìm NGƯỜI trên toàn hệ thống (người mới chưa có hội thoại vẫn gửi được).
   useEffect(() => {
-    const t = peopleQ.trim();
+    const t = q.trim();
     if (t.length < 2) { setPeople([]); return; }
     const h = setTimeout(() => {
       api.search(t).then((r) => setPeople((r?.users || []).filter((u) => u.id !== currentUser.apiId).map((u) => ({ id: "u:" + u.id, userId: u.id, author: u })))).catch(() => setPeople([]));
     }, 250);
     return () => clearTimeout(h);
-  }, [peopleQ]);
+  }, [q]);
 
   const link = isTournament ? `https://rankev.app/tournament/${item.id}` : `https://rankev.app/vote/${item.id}`;
-  const typeLabel = { rankie: "Rankie", path: "Path", deck: "Deck", tournament: "Giải đấu" }[item.type] || "";
-
-  const visibilityOptions = [
-    { id: "public", label: "Công khai", icon: Globe },
-    { id: "unlisted", label: "Theo link", icon: Link2 },
-    { id: "private", label: "Chỉ mình tôi", icon: Lock },
-  ];
-
-  // Giải đấu chưa hỗ trợ chia sẻ vào hồ sơ → chỉ nhắn tin + sao chép link.
-  const destinations = isTournament
-    ? [{ id: "message", label: "Tin nhắn", icon: MessageCircle }]
-    : [
-        { id: "profile", label: "Hồ sơ cá nhân", icon: User },
-        { id: "message", label: "Tin nhắn", icon: MessageCircle },
-      ];
+  const list = q.trim().length >= 2 ? people : contacts;
+  const isPicked = (c) => picked.some((p) => p.id === c.id);
+  const togglePick = (c) => setPicked((ps) => (isPicked(c) ? ps.filter((p) => p.id !== c.id) : [...ps, c]));
+  const M = POST_TYPE_META[postTypeKey(item)] || POST_TYPE_META.rankie; const TypeIcon = M.icon;
+  const vis = SHARE_VIS.find((v) => v.id === visibility);
 
   const copyLink = async () => {
-    try { await navigator.clipboard.writeText(link); } catch {}
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try { await navigator.clipboard.writeText(link); } catch { /* ignore */ }
+    setCopied(true); setTimeout(() => setCopied(false), 1600);
+  };
+  const nativeShare = () => { try { navigator.share?.({ title: item.title, url: link }); } catch { /* huỷ */ } };
+  const send = async () => {
+    if (!picked.length || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      for (const c of picked) {
+        const convId = c.userId ? (await api.messaging.openDM(c.userId)).id : c.id;
+        await api.messaging.send(convId, { kind: "share", refType: item.type, refId: item.id, body: note.trim() || undefined });
+      }
+      onShared?.();
+      setDone("sent"); setTimeout(onClose, 900);
+    } catch (e) { setErr(e?.message || "Gửi thất bại, thử lại sau."); }
+    finally { setBusy(false); }
+  };
+  const postToProfile = () => {
+    // Không +1 "chia sẻ": số chia sẻ chỉ tính lượt GỬI QUA TIN NHẮN (server đếm thật).
+    onShareToProfile?.({ item, caption, visibility });
+    setDone("posted"); setTimeout(onClose, 900);
   };
 
-  const handlePost = () => {
-    if (destination === "profile") {
-      onShareToProfile({ item, caption, visibility });
-      // Không +1 "chia sẻ": chia sẻ lên hồ sơ chưa lưu server → số sẽ mất khi tải lại.
-      // Số chia sẻ chỉ tính lượt GỬI QUA TIN NHẮN (server đếm thật).
-      setPosted(true);
-      setTimeout(onClose, 900);
-    } else if (destination === "message" && selectedContact) {
-      // Gửi thẻ chia sẻ thật vào hội thoại (selectedContact.id = conversationId).
-      const refType = item.type === "deck" ? "deck" : item.type; // rankie|path|deck
-      const done = () => { onShared?.(); setMsgSent(true); setTimeout(onClose, 900); };
-      setSendErr(null);
-      // Người chọn từ ô tìm kiếm → mở (hoặc lấy lại) cuộc trò chuyện trước rồi gửi.
-      const convP = selectedContact.userId ? api.messaging.openDM(selectedContact.userId).then((c) => c.id) : Promise.resolve(selectedContact.id);
-      convP
-        .then((convId) => api.messaging.send(convId, { kind: "share", refType, refId: item.id, body: caption || undefined }))
-        .then(done)
-        .catch((e) => setSendErr(e?.message || "Gửi thất bại, thử lại sau.")); // trước đây lỗi vẫn báo "Đã gửi"
-    }
-  };
-
-  const canPost = destination === "profile" || (destination === "message" && selectedContact);
-
-  const successMsg = destination === "profile"
-    ? "Đã chia sẻ vào hồ sơ của bạn!"
-    : `Đã gửi cho ${selectedContact?.author?.name}!`;
+  const roundBtn = (Icon, label, onClick, on = false) => (
+    <button key={label} onClick={onClick} title={label} aria-label={label}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 66, flexShrink: 0, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+      <span style={{ width: 52, height: 52, borderRadius: 99, display: "grid", placeItems: "center", background: on ? C.goldSoft : C.surfaceRaised, border: `1px solid ${on ? C.gold : C.border}`, color: on ? C.gold : C.text }}><Icon size={22} /></span>
+      <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, whiteSpace: "nowrap" }}>{label}</span>
+    </button>
+  );
+  const avatar = (a, size) => (
+    <span style={{ width: size, height: size, borderRadius: 99, overflow: "hidden", display: "grid", placeItems: "center", background: a.avatarColor || C.goldSoft, fontSize: size * 0.45, flexShrink: 0 }}>
+      {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || initialOf(a.name))}
+    </span>
+  );
 
   return (
-    <ModalShell title="Chia sẻ" onClose={onClose}>
-      {posted || msgSent ? (
-        <div style={{ textAlign: "center", padding: "24px 0" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 99, background: C.goldSoft, border: `1px solid ${C.gold}`, display: "grid", placeItems: "center", margin: "0 auto 12px" }}>
-            <Check size={26} color={C.gold} />
+    <BottomSheet onClose={onClose}>
+      {done ? (
+        <div style={{ textAlign: "center", padding: "26px 0 30px" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 99, background: C.goldSoft, display: "grid", placeItems: "center", margin: "0 auto 10px" }}>
+            {done === "sent" ? <Send size={24} color={C.gold} /> : <Check size={26} color={C.gold} />}
           </div>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{successMsg}</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>{done === "sent" ? "Đã gửi" : "Đã đăng lên hồ sơ"}</div>
         </div>
       ) : (
-        <>
-          <textarea
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            placeholder="Nói gì đó về nội dung này..."
-            rows={3}
-            style={{
-              width: "100%", padding: "11px 12px", borderRadius: 10,
-              border: `1px solid ${C.border}`, background: C.surfaceRaised,
-              color: C.text, fontFamily: bodyFont, fontSize: 14,
-              resize: "vertical", marginBottom: 12,
-            }}
-          />
-
-          {/* Preview */}
-          <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, background: C.surfaceRaised, marginBottom: 16 }}>
-            <Pill tone="gold">{typeLabel}</Pill>
-            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 14, color: C.text, marginTop: 6 }}>{item.title}</div>
+        <div style={{ padding: "0 16px" }}>
+          {/* Bài đang chia sẻ — 1 dòng: icon loại + tiêu đề */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: C.textMuted, fontFamily: bodyFont, fontSize: 14 }} title={M.label}>
+            <TypeIcon size={16} color={C.text} />
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.text, fontWeight: 600 }}>{item.title}</span>
           </div>
-
-          {/* Destination tabs */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 8 }}>Chia sẻ đến</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {destinations.map((d) => {
-                const Icon = d.icon;
-                const active = destination === d.id;
+          {/* Tìm người */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 12, padding: "9px 12px", marginBottom: 12 }}>
+            <Search size={16} color={C.textFaint} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm" aria-label="Tìm người để gửi" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+          </div>
+          {/* Lưới người nhận */}
+          {list.length === 0 ? (
+            <div style={{ display: "grid", placeItems: "center", padding: "14px 0", color: C.textFaint }}><Users size={26} /></div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px 6px", maxHeight: 196, overflowY: "auto", paddingBottom: 4 }}>
+              {list.map((c) => {
+                const on = isPicked(c);
                 return (
-                  <button
-                    key={d.id}
-                    onClick={() => { setDestination(d.id); setSelectedContact(null); }}
-                    style={{
-                      flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-                      padding: "10px 6px", borderRadius: 10,
-                      border: `1px solid ${active ? C.gold : C.border}`,
-                      background: active ? C.goldSoft : C.surface,
-                      color: active ? C.gold : C.textMuted,
-                      cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 600,
-                    }}
-                  >
-                    <Icon size={16} />
-                    {d.label}
+                  <button key={c.id} onClick={() => togglePick(c)} title={c.author.handle} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", padding: 0, minWidth: 0 }}>
+                    <span style={{ position: "relative", borderRadius: 99, padding: 2, border: `2px solid ${on ? C.gold : "transparent"}` }}>
+                      {avatar(c.author, 52)}
+                      {on && <span style={{ position: "absolute", right: -2, bottom: -2, width: 20, height: 20, borderRadius: 99, background: C.gold, border: `2px solid ${C.surface}`, display: "grid", placeItems: "center" }}><Check size={11} color="#1A1305" strokeWidth={3} /></span>}
+                    </span>
+                    <span style={{ maxWidth: "100%", fontFamily: bodyFont, fontSize: 12, color: on ? C.text : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.author.name}</span>
                   </button>
                 );
               })}
             </div>
+          )}
+          {picked.length > 0 ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Viết lời nhắn…" style={{ flex: 1, minWidth: 0, padding: "11px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" }} />
+              <button onClick={send} disabled={busy} aria-label="Gửi" title="Gửi" style={{ ...primaryButton, display: "flex", alignItems: "center", gap: 6, padding: "11px 16px", borderRadius: 12, opacity: busy ? 0.6 : 1 }}>
+                {picked.length > 1 && <span>{picked.length}</span>}<Send size={16} />
+              </button>
+            </div>
+          ) : null}
+          {err && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 8, textAlign: "center" }}>{err}</div>}
+
+          {/* Hàng icon */}
+          <div style={{ display: "flex", gap: 4, overflowX: "auto", scrollbarWidth: "none", margin: "16px -16px 0", padding: "12px 16px 4px", borderTop: `1px solid ${C.border}` }}>
+            {!isTournament && roundBtn(User, "Hồ sơ", () => setPanel(panel === "profile" ? null : "profile"), panel === "profile")}
+            {roundBtn(copied ? Check : Link2, copied ? "Đã chép" : "Sao chép", copyLink, copied)}
+            {roundBtn(QrCode, "QR", () => setPanel(panel === "qr" ? null : "qr"), panel === "qr")}
+            {typeof navigator !== "undefined" && navigator.share && roundBtn(Share2, "Khác", nativeShare)}
           </div>
 
-          {/* Privacy — only shown for profile */}
-          {destination === "profile" && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 8 }}>Ai có thể xem</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {visibilityOptions.map((v) => {
-                  const Icon = v.icon;
-                  const active = visibility === v.id;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => setVisibility(v.id)}
-                      style={{
-                        flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-                        padding: "10px 6px", borderRadius: 10,
-                        border: `1px solid ${active ? C.gold : C.border}`,
-                        background: active ? C.goldSoft : C.surface,
-                        color: active ? C.gold : C.textMuted,
-                        cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 600,
-                      }}
-                    >
-                      <Icon size={16} />
-                      {v.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Contact picker — only shown for message */}
-          {destination === "message" && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 8 }}>Gửi cho</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 10, padding: "8px 11px", marginBottom: 8 }}>
-                <Search size={15} color={C.textFaint} />
-                <input value={peopleQ} onChange={(e) => setPeopleQ(e.target.value)} placeholder="Tìm tên hoặc @handle…" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
-              </div>
-              {(peopleQ.trim().length >= 2 ? people : contacts).length === 0 ? (
-                <div style={{ ...captionText, textAlign: "center", padding: "12px 0" }}>{peopleQ.trim().length >= 2 ? "Không tìm thấy người dùng." : "Tìm người ở ô trên để gửi."}</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                  {(peopleQ.trim().length >= 2 ? people : contacts).map((c) => {
-                    const active = selectedContact?.id === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setSelectedContact(active ? null : c)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          padding: "9px 12px", borderRadius: 10,
-                          border: `1px solid ${active ? C.gold : C.border}`,
-                          background: active ? C.goldSoft : C.surface,
-                          cursor: "pointer", textAlign: "left",
-                        }}
-                      >
-                        <div style={{
-                          width: 36, height: 36, borderRadius: 999, flexShrink: 0,
-                          background: c.author.avatarColor || C.goldSoft,
-                          display: "grid", placeItems: "center", fontSize: 16,
-                          border: `1.5px solid ${active ? C.gold : C.border}`, overflow: "hidden",
-                        }}>
-                          {c.author.avatarUrl ? <img src={c.author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (c.author.avatarEmoji || "🙂")}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: active ? C.gold : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {c.author.name}
-                          </div>
-                          <div style={{ ...captionText, marginTop: 1 }}>{c.author.handle}</div>
-                        </div>
-                        {active && <Check size={15} color={C.gold} />}
+          {panel === "profile" && (
+            <div style={{ marginTop: 12, animation: "popIn .18s ease" }}>
+              <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Viết chú thích…" rows={2}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, resize: "none", outline: "none" }} />
+              <div style={{ display: "flex", gap: 8, marginTop: 8, position: "relative" }}>
+                <button onClick={() => setVisOpen((o) => !o)} title="Ai có thể xem" aria-haspopup="listbox" aria-expanded={visOpen}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 12px", height: 42, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                  <vis.Icon size={16} /> {vis.label} <ChevronDown size={14} color={C.textFaint} />
+                </button>
+                {visOpen && (
+                  <div role="listbox" style={{ position: "absolute", bottom: 48, left: 0, minWidth: 190, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, padding: 6, boxShadow: "0 8px 24px rgba(0,0,0,.35)", zIndex: 2 }}>
+                    {SHARE_VIS.map((v) => (
+                      <button key={v.id} role="option" aria-selected={v.id === visibility} onClick={() => { setVisibility(v.id); setVisOpen(false); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", borderRadius: 8, border: "none", background: v.id === visibility ? C.goldSoft : "transparent", color: v.id === visibility ? C.gold : C.text, fontFamily: bodyFont, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
+                        <v.Icon size={16} /> {v.label}
                       </button>
-                    );
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+                <button onClick={postToProfile} style={{ ...primaryButton, flex: 1, height: 42, padding: 0, borderRadius: 12 }}>Đăng</button>
+              </div>
             </div>
           )}
-
-          {sendErr && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginBottom: 8, textAlign: "center" }}>{sendErr}</div>}
-          <button
-            onClick={handlePost}
-            disabled={!canPost}
-            style={{ ...primaryButton, width: "100%", padding: 13, borderRadius: 12, marginBottom: 18, opacity: canPost ? 1 : 0.45, cursor: canPost ? "pointer" : "default" }}
-          >
-            {destination === "message" ? "Gửi tin nhắn" : "Đăng"}
-          </button>
-
-          {/* Copy link + QR */}
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={copyLink}
-                style={{
-                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                  padding: 11, borderRadius: 10, border: `1px solid ${C.border}`,
-                  background: C.surface, color: copied ? C.teal : C.text,
-                  fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer",
-                }}
-              >
-                {copied ? <Check size={15} /> : <Link2 size={15} />} {copied ? "Đã sao chép!" : "Sao chép liên kết"}
-              </button>
-              <button
-                onClick={() => setShowQR((s) => !s)}
-                style={{
-                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                  padding: 11, borderRadius: 10,
-                  border: `1px solid ${showQR ? C.gold : C.border}`,
-                  background: showQR ? C.goldSoft : C.surface,
-                  color: showQR ? C.gold : C.text,
-                  fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer",
-                }}
-              >
-                <QrCode size={15} /> Mã QR
-              </button>
+          {panel === "qr" && (
+            <div style={{ marginTop: 12, display: "flex", gap: 14, alignItems: "center", animation: "popIn .18s ease" }}>
+              <div style={{ width: 72, height: 72, background: "#fff", borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0 }}><QrCode size={50} color="#111" /></div>
+              <div style={{ minWidth: 0, fontFamily: bodyFont, fontSize: 12, color: C.teal, wordBreak: "break-all" }}>{link}</div>
             </div>
-            {showQR && (
-              <div style={{ marginTop: 12, padding: 14, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 12, display: "flex", gap: 14, alignItems: "center" }}>
-                <div style={{ width: 64, height: 64, background: "#fff", borderRadius: 8, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                  <QrCode size={44} color="#111" />
-                </div>
-                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
-                  Quét mã để tham gia ngay.
-                  <div style={{ fontFamily: monoFont, color: C.teal, marginTop: 5, fontSize: 12 }}>{link}</div>
-                </div>
-              </div>
-            )}
-          </div>
-        </>
+          )}
+          <div style={{ height: 8 }} />
+        </div>
       )}
-    </ModalShell>
+    </BottomSheet>
   );
 }
 
@@ -10418,7 +10324,6 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
                           <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, flexShrink: 0 }}>{phase === "ended" ? "không nộp" : "đang làm…"}</span>
                         ) : isExam ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                            {g && <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
                             <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 700, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                           </div>
                         ) : (
@@ -11803,7 +11708,8 @@ function MiniBracket() {
   return <svg viewBox="0 0 60 44" width="100%" height="44" fill="none" stroke={C.gold} strokeWidth="2"><path d="M6 10 H20 M6 22 H20 M20 10 V22 M20 16 H30"/><path d="M6 30 H20 M20 30 H20 M20 30 V16" opacity="0.5"/><path d="M30 16 H40 M40 8 H54 M40 24 H54" stroke={C.teal}/><path d="M40 8 V24" stroke={C.teal}/></svg>;
 }
 
-// Trang đệm giới thiệu mỗi loại + demo các biến thể trước khi vào trình tạo.
+// Trang đệm trước khi vào trình tạo — GỌN: hình minh hoạ + tên (mô tả để ở tooltip), kiểu Rankie
+// là 3 ô hình + tên, tính năng Path/Survey/Exam là hàng icon + 1–2 chữ, 1 nút Bắt đầu.
 function CreateTypeLanding({ type, onStart, onStartTournament }) {
   const Hero = { rankie: RankieIllo, path: PathIllo, deck: SurveyIllo, exam: ExamIllo }[type];
   const meta = {
@@ -11812,70 +11718,44 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
     deck: { name: "Survey", tagline: "Khảo sát nhiều câu hỏi, thu ý kiến cộng đồng." },
     exam: { name: "Exam", tagline: "Bài đố/kiểm tra có chấm điểm tự động." },
   }[type];
-  // Biến thể: rankie có action (đổi chartType / mở giải đấu); loại khác chỉ minh hoạ rồi vào builder.
-  const variants = {
-    rankie: [
-      { label: "Đối đầu", desc: "1 chọi 1 — Kamehameha, kéo co…", visual: <MiniVs />, onClick: () => onStart({ chartType: "head_to_head" }) },
-      { label: "Xếp hạng", desc: "Nhiều lựa chọn — cột, tròn, bục", visual: <MiniBars />, onClick: () => onStart({ chartType: "bar" }) },
-      { label: "Giải đấu", desc: "Đấu loại nhiều vòng", visual: <MiniBracket />, onClick: () => (onStartTournament ? onStartTournament([]) : onStart()) },
-    ],
-    path: [
-      { label: "Rẽ nhánh nhiều kết cục", desc: "Chọn hướng → kết thúc riêng", emoji: "🌿", onClick: () => onStart() },
-      { label: "Cảnh có điểm chạm", desc: "Ảnh nền + hotspot bấm được", emoji: "🖼️", onClick: () => onStart() },
-    ],
-    deck: [
-      { label: "Nhiều câu hỏi", desc: "Một hoặc nhiều lựa chọn", emoji: "📋", onClick: () => onStart() },
-      { label: "Thang điểm sao", desc: "Đánh giá 1–5 sao", emoji: "⭐", onClick: () => onStart() },
-      { label: "Trả lời tự do", desc: "Thu câu trả lời chữ", emoji: "✍️", onClick: () => onStart() },
-    ],
-    exam: [
-      { label: "Chấm điểm tự động", desc: "Đáp án đúng + điểm số", emoji: "✅", onClick: () => onStart() },
-      { label: "Hẹn giờ làm bài", desc: "Giới hạn thời gian", emoji: "⏱️", onClick: () => onStart() },
-      { label: "Ngưỡng điểm đạt", desc: "Đặt mức đạt/không đạt", emoji: "🎯", onClick: () => onStart() },
-    ],
+  const kinds = [
+    { label: "Đối đầu", desc: "1 chọi 1 — Kamehameha, kéo co…", visual: <MiniVs />, onClick: () => onStart({ chartType: "head_to_head" }) },
+    { label: "Xếp hạng", desc: "Nhiều lựa chọn — cột, tròn, bục", visual: <MiniBars />, onClick: () => onStart({ chartType: "bar" }) },
+    { label: "Giải đấu", desc: "Đấu loại nhiều vòng", visual: <MiniBracket />, onClick: () => (onStartTournament ? onStartTournament([]) : onStart()) },
+  ];
+  const features = {
+    path: [{ Icon: Split, label: "Rẽ nhánh", desc: "Chọn hướng → kết thúc riêng" }, { Icon: MousePointerClick, label: "Điểm chạm", desc: "Ảnh nền + hotspot bấm được" }, { Icon: ImagePlus, label: "Ảnh · video", desc: "Ảnh/video cho cảnh và kết cục" }],
+    deck: [{ Icon: ListChecks, label: "Trắc nghiệm", desc: "Một hoặc nhiều lựa chọn" }, { Icon: Star, label: "Chấm sao", desc: "Đánh giá 1–5 sao" }, { Icon: PenLine, label: "Tự luận", desc: "Thu câu trả lời chữ" }],
+    exam: [{ Icon: CheckCircle2, label: "Tự chấm", desc: "Đáp án đúng + điểm số" }, { Icon: Timer, label: "Hẹn giờ", desc: "Giới hạn thời gian làm bài" }, { Icon: Target, label: "Điểm đạt", desc: "Đặt mức đạt/không đạt" }],
   }[type];
   return (
     <div style={{ animation: "popIn .25s ease" }}>
-      {/* Hero minh hoạ */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px 16px", marginBottom: 16 }}>
+      <div title={meta.tagline} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "12px 16px 14px", marginBottom: 14 }}>
         <Hero />
-        <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginTop: 8 }}>{meta.name}</div>
-        <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 2, lineHeight: 1.45 }}>{meta.tagline}</div>
+        <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text, marginTop: 6 }}>{meta.name}</div>
       </div>
 
       {type === "rankie" ? (
-        // Rankie có 3 KIỂU thật — mỗi thẻ vào một trình tạo riêng.
-        <>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Chọn kiểu Rankie</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {variants.map((v, i) => (
-              <button key={i} onClick={v.onClick} style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer" }}>
-                <div style={{ height: 44, display: "flex", alignItems: "center" }}>
-                  {v.visual ? v.visual : <span style={{ fontSize: 30 }}>{v.emoji}</span>}
-                </div>
-                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{v.label}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
-              </button>
-            ))}
-          </div>
-        </>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+          {kinds.map((v) => (
+            <button key={v.label} onClick={v.onClick} title={v.desc} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "12px 6px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer" }}>
+              <div style={{ width: "100%", height: 44, display: "flex", alignItems: "center" }}>{v.visual}</div>
+              <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text }}>{v.label}</div>
+            </button>
+          ))}
+        </div>
       ) : (
-        // Path/Survey/Exam chỉ có 1 loại — liệt kê tính năng rồi 1 nút bắt đầu.
         <>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Tính năng nổi bật</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
-            {variants.map((v, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{v.emoji}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{v.label}</div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
-                </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+            {features.map(({ Icon, label, desc }) => (
+              <div key={label} title={desc} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 6px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface }}>
+                <Icon size={22} color={C.text} />
+                <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12, color: C.textMuted, textAlign: "center" }}>{label}</span>
               </div>
             ))}
           </div>
           <button onClick={() => onStart()} style={{ ...primaryButton, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            Bắt đầu tạo {meta.name} <ChevronRight size={18} />
+            Bắt đầu <ChevronRight size={18} />
           </button>
         </>
       )}
