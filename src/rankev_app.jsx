@@ -34,9 +34,16 @@ const C = {
   frame: "var(--frame)", // nền letterbox bao ngoài khung app
 };
 
-const displayFont = "'Fraunces', Georgia, serif";
-const bodyFont = "'Inter', system-ui, sans-serif";
-const monoFont = "'JetBrains Mono', ui-monospace, monospace";
+// CHỮ: dùng font HỆ THỐNG như Instagram (San Francisco trên iOS, Roboto trên Android, Segoe UI
+// trên Windows) cho MỌI chữ + số. Ngoại lệ: logo "Rankev" + huy hiệu VS (logoFont) và đồng hồ
+// đếm ngược (clockFont — kiểu số điện tử 00:00:00). Cỡ chữ: 10·12·14·16·18 (+ tiêu đề lớn ≥20);
+// độ đậm 400·600·700.
+const SYS_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+const displayFont = SYS_FONT;
+const bodyFont = SYS_FONT;
+const monoFont = SYS_FONT; // số đi kèm chữ: cùng font, căn đều nhờ tabular-nums (CSS toàn cục)
+const clockFont = "'JetBrains Mono', ui-monospace, monospace"; // CHỈ cho đồng hồ đếm ngược
+const logoFont = "'Fraunces', Georgia, serif"; // CHỈ cho logo Rankev + huy hiệu VS
 // Thang cỡ chữ chuẩn (px) — dùng cho code mới để giữ nhất quán. Thân bài chỉ đi theo
 // các bậc này (không dùng mức nửa-point); cỡ lớn hơn dành cho tiêu đề/hero.
 // micro 10 · caption 11 · small 12 · base 13 · body 14 · title 16 · h3 18 · h2 22 · h1 28
@@ -99,7 +106,7 @@ const primaryButton = {
 
 const FONT_IMPORT = (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,700&family=JetBrains+Mono:wght@500;700&display=swap');
     /* ===== Bảng màu theme (CSS variables) — dark mặc định, light khi data-theme="light" ===== */
     :root {
       --bg:#101C15; --surface:#17261D; --surfaceRaised:#1E3226; --border:#2A4536;
@@ -114,6 +121,8 @@ const FONT_IMPORT = (
       color-scheme: light;
     }
     html, body { background: var(--bg); }
+    body, button, input, textarea, select { font-family: ${SYS_FONT}; -webkit-font-smoothing: antialiased; }
+    body { font-variant-numeric: tabular-nums; } /* số thẳng hàng, không nhảy độ rộng */
     * { box-sizing: border-box; }
     /* iOS Safari tự phóng to khi focus vào ô nhập có cỡ chữ < 16px. Ép tối thiểu 16px
        trên mọi input/textarea/select để không bị zoom (giữ nguyên các cỡ chữ khác). */
@@ -271,7 +280,7 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
             <div style={{ textAlign: "center", padding: "64px 24px", color: C.textFaint }}>
               <Bell size={40} color={C.textFaint} style={{ opacity: 0.5 }} />
               <div style={{ fontFamily: bodyFont, fontSize: 14, marginTop: 12 }}>Chưa có thông báo nào.</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, marginTop: 4, color: C.textFaint }}>@nhắc tên trong bình luận, và bài mới từ người bạn RankUp ở mức Yêu thích / Fan cuồng sẽ hiện ở đây.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, marginTop: 4, color: C.textFaint }}>@nhắc tên trong bình luận, và bài mới từ người bạn RankUp ở mức Yêu thích / Fan cuồng sẽ hiện ở đây.</div>
             </div>
           ) : (
             items.map((n) => {
@@ -291,8 +300,8 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
                         ? <><b style={{ fontWeight: 700 }}>{name}</b> vừa đăng{n.targetType === "tournament" ? " giải đấu" : ""}{n.targetTitle ? <> <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " bài mới"}.</>
                         : <><b style={{ fontWeight: 700 }}>{name}</b> đã nhắc bạn{n.targetTitle ? <> trong <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " trong một bình luận"}.</>}
                     </div>
-                    {n.text && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 3, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}><MentionText text={n.text} /></div>}
-                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 4 }}>{timeAgoShort(n.createdAt)}</div>
+                    {n.text && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 3, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}><MentionText text={n.text} /></div>}
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>{timeAgoShort(n.createdAt)}</div>
                   </div>
                   {!n.read && <span style={{ width: 8, height: 8, borderRadius: 99, background: C.gold, flexShrink: 0, marginTop: 6 }} />}
                 </div>
@@ -1179,8 +1188,8 @@ function CountdownChip({ toTs, prefix, urgentUnder = 300, style }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "rgba(18,14,7,0.85)", border: `1px solid ${urgent ? "#FF9B85" : "rgba(255,255,255,0.16)"}`, whiteSpace: "nowrap", ...style }}>
       <Clock size={12} color={accent} />
-      {prefix && <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: "#F5F1E6" }}>{prefix}</span>}
-      <span style={{ fontFamily: monoFont, fontSize: 12.5, fontWeight: 700, color: urgent ? "#FF9B85" : "#F5F1E6", fontVariantNumeric: "tabular-nums" }}>{fmtCountdown(ms)}</span>
+      {prefix && <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: "#F5F1E6" }}>{prefix}</span>}
+      <span style={{ fontFamily: clockFont, fontSize: 12, fontWeight: 700, color: urgent ? "#FF9B85" : "#F5F1E6", fontVariantNumeric: "tabular-nums" }}>{fmtCountdown(ms)}</span>
     </span>
   );
 }
@@ -1218,7 +1227,7 @@ function RankieCountdownBox({ closesAt }) {
       }}
     >
       <Clock size={12} color={accent} />
-      <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, lineHeight: 1, color: done ? "#B9AE97" : urgent ? "#FF9B85" : "#F5F1E6" }}>
+      <span style={{ fontFamily: clockFont, fontWeight: 700, fontSize: 14, lineHeight: 1, color: done ? "#B9AE97" : urgent ? "#FF9B85" : "#F5F1E6" }}>
         {text}
       </span>
     </div>
@@ -1321,9 +1330,9 @@ function CountdownBadge({ remainingSec, expired }) {
         background: expired ? "#3A1F1F" : urgent ? "#3A1F1F" : C.surfaceRaised,
         border: `1px solid ${expired || urgent ? C.coral : C.border}`,
         color: expired || urgent ? C.coral : C.text,
-        fontFamily: monoFont,
+        fontFamily: clockFont,
         fontWeight: 700,
-        fontSize: 13,
+        fontSize: 14,
         animation: urgent ? "pulseGlow 1s ease-in-out infinite" : "none",
       }}
     >
@@ -1358,7 +1367,7 @@ function DurationPicker({ value, onChange }) {
                 background: active ? C.goldSoft : C.surface,
                 color: active ? C.gold : C.textMuted,
                 fontFamily: bodyFont,
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -1376,7 +1385,7 @@ function DurationPicker({ value, onChange }) {
             background: customOpen ? C.goldSoft : C.surface,
             color: customOpen ? C.gold : C.textMuted,
             fontFamily: bodyFont,
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: 600,
             cursor: "pointer",
           }}
@@ -1405,11 +1414,11 @@ function DurationPicker({ value, onChange }) {
               background: C.surface,
               color: C.text,
               fontFamily: bodyFont,
-              fontSize: 13,
+              fontSize: 14,
               outline: "none",
             }}
           />
-          <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>phút</span>
+          <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>phút</span>
         </div>
       )}
     </div>
@@ -1446,7 +1455,7 @@ function ClosingTimePicker({ value, onChange }) {
                 background: active ? C.goldSoft : C.surface,
                 color: active ? C.gold : C.textMuted,
                 fontFamily: bodyFont,
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -1464,7 +1473,7 @@ function ClosingTimePicker({ value, onChange }) {
             background: isCustom ? C.goldSoft : C.surface,
             color: isCustom ? C.gold : C.textMuted,
             fontFamily: bodyFont,
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: 600,
             cursor: "pointer",
           }}
@@ -1485,7 +1494,7 @@ function ClosingTimePicker({ value, onChange }) {
               background: C.surface,
               color: C.text,
               fontFamily: bodyFont,
-              fontSize: 13,
+              fontSize: 14,
               outline: "none",
               colorScheme: "dark",
             }}
@@ -1515,7 +1524,7 @@ function SmallDropdown({ icon, options, value, onChange, align = "left" }) {
           background: C.surfaceRaised,
           color: C.text,
           fontFamily: bodyFont,
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: 600,
           cursor: "pointer",
           whiteSpace: "nowrap",
@@ -1563,7 +1572,7 @@ function SmallDropdown({ icon, options, value, onChange, align = "left" }) {
                     background: selected ? C.goldSoft : "transparent",
                     color: selected ? C.gold : C.text,
                     fontFamily: bodyFont,
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: selected ? 700 : 500,
                     cursor: "pointer",
                     textAlign: "left",
@@ -1595,7 +1604,7 @@ function Pill({ children, tone = "muted" }) {
         background: t.bg,
         color: t.fg,
         fontFamily: bodyFont,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
         padding: "3px 9px",
         borderRadius: 999,
@@ -1620,7 +1629,7 @@ function TagPills({ tags, onTag, max = 3 }) {
     <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
       {list.slice(0, max).map((t, i) => (
         <span key={i} onClick={onTag ? (e) => { e.stopPropagation(); onTag(t); } : undefined}
-          style={{ background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, cursor: onTag ? "pointer" : "default" }}>#{t}</span>
+          style={{ background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999, cursor: onTag ? "pointer" : "default" }}>#{t}</span>
       ))}
     </span>
   );
@@ -1631,7 +1640,7 @@ function SeriesBadge({ item, size = 11 }) {
   if (!item?.seriesId) return null;
   const n = item.seriesCount || 0;
   return (
-    <span title={item.seriesName || "Series"} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}>
+    <span title={item.seriesName || "Series"} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700 }}>
       <Library size={size} /> Series{n > 1 ? ` · ${n} phần` : ""}
     </span>
   );
@@ -1684,7 +1693,7 @@ function InlineCountdown({ toTs, prefix }) {
   const urgent = ms <= 300000;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: urgent ? C.coral : C.textMuted }}>
-      <Clock size={11} />{prefix ? `${prefix} ` : ""}<span style={{ fontFamily: monoFont, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtCountdown(ms)}</span>
+      <Clock size={11} />{prefix ? `${prefix} ` : ""}<span style={{ fontFamily: clockFont, fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtCountdown(ms)}</span>
     </span>
   );
 }
@@ -1715,7 +1724,7 @@ const closedMeta = <span key="closed" style={{ display: "inline-flex", alignItem
 function FeedSourceLabel({ source }) {
   if (source !== "sponsored") return null;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 2px 7px", fontFamily: bodyFont, fontSize: 11, fontWeight: 600, color: C.gold, letterSpacing: 0.2 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 2px 7px", fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: 0.2 }}>
       <Megaphone size={12} /> Được tài trợ
     </div>
   );
@@ -1800,7 +1809,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
         <button
           onClick={tap}
           aria-label="RankUp"
-          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `color-mix(in srgb, ${color} 12%, transparent)`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, background: t === 0 ? C.gold : `color-mix(in srgb, ${color} 12%, transparent)`, border: t === 0 ? "none" : `1px solid ${color}`, color: t === 0 ? "#1A1305" : color, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
         >
           <RankCircleChevrons level={t === 0 ? 1 : t} color={t === 0 ? "#1A1305" : color} size={16} />
           {t === 0 ? "RankUp" : info.label}
@@ -1839,18 +1848,18 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
               >
                 <div style={{ marginTop: -1, flexShrink: 0 }}><RankCircleChevrons level={lv} color={locked ? C.textFaint : tinfo.color} size={20} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: locked ? C.textFaint : C.text, display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: locked ? C.textFaint : C.text, display: "flex", alignItems: "center", gap: 5 }}>
                     {tinfo.label}
                     {active && <Check size={13} color={tinfo.color} strokeWidth={3} />}
                     {locked && <Lock size={12} color={C.textFaint} />}
                   </div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, lineHeight: 1.35, marginTop: 2 }}>{RANK_DESC[lv]}</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.35, marginTop: 2 }}>{RANK_DESC[lv]}</div>
                   {locked && (
                     <div style={{ marginTop: 6 }}>
                       <div style={{ height: 5, borderRadius: 999, background: C.surface, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${Math.min(100, (fanCount / fanRequired) * 100)}%`, background: C.coral, borderRadius: 999 }} />
                       </div>
-                      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.coral, marginTop: 4 }}>Tham gia &gt;{fanRequired} bài của kênh để mở ({fanCount}/{fanRequired})</div>
+                      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 4 }}>Tham gia &gt;{fanRequired} bài của kênh để mở ({fanCount}/{fanRequired})</div>
                     </div>
                   )}
                 </div>
@@ -1860,7 +1869,7 @@ function RankUpControl({ tier = 0, onSetTier, fanCount = 0, fanRequired = 10, va
           {t > 0 && (
             <>
               <div style={{ height: 1, background: C.border, margin: "4px 8px" }} />
-              <button onClick={() => { onSetTier?.(0); setOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 10px", borderRadius: 10, border: "none", background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => { onSetTier?.(0); setOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 10px", borderRadius: 10, border: "none", background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                 <X size={14} /> Bỏ RankUp (về trung lập)
               </button>
             </>
@@ -1987,7 +1996,7 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
       {onSetRank && !isMe && (
         <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 0 }}>
           {/* Tổng số người RankUp tác giả — SỐ bên trái icon (cộng/trừ ngay khi mình bấm). */}
-          {rankUpCount > 0 && <span title={`${fmt(rankUpCount)} người đã RankUp`} style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: rankTier ? RANK_TIERS[Math.min(3, rankTier)].color : C.textFaint, fontVariantNumeric: "tabular-nums" }}>{fmtCompact(rankUpCount)}</span>}
+          {rankUpCount > 0 && <span title={`${fmt(rankUpCount)} người đã RankUp`} style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: rankTier ? RANK_TIERS[Math.min(3, rankTier)].color : C.textFaint, fontVariantNumeric: "tabular-nums" }}>{fmtCompact(rankUpCount)}</span>}
           <RankUpControl tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
         </div>
       )}
@@ -2031,7 +2040,7 @@ function SheetRow({ icon: Icon, label, hint, danger, onClick }) {
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", padding: "12px 18px", background: "none", border: "none", textAlign: "left", cursor: "pointer" }}>
       <Icon size={20} color={danger ? C.coral : C.text} style={{ flexShrink: 0 }} />
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: bodyFont, fontSize: 15, fontWeight: 600, color: danger ? C.coral : C.text }}>{label}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: danger ? C.coral : C.text }}>{label}</div>
         {hint && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2, lineHeight: 1.35 }}>{hint}</div>}
       </div>
     </button>
@@ -2084,20 +2093,20 @@ function ModerationSheet({ author, post, onClose }) {
       {step === "block" && (
         <div style={{ padding: "4px 20px 6px", textAlign: "center" }}>
           <div style={{ display: "grid", placeItems: "center", marginBottom: 10 }}><MiniAvatar u={author} size={56} /></div>
-          <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text, marginBottom: 8 }}>Chặn {name}?</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.5, marginBottom: 16 }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text, marginBottom: 8 }}>Chặn {name}?</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.5, marginBottom: 16 }}>
             Bạn và {name} sẽ không thấy bài của nhau trên bảng tin và không thể nhắn tin cho nhau. Họ sẽ không được thông báo. Bạn có thể bỏ chặn bất cứ lúc nào trong Hồ sơ → Quyền riêng tư.
           </div>
-          <button onClick={() => done(() => mod.block(author, post))} style={{ width: "100%", padding: 13, borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 8 }}>Chặn</button>
+          <button onClick={() => done(() => mod.block(author, post))} style={{ width: "100%", padding: 13, borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, cursor: "pointer", marginBottom: 8 }}>Chặn</button>
           <button onClick={() => setStep("menu")} style={{ width: "100%", padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Huỷ</button>
         </div>
       )}
       {step === "report" && (
         <>
-          <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text }}>Tại sao bạn báo cáo {post ? "bài viết này" : "tài khoản này"}?</div>
+          <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Tại sao bạn báo cáo {post ? "bài viết này" : "tài khoản này"}?</div>
           <div style={{ padding: "0 18px 10px", fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Báo cáo được giữ kín — {name} sẽ không biết ai đã báo cáo.</div>
           {REPORT_REASONS_VI.map(([reason, label]) => (
-            <button key={reason} onClick={() => done(() => mod.report({ author, post, reason }))} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "13px 18px", background: "none", border: "none", borderTop: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 15, color: C.text, textAlign: "left" }}>
+            <button key={reason} onClick={() => done(() => mod.report({ author, post, reason }))} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "13px 18px", background: "none", border: "none", borderTop: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 16, color: C.text, textAlign: "left" }}>
               {label}<ChevronRight size={16} color={C.textFaint} />
             </button>
           ))}
@@ -2132,8 +2141,8 @@ function HiddenPostNotice({ info, onUndo }) {
   return (
     <div className="rk-post" style={{ ...postSurface, padding: `14px ${POST_X}px`, display: "flex", alignItems: "center", gap: 12 }}>
       <EyeOff size={18} color={C.textFaint} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1, fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.4 }}>{text}</div>
-      <button onClick={onUndo} style={{ flexShrink: 0, padding: "7px 12px", borderRadius: 99, background: "transparent", border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Hoàn tác</button>
+      <div style={{ flex: 1, fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.4 }}>{text}</div>
+      <button onClick={onUndo} style={{ flexShrink: 0, padding: "7px 12px", borderRadius: 99, background: "transparent", border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Hoàn tác</button>
     </div>
   );
 }
@@ -2145,8 +2154,8 @@ function PrivacySheet({ onClose }) {
   const { blocked, muted, hiddenPostIds } = mod.state;
   const list = (title, users, actionLabel, action, empty) => (
     <div style={{ padding: "6px 18px 12px" }}>
-      <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>{title}</div>
-      {users.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, padding: "4px 0 8px" }}>{empty}</div>}
+      <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>{title}</div>
+      {users.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, padding: "4px 0 8px" }}>{empty}</div>}
       {users.map((u) => (
         <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
           <MiniAvatar u={u} />
@@ -2154,23 +2163,23 @@ function PrivacySheet({ onClose }) {
             <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</div>
             {u.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{String(u.handle).startsWith("@") ? u.handle : "@" + u.handle}</div>}
           </div>
-          <button onClick={() => action(u)} style={{ padding: "7px 12px", borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{actionLabel}</button>
+          <button onClick={() => action(u)} style={{ padding: "7px 12px", borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{actionLabel}</button>
         </div>
       ))}
     </div>
   );
   return (
     <BottomSheet onClose={onClose}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 18px 12px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 18px 12px", fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>
         <ShieldCheck size={19} color={C.gold} /> Quyền riêng tư
       </div>
       {list("Tài khoản đã chặn", blocked, "Bỏ chặn", mod.unblock, "Bạn chưa chặn ai.")}
       {list("Đã ẩn bài trên bảng tin", muted, "Bỏ ẩn", mod.unmute, "Bạn chưa ẩn bài của ai.")}
       <div style={{ padding: "6px 18px 4px" }}>
-        <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Bài viết đã ẩn</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Bài viết đã ẩn</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, color: C.text }}><span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{hiddenPostIds.length}</span><EyeOff size={15} color={C.textFaint} /></div>
-          {hiddenPostIds.length > 0 && <button onClick={mod.clearHidden} style={{ padding: "7px 12px", borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Khôi phục tất cả</button>}
+          {hiddenPostIds.length > 0 && <button onClick={mod.clearHidden} style={{ padding: "7px 12px", borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Khôi phục tất cả</button>}
         </div>
       </div>
     </BottomSheet>
@@ -2221,7 +2230,7 @@ function PostOptionsMenu({ post, onPin, onHide, onEdit, onDuplicate, onDelete, o
           cursor: "pointer",
           fontFamily: bodyFont,
           fontSize: 14,
-          fontWeight: 500,
+          fontWeight: 400,
           color: tone === "danger" ? "#E4634A" : C.text,
         }}
       >
@@ -2290,7 +2299,7 @@ function SeriesPickerModal({ post, mySeries = [], onClose, onAdd }) {
   const [name, setName] = useState("");
   return (
     <ModalShell title="Thêm vào series" onClose={onClose}>
-      <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginBottom: 14, lineHeight: 1.4 }}>
+      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 14, lineHeight: 1.4 }}>
         Gom bài <b style={{ color: C.text }}>“{post.title || "này"}”</b> vào một series (chapter). Gỡ ra thì bài vẫn còn, thành bài độc lập.
       </div>
       {mySeries.length > 0 && (
@@ -2349,7 +2358,7 @@ function SessionResultCard({ session }) {
               const pct = Math.round((o.votes / total) * 1000) / 10;
               return (
                 <div key={o.id}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 3 }}>
                     <span style={{ color: C.text, fontWeight: 600 }}>{`#${i + 1} `}{o.label}</span>
                     <VoteStat votes={o.votes} total={total} style={{ color: C.textMuted }} />
                   </div>
@@ -2476,7 +2485,7 @@ function QuestionFilterAccordion({ qi, qLabel, opts, selected, onToggle }) {
   return (
     <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 7, overflow: "hidden" }}>
       <button onClick={() => setOpen((v) => !v)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 12px", background: "transparent", border: "none", cursor: "pointer" }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
           {qLabel}
           {activeCount > 0 && <span style={{ color: C.gold, fontWeight: 700 }}> ({activeCount})</span>}
         </span>
@@ -2499,7 +2508,7 @@ function QuestionFilterAccordion({ qi, qLabel, opts, selected, onToggle }) {
 function SessionFilterGroup({ title, options, selected, onToggle }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      {title && <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>{title}</div>}
+      {title && <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>{title}</div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {options.map((opt) => {
           const id = typeof opt === "string" ? opt : opt.id;
@@ -2519,14 +2528,14 @@ function SessionFilterGroup({ title, options, selected, onToggle }) {
 function SessionBreakdown({ title, keys, counts, total }) {
   return (
     <div style={{ ...detailBlock, marginBottom: 12 }}>
-      <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>{title}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>{title}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {keys.map((k) => {
           const c = counts[k] || 0;
           const pct = total > 0 ? Math.round((c / total) * 1000) / 10 : 0;
           return (
             <div key={k}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 3 }}>
                 <span style={{ color: C.textMuted }}>{k}</span>
                 <span style={{ color: C.textFaint, fontFamily: monoFont }}>{c} · {pct}%</span>
               </div>
@@ -2609,7 +2618,7 @@ function PathCompanions({ path, ending, useGlobal }) {
           : <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.goldSoft, display: "grid", placeItems: "center", fontSize: 16 }}>🌟</div>}
       </div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>{useGlobal ? "Cộng đồng Path" : "Bạn đồng hành"}</div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{useGlobal ? "Cộng đồng Path" : "Bạn đồng hành"}</div>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{text}</div>
       </div>
     </div>
@@ -2662,7 +2671,7 @@ function RankieTimeline({ rankie, options }) {
   if (!rows.length) return null;
   return (
     <div style={{ ...detailBlock, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>
         <Flame size={13} color={C.coral} /> Dòng thời gian cạnh tranh
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2670,8 +2679,8 @@ function RankieTimeline({ rankie, options }) {
           <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
             <span style={{ fontSize: 16, lineHeight: 1.4, flexShrink: 0 }}>{e.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{e.text}</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{timeAgo(e.at)}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, lineHeight: 1.4 }}>{e.text}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 1 }}>{timeAgo(e.at)}</div>
             </div>
           </div>
         ))}
@@ -2720,26 +2729,26 @@ function LiveSessionDetailView({ session, post, onBack }) {
       <div style={{ padding: 16 }}>
         {/* Số liệu tổng */}
         <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 14 }}>
-          <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{session.participantCount ?? parts.length}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
+          <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.gold }}>{session.participantCount ?? parts.length}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã vào</div></div>
           <div style={{ width: 1, background: C.border }} />
-          <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.teal }}>{submitted.length}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
-          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
-          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+          <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.teal }}>{submitted.length}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã nộp</div></div>
+          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text }}>{avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>điểm TB</div></div></>}
+          {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
         </div>
 
         {/* Phổ điểm 0–10 */}
         {isExam && scored.length > 0 && (
           <div style={{ ...detailBlock, marginBottom: 14 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
             <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passing} />
           </div>
         )}
 
         {/* Bảng người tham gia thật */}
         <div style={{ ...detailBlock, marginBottom: isExam && qStats.some((s) => s.hasKey) ? 14 : 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Bảng kết quả ({parts.length})</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Bảng kết quả ({parts.length})</div>
           {parts.length === 0 ? (
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Không có người tham gia.</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Không có người tham gia.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>
               {sorted.map((p, i) => {
@@ -2748,14 +2757,14 @@ function LiveSessionDetailView({ session, post, onBack }) {
                     {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                      {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>⏱ {fmtDur(timeTaken(p))}</div>}
+                      {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint }}>⏱ {fmtDur(timeTaken(p))}</div>}
                     </div>
                     {!p.submitted ? (
-                      <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>không nộp</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, flexShrink: 0 }}>không nộp</span>
                     ) : isExam ? (
-                      <span style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: C.gold, flexShrink: 0 }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                      <span style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 700, color: C.gold, flexShrink: 0 }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                     ) : (
-                      <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
                     )}
                   </div>
                 );
@@ -2767,14 +2776,14 @@ function LiveSessionDetailView({ session, post, onBack }) {
         {/* % đúng từng câu (exam) */}
         {isExam && qStats.some((s) => s.hasKey) && (
           <div style={{ ...detailBlock }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tỉ lệ đúng theo câu</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tỉ lệ đúng theo câu</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {qStats.map(({ q, correct, total, hasKey }, qi) => {
                 const pct = total ? Math.round((correct / total) * 100) : 0;
                 return (
                   <div key={q.id}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-                      <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Câu {qi + 1}: {q.text}</span>
+                      <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Câu {qi + 1}: {q.text}</span>
                       <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: hasKey ? C.gold : C.textFaint, flexShrink: 0 }}>{hasKey ? `${correct}/${total} · ${pct}%` : "khảo sát"}</span>
                     </div>
                     <div style={{ height: 7, borderRadius: 99, background: C.border, overflow: "hidden" }}>
@@ -2866,7 +2875,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
       {/* Bộ lọc — bottom sheet, kết hợp đáp án + nhân khẩu học (crosstab) */}
       {showFilter && (
         <ModalShell title="Lọc kết quả" onClose={() => setShowFilter(false)}>
-          <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Đáp án</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Đáp án</div>
           {(isSurvey || isExam) ? (
             questions.map((q, qi) => (
               <QuestionFilterAccordion key={q.id} qi={qi} qLabel={`Câu ${qi + 1}: ${q.text}`} opts={q.options || []} selected={fAnswers[q.id] || []} onToggle={toggleAnswer(q.id)} />
@@ -2876,16 +2885,16 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
           )}
 
           <div style={{ height: 1, background: C.border, margin: "6px 0 14px" }} />
-          <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Nhân khẩu học</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Nhân khẩu học</div>
           <SessionFilterGroup title="Giới tính" options={SD_GENDERS} selected={fGender} onToggle={toggle(setFGender)} />
           <SessionFilterGroup title="Độ tuổi" options={SD_AGES} selected={fAge} onToggle={toggle(setFAge)} />
           <SessionFilterGroup title="Nghề nghiệp" options={SD_OCCUPATIONS} selected={fOcc} onToggle={toggle(setFOcc)} />
 
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             {anyFilter && (
-              <button onClick={clearAll} style={{ flex: 1, background: "transparent", border: `1px solid ${C.border}`, color: C.coral, borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Xoá lọc</button>
+              <button onClick={clearAll} style={{ flex: 1, background: "transparent", border: `1px solid ${C.border}`, color: C.coral, borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Xoá lọc</button>
             )}
-            <button onClick={() => setShowFilter(false)} style={{ flex: 1, background: C.gold, border: "none", color: "#1a1408", borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <button onClick={() => setShowFilter(false)} style={{ flex: 1, background: C.gold, border: "none", color: "#1a1408", borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
               Xem kết quả {anyFilter ? `(${fmt(filtered.length)} người)` : ""}
             </button>
           </div>
@@ -2896,20 +2905,20 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         {/* Tổng quan phiên */}
         <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 14 }}>
           <div>
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.gold }}>{fmt(filtered.length)}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>{anyFilter ? "khớp lọc" : "người tham gia"}</div>
+            <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.gold }}>{fmt(filtered.length)}</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{anyFilter ? "khớp lọc" : "người tham gia"}</div>
           </div>
           <div style={{ width: 1, background: C.border }} />
           <div>
-            <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.teal }}>{post?.questions?.length || resultOpts.length}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>{isExam ? "câu hỏi" : isSurvey ? "câu hỏi" : "kết quả"}</div>
+            <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.teal }}>{post?.questions?.length || resultOpts.length}</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>{isExam ? "câu hỏi" : isSurvey ? "câu hỏi" : "kết quả"}</div>
           </div>
           {anyFilter && (
             <>
               <div style={{ width: 1, background: C.border }} />
               <div>
-                <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 26, color: C.text }}>{fmt(participants.length)}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>tổng cộng</div>
+                <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.text }}>{fmt(participants.length)}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>tổng cộng</div>
               </div>
             </>
           )}
@@ -2919,7 +2928,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         {isExam && (
           <div style={{ display: "flex", gap: 6, marginBottom: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 }}>
             {[["results", "Kết quả"], ["stats", "Thống kê"]].map(([id, lbl]) => (
-              <button key={id} onClick={() => setExamTab(id)} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: examTab === id ? C.gold : "transparent", color: examTab === id ? "#1A1305" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+              <button key={id} onClick={() => setExamTab(id)} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: examTab === id ? C.gold : "transparent", color: examTab === id ? "#1A1305" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{lbl}</button>
             ))}
           </div>
         )}
@@ -2927,7 +2936,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         {/* KẾT QUẢ TỪNG HỌC SINH (exam) — điểm + đạt/chưa đạt, xếp theo điểm giảm dần. */}
         {isExam && examTab === "results" && (
           <div style={{ ...detailBlock, marginBottom: 12 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Kết quả từng người ({fmt(filtered.length)})</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Kết quả từng người ({fmt(filtered.length)})</div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {[...filtered].sort((a, b) => (b.score10 || 0) - (a.score10 || 0)).map((p, i) => {
                 const passed = post.passingScore == null || (p.score10 || 0) >= post.passingScore;
@@ -2935,8 +2944,8 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
                   <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 22, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
                     <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
-                    <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: passed ? "#4ADE80" : C.coral, background: passed ? "#4ADE8018" : `color-mix(in srgb, var(--coral) 9%, transparent)`, borderRadius: 99, padding: "3px 9px", flexShrink: 0 }}>{passed ? "ĐẠT" : "CHƯA ĐẠT"}</span>
-                    <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold, flexShrink: 0, width: 54, textAlign: "right" }}>{p.score10}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: passed ? "#4ADE80" : C.coral, background: passed ? "#4ADE8018" : `color-mix(in srgb, var(--coral) 9%, transparent)`, borderRadius: 99, padding: "3px 9px", flexShrink: 0 }}>{passed ? "ĐẠT" : "CHƯA ĐẠT"}</span>
+                    <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 700, color: C.gold, flexShrink: 0, width: 54, textAlign: "right" }}>{p.score10}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                   </div>
                 );
               })}
@@ -2952,7 +2961,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
           const sorted = [...dist].sort((a, b) => b.filteredVotes - a.filteredVotes);
           return (
             <div key={q.id} style={{ ...detailBlock, marginBottom: 12 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 5 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 5 }}>
                 Câu {qi + 1}{isExam ? ` · ${q.points || 0} điểm` : ""}
               </div>
               <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{q.text}</div>
@@ -2964,12 +2973,12 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
                   const barColor = isCorrect ? C.teal : isTop ? palette[1] : palette[i % palette.length];
                   return (
                     <div key={o.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
                         <span style={{ color: isTop ? C.text : C.textMuted, fontWeight: isTop ? 700 : 400, display: "flex", alignItems: "center", gap: 5 }}>
                           {isTop && "🥇 "}{o.label}
                           {isCorrect && <Check size={13} color={C.teal} strokeWidth={3} />}
                         </span>
-                        <span style={{ color: barColor, fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 11 }}>({fmt(o.filteredVotes)})</span></span>
+                        <span style={{ color: barColor, fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 12 }}>({fmt(o.filteredVotes)})</span></span>
                       </div>
                       <div style={{ height: 20, borderRadius: 7, background: C.surfaceRaised, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 7, transition: "width 0.5s cubic-bezier(.22,1,.36,1)" }} />
@@ -2985,7 +2994,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         {/* Path / Rankie — phân bố kết quả */}
         {(isPath || (!isSurvey && !isExam)) && (
           <div style={{ ...detailBlock, marginBottom: 12 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {(() => {
                 const maxCnt = Math.max(0, ...resultOpts.map((x) => resultCountById[x.id] || 0));
@@ -2996,9 +3005,9 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
                 const isTop = o.id === topId; // chỉ 1 medal cho kết quả nhiều nhất
                 return (
                   <div key={o.id}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
                       <span style={{ color: isTop ? C.text : C.textMuted, fontWeight: isTop ? 700 : 400 }}>{isTop && "🥇 "}{o.label}</span>
-                      <span style={{ color: palette[i % palette.length], fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 11 }}>({fmt(cnt)})</span></span>
+                      <span style={{ color: palette[i % palette.length], fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 12 }}>({fmt(cnt)})</span></span>
                     </div>
                     <div style={{ height: 20, borderRadius: 7, background: C.surfaceRaised, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${pct}%`, background: palette[i % palette.length], borderRadius: 7, transition: "width 0.5s cubic-bezier(.22,1,.36,1)" }} />
@@ -3019,7 +3028,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         )}
         <button
           onClick={() => setDemoOpen((v) => !v)}
-          style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: demoOpen ? 10 : 0, textTransform: "uppercase", letterSpacing: 0.4 }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: demoOpen ? 10 : 0, textTransform: "uppercase", letterSpacing: 0.4 }}
         >
           <Users size={15} />
           <span style={{ flex: 1, textAlign: "left" }}>Nhân khẩu học{anyFilter ? " (nhóm được lọc)" : ""}</span>
@@ -3034,7 +3043,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
         )}
 
         {onOpenPost && (
-          <button onClick={onOpenPost} style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.teal, borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <button onClick={onOpenPost} style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, color: C.teal, borderRadius: 10, padding: "11px 12px", fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <Link2 size={14} /> Mở bài gốc
           </button>
         )}
@@ -3404,17 +3413,17 @@ function EditPostModal({ post, onClose, onSave }) {
   return (
     <ModalShell title="Chỉnh sửa bài đăng" onClose={onClose}>
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Tiêu đề</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>Tiêu đề</span>
         <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
       </div>
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Mô tả</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>Mô tả</span>
         <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: bodyFont }} />
       </div>
 
       {/* Ảnh bìa */}
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Ảnh bìa</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>Ảnh bìa</span>
         {media && (media.url || media.emoji) ? (
           <div style={{ marginTop: 8, position: "relative" }}>
             <PostMedia media={media} height={140} />
@@ -3431,7 +3440,7 @@ function EditPostModal({ post, onClose, onSave }) {
       {/* Phương án bình chọn (chỉ rankie) */}
       {isRankie && (
         <div style={{ marginBottom: 16 }}>
-          <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>Phương án bình chọn</span>
+          <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>Phương án bình chọn</span>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
             {options.map((o, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3443,8 +3452,8 @@ function EditPostModal({ post, onClose, onSave }) {
               </div>
             ))}
           </div>
-          <button onClick={addOpt} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}><PlusCircle size={15} /> Thêm phương án</button>
-          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Phương án cũ giữ nguyên số phiếu; thêm mới bắt đầu từ 0; xoá thì bỏ phiếu của phương án đó. Phần trăm tự tính lại.</div>
+          <button onClick={addOpt} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 14, cursor: "pointer" }}><PlusCircle size={15} /> Thêm phương án</button>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Phương án cũ giữ nguyên số phiếu; thêm mới bắt đầu từ 0; xoá thì bỏ phiếu của phương án đó. Phần trăm tự tính lại.</div>
         </div>
       )}
       {!isRankie && (
@@ -3455,7 +3464,7 @@ function EditPostModal({ post, onClose, onSave }) {
       {/* Quyền cho người khác trình chiếu — sửa được cho bài đã đăng (round-trip lên backend). */}
       <div style={{ marginBottom: 16 }}>
         <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
           <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
         </button>
       </div>
@@ -3498,11 +3507,11 @@ function PostStatsModal({ post, onClose, onExport }) {
       <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
         <div style={{ ...raisedSurface, flex: 1, textAlign: "center", padding: "10px 0" }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text }}>{fmt(total)}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{isUnlimited ? "Tổng lượt bấm" : "Tổng lượt bình chọn"}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{isUnlimited ? "Tổng lượt bấm" : "Tổng lượt bình chọn"}</div>
         </div>
         <div style={{ ...raisedSurface, flex: 1, textAlign: "center", padding: "10px 0" }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text }}>{fmt(post.participants || 0)}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>Người tham gia</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Người tham gia</div>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
@@ -3510,7 +3519,7 @@ function PostStatsModal({ post, onClose, onExport }) {
           const pct = Math.round((((o.votes || 0) / total) * 1000)) / 10;
           return (
             <div key={o.id}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
                 <span style={{ color: C.text, fontWeight: 600 }}>
                   {o.question ? `${o.question} — ` : ""}
                   {o.label}
@@ -3624,7 +3633,7 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
   const media = (url) => { onMedia(url); };
   const tabBtn = (id, content, label) => (
     <button key={id} onClick={() => setTab(id)} title={label} aria-label={label}
-      style={{ flex: 1, height: 40, display: "grid", placeItems: "center", background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.text : "transparent"}`, color: tab === id ? C.text : C.textFaint, cursor: "pointer", fontFamily: bodyFont, fontWeight: 800, fontSize: 13 }}>
+      style={{ flex: 1, height: 40, display: "grid", placeItems: "center", background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.text : "transparent"}`, color: tab === id ? C.text : C.textFaint, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>
       {content}
     </button>
   );
@@ -3632,14 +3641,14 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
     <button key={key} onClick={() => pickEmoji(em)} style={{ fontSize: 26, lineHeight: 1, height: 42, borderRadius: 10, border: "none", background: value.emoji === em && !value.image ? C.goldSoft : "transparent", cursor: "pointer", padding: 0 }}>{em}</button>
   );
   const bigBtn = (Icon, label, onClick) => (
-    <button onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, height: 86, borderRadius: 14, border: `1px dashed ${C.border}`, background: C.surfaceRaised, color: C.text, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+    <button onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, height: 86, borderRadius: 14, border: `1px dashed ${C.border}`, background: C.surfaceRaised, color: C.text, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>
       <Icon size={24} />{label}
     </button>
   );
   return (
     <BottomSheet onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 6px" }}>
-        <div style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title || "Đính kèm"}</div>
+        <div style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title || "Đính kèm"}</div>
         {(value.emoji || value.image) && onClear && (
           <button onClick={() => { onClear(); onClose(); }} title="Bỏ đính kèm" aria-label="Bỏ đính kèm" style={{ width: 32, height: 32, borderRadius: 99, display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.coral, cursor: "pointer" }}><Trash2 size={15} /></button>
         )}
@@ -3647,7 +3656,7 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
       <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
         {tabBtn("emoji", <Smile size={20} />, "Emoji")}
         {tabBtn("media", allowVideo ? <span style={{ display: "flex", gap: 4 }}><ImageIcon size={20} /><Video size={20} /></span> : <ImageIcon size={20} />, allowVideo ? "Ảnh / Video" : "Ảnh")}
-        {tabBtn("gif", <span style={{ border: "2px solid currentColor", borderRadius: 6, padding: "0 5px", fontSize: 11, letterSpacing: 0.5 }}>GIF</span>, "GIF")}
+        {tabBtn("gif", <span style={{ border: "2px solid currentColor", borderRadius: 6, padding: "0 5px", fontSize: 12, letterSpacing: 0.5 }}>GIF</span>, "GIF")}
       </div>
 
       {tab === "emoji" && (
@@ -3663,19 +3672,19 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
                 <button onClick={() => setGroup(-1)} title="Dùng gần đây" style={{ flexShrink: 0, width: 38, height: 34, borderRadius: 9, border: "none", background: group === -1 ? C.surfaceRaised : "transparent", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}><Clock size={17} /></button>
               )}
               {EMOJI_GROUPS.map(([g, icon, label]) => (
-                <button key={g} onClick={() => setGroup(g)} title={label} style={{ flexShrink: 0, width: 38, height: 34, borderRadius: 9, border: "none", background: group === g ? C.surfaceRaised : "transparent", fontSize: 19, cursor: "pointer", opacity: group === g ? 1 : 0.6 }}>{icon}</button>
+                <button key={g} onClick={() => setGroup(g)} title={label} style={{ flexShrink: 0, width: 38, height: 34, borderRadius: 9, border: "none", background: group === g ? C.surfaceRaised : "transparent", fontSize: 18, cursor: "pointer", opacity: group === g ? 1 : 0.6 }}>{icon}</button>
               ))}
             </div>
           )}
           <div style={{ height: "42vh", overflowY: "auto", marginTop: 6 }}>
             {!data ? (
-              <div style={{ textAlign: "center", padding: 30, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tải emoji…</div>
+              <div style={{ textAlign: "center", padding: 30, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Đang tải emoji…</div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 2 }}>
                 {!kw && group === -1 ? recent.map((em, i) => emojiBtn(em, "r" + i)) : shown.map((e) => emojiBtn(e.unicode, e.hexcode))}
               </div>
             )}
-            {data && kw && shown.length === 0 && <div style={{ textAlign: "center", padding: 24, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Không tìm thấy emoji nào.</div>}
+            {data && kw && shown.length === 0 && <div style={{ textAlign: "center", padding: 24, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Không tìm thấy emoji nào.</div>}
           </div>
         </div>
       )}
@@ -3691,7 +3700,7 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
             {bigBtn(ImageIcon, "Ảnh", () => pickMediaUpload("image/png,image/jpeg,image/webp", (u) => { media(u); onClose(); }))}
             {allowVideo && bigBtn(Video, "Video", () => pickMediaUpload("video/mp4,video/webm,video/quicktime", (u) => { media(u); onClose(); }))}
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, textAlign: "center", marginTop: 10 }}>Ảnh tối đa 8MB{allowVideo ? " · video mp4/webm/mov tối đa 40MB (tự phát, không tiếng)" : ""}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 10 }}>Ảnh tối đa 8MB{allowVideo ? " · video mp4/webm/mov tối đa 40MB (tự phát, không tiếng)" : ""}</div>
         </div>
       )}
 
@@ -3706,9 +3715,9 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
             {bigBtn(ImagePlus, "Tải GIF từ máy", () => pickMediaUpload("image/gif", (u) => { media(u); onClose(); }))}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <input value={gifLink} onChange={(e) => setGifLink(e.target.value)} placeholder="…hoặc dán link GIF (Giphy, Tenor…)" style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 13.5, outline: "none" }} />
+            <input value={gifLink} onChange={(e) => setGifLink(e.target.value)} placeholder="…hoặc dán link GIF (Giphy, Tenor…)" style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" }} />
             <button disabled={!/^https?:\/\/\S+$/i.test(gifLink.trim())} onClick={() => { media(gifLink.trim()); onClose(); }}
-              style={{ padding: "0 14px", borderRadius: 10, border: "none", background: /^https?:\/\/\S+$/i.test(gifLink.trim()) ? C.gold : C.surfaceRaised, color: /^https?:\/\/\S+$/i.test(gifLink.trim()) ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Dùng</button>
+              style={{ padding: "0 14px", borderRadius: 10, border: "none", background: /^https?:\/\/\S+$/i.test(gifLink.trim()) ? C.gold : C.surfaceRaised, color: /^https?:\/\/\S+$/i.test(gifLink.trim()) ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Dùng</button>
           </div>
         </div>
       )}
@@ -3893,7 +3902,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
           >
             <Play size={22} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
           </div>
-          <span style={{ position: "absolute", bottom: 8, right: 10, fontFamily: monoFont, fontSize: 11, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "2px 6px", borderRadius: 5 }}>
+          <span style={{ position: "absolute", bottom: 8, right: 10, fontFamily: monoFont, fontSize: 12, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "2px 6px", borderRadius: 5 }}>
             VIDEO
           </span>
         </>
@@ -3943,14 +3952,14 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
             ? overflowing && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-                  style={{ background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}
+                  style={{ background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}
                 >
                   {expanded ? "Thu gọn" : "…xem thêm"}
                 </button>
               )
             // Chỉ gợi "xem thêm" khi mô tả có vẻ dài hơn số dòng hiển thị (trước đây luôn hiện).
             : showMore && (caption.length > clampLines * 44 || caption.split("\n").length > clampLines) && (
-                <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
               )}
         </div>
       )}
@@ -4063,7 +4072,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
           >
             <TypeIcon size={20} color={joinColor} />
-            {participants > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: joined ? C.text : C.textFaint }}>{fmtCompact(participants)}</span>}
+            {participants > 0 && <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>{fmtCompact(participants)}</span>}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onCommentClick?.(); }}
@@ -4071,7 +4080,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             aria-label="Bình luận"
           >
             <IconCommentBubble />
-            {comments > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(comments)}</span>}
+            {comments > 0 && <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>{fmtCompact(comments)}</span>}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onShareClick?.(); }}
@@ -4079,7 +4088,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
             aria-label="Chia sẻ"
           >
             <IconShareArrow />
-            {shares > 0 && <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>{fmtCompact(shares)}</span>}
+            {shares > 0 && <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>{fmtCompact(shares)}</span>}
           </button>
           {/* Trình chiếu: LUÔN hiện icon (xám khi chưa có phiên, vàng khi đã có); số 0 thì ẩn số như các mục khác */}
           {sessionCount !== null && (
@@ -4091,7 +4100,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
               aria-label="Lịch sử trình chiếu"
             >
               <Monitor size={19} color={hasSessions ? C.gold : C.textMuted} />
-              {hasSessions && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>{fmtCompact(sessionCount)}</span>}
+              {hasSessions && <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>{fmtCompact(sessionCount)}</span>}
             </button>
           )}
         </div>
@@ -4124,10 +4133,10 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
                 >
                   <Monitor size={13} color={C.gold} style={{ flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {s.name}
                     </div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
                       {timeAgo(s.endedAt)} · {s.meta}
                     </div>
                   </div>
@@ -4432,7 +4441,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
             </div>
           )}
 
-          {sendErr && <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.coral, marginBottom: 8, textAlign: "center" }}>{sendErr}</div>}
+          {sendErr && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginBottom: 8, textAlign: "center" }}>{sendErr}</div>}
           <button
             onClick={handlePost}
             disabled={!canPost}
@@ -4450,7 +4459,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
                   flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
                   padding: 11, borderRadius: 10, border: `1px solid ${C.border}`,
                   background: C.surface, color: copied ? C.teal : C.text,
-                  fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer",
+                  fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer",
                 }}
               >
                 {copied ? <Check size={15} /> : <Link2 size={15} />} {copied ? "Đã sao chép!" : "Sao chép liên kết"}
@@ -4463,7 +4472,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared, 
                   border: `1px solid ${showQR ? C.gold : C.border}`,
                   background: showQR ? C.goldSoft : C.surface,
                   color: showQR ? C.gold : C.text,
-                  fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer",
+                  fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer",
                 }}
               >
                 <QrCode size={15} /> Mã QR
@@ -4559,7 +4568,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
             {/* Ruy băng "THẮNG" vắt chéo góc trên-phải bên thắng (không che giữa ảnh) */}
             {isWinner && (
               <div style={{ position: "absolute", top: 0, right: 0, width: 82, height: 82, overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
-                <div style={{ position: "absolute", top: 14, right: -26, transform: "rotate(45deg)", width: 112, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 10, letterSpacing: 1, padding: "3px 0", boxShadow: "0 1px 5px rgba(0,0,0,0.45)" }}>WINNER</div>
+                <div style={{ position: "absolute", top: 14, right: -26, transform: "rotate(45deg)", width: 112, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 700, fontSize: 10, letterSpacing: 1, padding: "3px 0", boxShadow: "0 1px 5px rgba(0,0,0,0.45)" }}>WINNER</div>
               </div>
             )}
             {/* Vương miện bên đang DẪN (chỉ khi còn mở, biến thể cổ điển) */}
@@ -4568,10 +4577,10 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
         </div>
         {/* Tên + thống kê NẰM NGOÀI khung ảnh */}
         <div style={{ textAlign: "center", minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, lineHeight: 1.15, color: isLoser ? C.textMuted : C.text, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, lineHeight: 1.15, color: isLoser ? C.textMuted : C.text, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
           </div>
-          <VoteStat votes={o.votes || 0} total={total} style={{ fontWeight: 800, fontSize: 13, color: isWinner ? C.gold : C.textMuted }} />
+          <VoteStat votes={o.votes || 0} total={total} style={{ fontWeight: 700, fontSize: 14, color: isWinner ? C.gold : C.textMuted }} />
         </div>
       </Wrap>
     );
@@ -4582,7 +4591,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
       {flag(a, colorA, pctA, 0)}
       {flag(b, colorB, pctB, 1)}
       {/* Badge VS chỉ khi CHƯA có kết quả — đã kết thúc thì bỏ để khoe bên thắng. */}
-      {!decided && <div style={{ position: "absolute", left: "50%", top: vsTop, transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
+      {!decided && <div style={{ position: "absolute", left: "50%", top: vsTop, transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 18, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
     </div>
   );
 }
@@ -4737,7 +4746,7 @@ function HeadToHead({ rankie, options, onVote, votedId, isClosed, tapCounts, act
           }}
         >
           {pctA > 14 && (
-            <span style={{ fontFamily: monoFont, fontWeight: 700, color: "#0B1710", fontSize: 13 }}>
+            <span style={{ fontFamily: monoFont, fontWeight: 700, color: "#0B1710", fontSize: 14 }}>
               {showPct ? `${pctA}%` : fmt(a.votes)}
             </span>
           )}
@@ -4754,7 +4763,7 @@ function HeadToHead({ rankie, options, onVote, votedId, isClosed, tapCounts, act
           }}
         >
           {pctB > 14 && (
-            <span style={{ fontFamily: monoFont, fontWeight: 700, color: "#0B1710", fontSize: 13 }}>
+            <span style={{ fontFamily: monoFont, fontWeight: 700, color: "#0B1710", fontSize: 14 }}>
               {showPct ? `${pctB}%` : fmt(b.votes)}
             </span>
           )}
@@ -4843,7 +4852,7 @@ function BarViz({ options, onVote, votedId, isClosed, tapCounts, activeTapId, vo
               </div>
             )}
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
                 <span style={{ color: C.text, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {`#${i + 1} `}
                   {o.label}
@@ -5033,7 +5042,7 @@ function LineViz({ options, colorFor, createdAt }) {
           </div>
         ))}
       </div>
-      <div style={{ textAlign: "center", marginTop: 6, fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
+      <div style={{ textAlign: "center", marginTop: 6, fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
         Tổng lượt vote tích lũy từ khi tạo · {fmtTs(created)} → nay
       </div>
     </div>
@@ -5166,13 +5175,13 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
                 <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 28, color: C.gold }}>⭐ {avg}</span>
-                <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>/ {maxStars} · {fmt(totalRatings)} lượt đánh giá</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>/ {maxStars} · {fmt(totalRatings)} lượt đánh giá</span>
               </div>
               <div style={{ height: 8, borderRadius: 5, background: C.surface, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${(avg / maxStars) * 100}%`, background: C.gold, borderRadius: 5 }} />
               </div>
               {myStarOption && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>
                   Bạn đã đánh giá: <span style={{ color: C.text, fontWeight: 600 }}>{myStarOption.label}</span>
                   <VotedMarker voteMarker={rankie.voteMarker} />
                 </div>
@@ -5192,7 +5201,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
             const trueRank = sorted.findIndex((s) => s.id === o.id); // 0-indexed
             return (
               <div key={o.id}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
                   <span style={{ color: C.text, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
                     {`#${trueRank + 1} `}
                     {o.label}
@@ -5301,28 +5310,28 @@ function TournamentFeedHero({ t, data, roundName }) {
   // --- thành phần dùng chung (cùng kiểu với lá cờ VS của thẻ trận) ---
   const tile = (ref, size, v = "plain", ribbon = false) => {
     if (!ref || v === "empty") {
-      return <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), border: "2px dashed rgba(255,255,255,0.28)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.45)", fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(size * 0.34), flexShrink: 0 }}>?</div>;
+      return <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), border: "2px dashed rgba(255,255,255,0.28)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.45)", fontFamily: bodyFont, fontWeight: 700, fontSize: Math.round(size * 0.34), flexShrink: 0 }}>?</div>;
     }
     const col = hexColor(ref.color, "#5FC9A8");
     const border = v === "win" ? C.gold : v === "lose" ? "#6b6b6b" : col;
     return (
       <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), overflow: "hidden", position: "relative", flexShrink: 0, border: `${size >= 56 ? 3 : 2.5}px solid ${border}`, background: `linear-gradient(160deg, ${col}, ${col}bb)`, display: "grid", placeItems: "center", boxShadow: v === "win" ? "0 0 14px rgba(212,169,74,0.5)" : v === "live" ? `0 0 12px ${col}66` : "none", filter: v === "lose" ? "grayscale(1)" : "none", opacity: v === "lose" ? 0.5 : 1 }}>
-        {ref.imageUrl ? <Pic src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * (ref.emoji ? 0.5 : 0.42)), fontFamily: bodyFont, fontWeight: 800, color: "#fff" }}>{ref.emoji || initialOf(ref.name)}</span>}
+        {ref.imageUrl ? <Pic src={ref.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: Math.round(size * (ref.emoji ? 0.5 : 0.42)), fontFamily: bodyFont, fontWeight: 700, color: "#fff" }}>{ref.emoji || initialOf(ref.name)}</span>}
         {ribbon && (
           <div style={{ position: "absolute", top: 0, right: 0, width: size * 0.8, height: size * 0.8, overflow: "hidden", pointerEvents: "none" }}>
-            <div style={{ position: "absolute", top: size * 0.14, right: -size * 0.26, transform: "rotate(45deg)", width: size * 1.1, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 800, fontSize: 9, letterSpacing: 0.8, padding: "2px 0" }}>WINNER</div>
+            <div style={{ position: "absolute", top: size * 0.14, right: -size * 0.26, transform: "rotate(45deg)", width: size * 1.1, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 700, fontSize: 10, letterSpacing: 0.8, padding: "2px 0" }}>WINNER</div>
           </div>
         )}
       </div>
     );
   };
-  const vsBadge = (size = 34) => <div style={{ width: size, height: size, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, display: "grid", placeItems: "center", fontFamily: displayFont, fontStyle: "italic", fontWeight: 900, fontSize: Math.round(size * 0.4), color: C.gold, flexShrink: 0 }}>VS</div>;
+  const vsBadge = (size = 34) => <div style={{ width: size, height: size, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, display: "grid", placeItems: "center", fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: Math.round(size * 0.4), color: C.gold, flexShrink: 0 }}>VS</div>;
   const livePill = <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE</Pill>;
   const label = (txt, extra) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: C.gold, textShadow: "0 1px 4px rgba(0,0,0,.7)" }}>{txt}{extra}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: C.gold, textShadow: "0 1px 4px rgba(0,0,0,.7)" }}>{txt}{extra}</div>
   );
   const nameEl = (ref, max = 100, gold = false) => (
-    <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: gold ? C.gold : "#fff", textShadow: "0 1px 4px rgba(0,0,0,.85)", maxWidth: max, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center", marginTop: 5 }}>{ref?.name || "?"}</div>
+    <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: gold ? C.gold : "#fff", textShadow: "0 1px 4px rgba(0,0,0,.85)", maxWidth: max, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center", marginTop: 5 }}>{ref?.name || "?"}</div>
   );
   // Thanh tiến độ vòng: mỗi chấm = 1 trận (vàng xong · xanh đang live · mờ chưa) — không kèm chữ số.
   const dots = roundReal.length > 1 ? (
@@ -5394,12 +5403,12 @@ function TournamentFeedHero({ t, data, roundName }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 300 }}>
           {show.map((m) => (
             <div key={`${m.round}-${m.position}`} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.38)", borderRadius: 999, padding: "4px 10px" }}>
-              <span style={{ flex: 1, minWidth: 0, textAlign: "right", fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.aRef?.name}</span>
+              <span style={{ flex: 1, minWidth: 0, textAlign: "right", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.aRef?.name}</span>
               {tile(m.aRef, 30, "live")}{vsBadge(24)}{tile(m.bRef, 30, "live")}
-              <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.bRef?.name}</span>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.bRef?.name}</span>
             </div>
           ))}
-          {live.length > 3 && <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal }}>+{live.length - 3}</div>}
+          {live.length > 3 && <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.teal }}>+{live.length - 3}</div>}
         </div>
         {dots}
       </>
@@ -5594,14 +5603,14 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
           <div key={ch.id} style={{ flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
             {live.has(i) ? renderCard(ch) : (
               <div style={{ minHeight: 300, display: "grid", placeItems: "center" }}>
-                <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Chapter {i + 1}…</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>Chapter {i + 1}…</span>
               </div>
             )}
           </div>
         ))}
         {hasMore && (
           <div style={{ flex: "0 0 100%", width: "100%", scrollSnapAlign: "start", display: "grid", placeItems: "center", padding: "32px 16px" }}>
-            <button onClick={() => onOpenChapter?.(slides[slides.length - 1] || chapters[0])} style={{ padding: "12px 18px", borderRadius: 12, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+            <button onClick={() => onOpenChapter?.(slides[slides.length - 1] || chapters[0])} style={{ padding: "12px 18px", borderRadius: 12, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               Xem tiếp {total - maxInline} chapter còn lại →
             </button>
           </div>
@@ -5664,12 +5673,12 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
       <div style={{ padding: "20px 16px 4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <button onClick={onRefresh} title="Làm mới bảng tin" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontFamily: displayFont, fontStyle: "italic", fontSize: 30, color: C.text, lineHeight: 1 }}>
+            <div style={{ fontFamily: logoFont, fontStyle: "italic", fontSize: 30, color: C.text, lineHeight: 1 }}>
               Rankev
             </div>
             <RefreshCw size={16} color={C.textFaint} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 4, letterSpacing: 0.4 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginTop: 4, letterSpacing: 0.4 }}>
             RANK EVERYTHING
           </div>
         </button>
@@ -5752,7 +5761,7 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
                           background: selected ? C.goldSoft : "transparent",
                           color: selected ? C.gold : C.text,
                           fontFamily: bodyFont,
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: selected ? 700 : 500,
                           cursor: "pointer",
                           textAlign: "left",
@@ -5926,7 +5935,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
     );
 
   const sectionLabel = (txt) => (
-    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 10 }}>{txt}</div>
+    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 10 }}>{txt}</div>
   );
 
   return (
@@ -5991,7 +6000,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
                         <MiniAvatar u={u} size={40} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text }}>{u.name}</div>
-                          <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{u.handle}</div>
+                          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{u.handle}</div>
                         </div>
                       </button>
                     ))}
@@ -6084,7 +6093,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
                     <span style={{
                       fontFamily: monoFont,
                       fontWeight: 700,
-                      fontSize: 13,
+                      fontSize: 14,
                       color: i === 0 ? "#E4634A" : i < 3 ? C.gold : C.textFaint,
                       width: 22,
                       textAlign: "right",
@@ -6126,7 +6135,7 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
                       color: C.text,
                       fontFamily: bodyFont,
                       fontWeight: 700,
-                      fontSize: 13.5,
+                      fontSize: 14,
                       cursor: "pointer",
                     }}
                   >
@@ -6186,7 +6195,7 @@ function CommentComposer({ value, onChange, onSubmit, placeholder, image, setIma
           <button onClick={() => setShowEmoji((v) => !v)} title="Biểu tượng cảm xúc" style={iconGhost}><Smile size={18} color={showEmoji ? C.gold : C.textMuted} /></button>
           {setImage && <button onClick={() => setImage(image ? null : mockImageColor())} title="Đính ảnh" style={iconGhost}><ImageIcon size={18} color={image ? C.gold : C.textMuted} /></button>}
         </div>
-        <button onClick={onSubmit} disabled={!canSend} style={{ padding: "7px 16px", borderRadius: 9, border: "none", background: canSend ? C.gold : C.surfaceRaised, color: canSend ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: canSend ? "pointer" : "not-allowed" }}>{submitLabel}</button>
+        <button onClick={onSubmit} disabled={!canSend} style={{ padding: "7px 16px", borderRadius: 9, border: "none", background: canSend ? C.gold : C.surfaceRaised, color: canSend ? "#1A1305" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: canSend ? "pointer" : "not-allowed" }}>{submitLabel}</button>
       </div>
     </div>
   );
@@ -6198,7 +6207,7 @@ function SupportDropdown({ options, selected, onToggle }) {
   const sel = options.filter((o) => selected.includes(o.id));
   return (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontFamily: bodyFont, fontSize: 14, cursor: "pointer" }}>
         <span style={{ color: sel.length ? C.text : C.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {sel.length ? sel.map((o) => o.label).join(", ") : "Chọn phương án ủng hộ (có thể chọn nhiều)"}
         </span>
@@ -6209,7 +6218,7 @@ function SupportDropdown({ options, selected, onToggle }) {
           {options.map((opt) => {
             const active = selected.includes(opt.id);
             return (
-              <button key={opt.id} onClick={() => onToggle(opt.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: active ? `${opt.color || C.gold}18` : "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer", textAlign: "left" }}>
+              <button key={opt.id} onClick={() => onToggle(opt.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: active ? `${opt.color || C.gold}18` : "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
                 <span style={{ width: 16, height: 16, borderRadius: 4, border: `1px solid ${active ? (opt.color || C.gold) : C.border}`, background: active ? (opt.color || C.gold) : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>
                   {active && <Check size={11} strokeWidth={3} color="#1A1305" />}
                 </span>
@@ -6330,7 +6339,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
 
   const supportPicker = supportOptions && supportOptions.length > 0 && (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 6 }}>
+      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>
         {promptLabel || "Bạn ủng hộ phương án nào? (chọn nhiều, để trống là trung lập)"}
       </div>
       {supportOptions.length > 4 ? (
@@ -6368,7 +6377,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
       {/* Danh sách bình luận */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {sorted.length === 0 && (
-          <div style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Chưa có bình luận nào. Hãy là người đầu tiên!</div>
+          <div style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Chưa có bình luận nào. Hãy là người đầu tiên!</div>
         )}
         {sorted.map((c) => {
           const supportIds = norm(c.supports);
@@ -6380,7 +6389,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                 <button onClick={() => react(c.id, "up")} title="Rank up" style={{ background: "none", border: "none", cursor: "pointer", color: c.myReaction === "up" ? C.teal : C.textFaint, padding: 2, display: "grid", placeItems: "center" }}>
                   <ChevronsUp size={20} strokeWidth={2.5} />
                 </button>
-                <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: c.rankUp - c.rankDown >= 0 ? C.teal : C.coral }}>{fmt(c.rankUp - c.rankDown)}</span>
+                <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: c.rankUp - c.rankDown >= 0 ? C.teal : C.coral }}>{fmt(c.rankUp - c.rankDown)}</span>
                 <button onClick={() => react(c.id, "down")} title="Rank down" style={{ background: "none", border: "none", cursor: "pointer", color: c.myReaction === "down" ? C.coral : C.textFaint, padding: 2, display: "grid", placeItems: "center" }}>
                   <ChevronsDown size={20} strokeWidth={2.5} />
                 </button>
@@ -6389,22 +6398,22 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
               {/* Body */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                  <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 13, marginRight: 2 }}>{c.user}</span>
+                  <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 14, marginRight: 2 }}>{c.user}</span>
                   {supportLabels.length > 0 && (
                     <>
-                      <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>{supportPrefix || "ủng hộ:"}</span>
+                      <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>{supportPrefix || "ủng hộ:"}</span>
                       {supportLabels.map((sp, idx) => (
-                        <span key={idx} style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
+                        <span key={idx} style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
                       ))}
                     </>
                   )}
-                  <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>· {timeAgo(c.createdAt)}</span>
+                  <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>· {timeAgo(c.createdAt)}</span>
                 </div>
-                {c.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={c.text} /></div>}
+                {c.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={c.text} /></div>}
                 {c.image && <div style={{ marginTop: 6, width: 120, height: 120, borderRadius: 10, background: c.image }} />}
                 <div style={{ marginTop: 6, display: "flex", gap: 14, alignItems: "center" }}>
                   <button onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(""); setReplyImage(null); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: replyTo === c.id ? C.gold : C.textMuted }}>Trả lời</button>
-                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{fmt(c.rankUp)} rank up · {fmt(c.rankDown)} rank down</span>
+                  <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{fmt(c.rankUp)} rank up · {fmt(c.rankDown)} rank down</span>
                   <span style={{ marginLeft: "auto" }}>
                     <SaveFlagButton size={13} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, user: c.user, postId } }} />
                   </span>
@@ -6416,10 +6425,10 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                     {c.replies.map((r) => (
                       <div key={r.id}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                          <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 13 }}>{r.user}</span>
-                          <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 11 }}>· {timeAgo(r.createdAt)}</span>
+                          <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 14 }}>{r.user}</span>
+                          <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>· {timeAgo(r.createdAt)}</span>
                         </div>
-                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={r.text} /></div>}
+                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={r.text} /></div>}
                         {r.image && <div style={{ marginTop: 4, width: 96, height: 96, borderRadius: 8, background: r.image }} />}
                       </div>
                     ))}
@@ -6508,7 +6517,7 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
           {editName ? (
             <div style={{ display: "flex", gap: 8 }}>
               <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" }} autoFocus />
-              <button onClick={() => { onRename?.(series.id, nameInput); setEditName(false); }} style={{ padding: "6px 12px", borderRadius: 8, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Lưu</button>
+              <button onClick={() => { onRename?.(series.id, nameInput); setEditName(false); }} style={{ padding: "6px 12px", borderRadius: 8, background: C.gold, border: "none", color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Lưu</button>
             </div>
           ) : (
             <button onClick={() => { setNameInput(series.name); setEditName(true); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
@@ -6521,7 +6530,7 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
       </div>
 
       {reorderWarn && (
-        <div style={{ margin: "12px 16px 0", padding: 12, background: `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid ${C.coral}`, borderRadius: 12, fontFamily: bodyFont, fontSize: 13, color: C.text }}>
+        <div style={{ margin: "12px 16px 0", padding: 12, background: `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid ${C.coral}`, borderRadius: 12, fontFamily: bodyFont, fontSize: 14, color: C.text }}>
           ⚠️ Thay đổi thứ tự có thể gây nhầm lẫn cho người đang đọc dở.
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button onClick={() => setReorderWarn(false)} style={{ flex: 1, padding: "7px", borderRadius: 8, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Vẫn tiếp tục</button>
@@ -6533,14 +6542,14 @@ function SeriesView({ series, allSeries, onOpenPost, onBack, onRename, onReorder
       <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column" }}>
         {posts.map((p, idx) => (
           <div key={p.id} onClick={() => onOpenPost?.(p)} style={{ ...listRow, gap: 10 }}>
-            <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: C.textFaint, flexShrink: 0, width: 24, textAlign: "center" }}>
+            <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, color: C.textFaint, flexShrink: 0, width: 24, textAlign: "center" }}>
               {idx + 1}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {(() => { const M = typeMeta(p); const I = M.icon; return <span title={M.label} style={{ display: "inline-flex" }}><I size={13} color={C.text} /></span>; })()}
-                <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>{timeAgo(p.createdAt)}</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{timeAgo(p.createdAt)}</span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -6619,7 +6628,7 @@ function ChapterSwitcher({ series, currentIdx, participatedKeys, resultData, onS
                 }}
               >
                 <div style={{ padding: "2px 4px 8px" }}>
-                  <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 13, color: isCurrent ? C.gold : C.textFaint }}>Chapter {String(idx + 1).padStart(2, "0")}</span>
+                  <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, color: isCurrent ? C.gold : C.textFaint }}>Chapter {String(idx + 1).padStart(2, "0")}</span>
                 </div>
                 <div className="chSwitchCard rk-carousel" style={{ flex: 1, overflowY: "auto", paddingBottom: 6, borderRadius: 18, background: C.surface, border: `1px solid ${C.border}`, boxShadow: isCurrent ? `0 0 0 2px ${C.gold}, 0 10px 32px color-mix(in srgb, var(--gold) 18%, transparent)` : "none", transition: "box-shadow 0.15s" }}>
                   {renderCard(p)}
@@ -6658,7 +6667,7 @@ function ChapterStrip() {
           const done = isJoined(p);
           return (
             <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} title={p._roundLabel ? `${p._roundLabel} · ${p.title}` : p.title} aria-label={`${series._tournamentId ? "Trận" : "Chapter"} ${i + 1}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
-              style={{ position: "relative", flexShrink: 0, minWidth: 34, height: 34, padding: "0 8px", borderRadius: 999, cursor: cur ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, fontVariantNumeric: "tabular-nums", border: `1.5px solid ${cur ? C.gold : C.border}`, background: cur ? C.gold : C.surfaceRaised, color: cur ? "#1A1305" : C.text }}>
+              style={{ position: "relative", flexShrink: 0, minWidth: 34, height: 34, padding: "0 8px", borderRadius: 999, cursor: cur ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, fontVariantNumeric: "tabular-nums", border: `1.5px solid ${cur ? C.gold : C.border}`, background: cur ? C.gold : C.surfaceRaised, color: cur ? "#1A1305" : C.text }}>
               {i + 1}
               {done && !cur && (
                 <span style={{ position: "absolute", right: -3, top: -3, width: 15, height: 15, borderRadius: 99, background: C.teal, border: `2px solid ${C.bg}`, display: "grid", placeItems: "center" }}>
@@ -6853,14 +6862,14 @@ function PodiumViz({ options, onVote, votedId, isClosed }) {
             const w = Math.max(4, Math.round((c.votes / max) * 100));
             return (
               <div key={c.id} onClick={clickable ? (e) => onVote(c.id, e) : undefined} style={{ display: "flex", alignItems: "center", gap: 9, cursor: clickable ? "pointer" : "default", padding: "3px 4px", borderRadius: 8, background: picked ? C.goldSoft : "transparent" }}>
-                <span style={{ width: 24, textAlign: "center", fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: C.textMuted, flexShrink: 0 }}>#{rank}</span>
-                <span style={{ width: 26, height: 26, borderRadius: 7, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", fontSize: 15 }}>
+                <span style={{ width: 24, textAlign: "center", fontFamily: monoFont, fontWeight: 700, fontSize: 12, color: C.textMuted, flexShrink: 0 }}>#{rank}</span>
+                <span style={{ width: 26, height: 26, borderRadius: 7, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", fontSize: 16 }}>
                   {c.image ? <Pic src={c.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (c.emoji || <span style={{ width: 8, height: 8, borderRadius: 99, background: c.color, display: "block" }} />)}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
-                    <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12.5, color: C.text, ...ellip }}>{c.label}</span>
-                    <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>{pct}%</span>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12, color: C.text, ...ellip }}>{c.label}</span>
+                    <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textMuted, flexShrink: 0 }}>{pct}%</span>
                   </div>
                   <div style={{ height: 8, borderRadius: 99, background: C.track || "rgba(0,0,0,.2)", overflow: "hidden" }}>
                     <div style={{ width: `${w}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${c.color}cc, ${c.color})`, transition: "width .6s cubic-bezier(.2,1,.3,1)" }} />
@@ -6904,8 +6913,8 @@ function TugViz({ options, onVote, votedId, isClosed }) {
   );
   const banner = (o, pct, side) => (
     <div style={{ position: "absolute", top: 10, [side === "left" ? "left" : "right"]: 10, zIndex: 4, display: "flex", alignItems: "center", gap: 6, flexDirection: side === "left" ? "row" : "row-reverse", padding: "4px 10px", borderRadius: 10, background: o.color, boxShadow: `0 4px 10px ${o.color}55` }}>
-      <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 13, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.5)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 96 }}>{o.label || (side === "left" ? "Đội 1" : "Đội 2")}</span>
-      <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: "#fff" }}>{pct}%</span>
+      <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.5)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 96 }}>{o.label || (side === "left" ? "Đội 1" : "Đội 2")}</span>
+      <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 12, color: "#fff" }}>{pct}%</span>
     </div>
   );
   return (
@@ -7047,8 +7056,8 @@ function BeamViz({ options, onVote, votedId, isClosed }) {
   // Banner tên đội (đỏ trái / xanh phải) — giống Kéo co.
   const banner = (o, pct, side) => (
     <div style={{ position: "absolute", top: 8, [side === "left" ? "left" : "right"]: 8, zIndex: 3, display: "flex", alignItems: "center", gap: 6, flexDirection: side === "left" ? "row" : "row-reverse", padding: "4px 10px", borderRadius: 10, background: o.color, boxShadow: `0 4px 10px ${o.color}66`, pointerEvents: "none" }}>
-      <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 13, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.5)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 92 }}>{o.label || (side === "left" ? "Đội 1" : "Đội 2")}</span>
-      <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: "#fff" }}>{pct}%</span>
+      <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.5)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 92 }}>{o.label || (side === "left" ? "Đội 1" : "Đội 2")}</span>
+      <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 12, color: "#fff" }}>{pct}%</span>
     </div>
   );
   // Chân dung "đấu thủ" mỗi bên — lồng ẢNH phương án (fallback emoji/chấm màu).
@@ -7350,7 +7359,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         {rankie.tournamentId && onOpenTournament && (
           <button onClick={() => onOpenTournament(rankie.tournamentId)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}`, cursor: "pointer", textAlign: "left" }}>
             <Trophy size={16} color={C.gold} />
-            <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13, color: C.text }}>
+            <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 14, color: C.text }}>
               Trận trong giải <b style={{ color: C.gold }}>{rankie.tournamentTitle}</b>
             </span>
             <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.gold, fontWeight: 700, flexShrink: 0 }}>Xem bảng đấu →</span>
@@ -7437,7 +7446,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             style={{ position: "absolute", left: 10, bottom: 10, display: "flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}`, cursor: isUnlimited ? "pointer" : "default", zIndex: 3 }}
           >
             {/* SỐ trái · ICON phải (quy tắc chung). Nền chip TỐI cố định → chữ SÁNG cố định. */}
-            <span style={{ fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 13, color: "#F5F1E6" }}>{fmt(displayTotal)}</span>
+            <span style={{ fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: 14, color: "#F5F1E6" }}>{fmt(displayTotal)}</span>
             {isUnlimited && resultMetric === "votes" ? <SlidersHorizontal size={12} color="#5FC9A8" /> : <Users size={12} color="#B9AE97" />}
           </button>
           {chartFlash && (
@@ -7454,11 +7463,11 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         {/* Chủ bài điều khiển phiên LIVE ngay tại chi tiết: kết thúc sớm / gia hạn (HH:MM). */}
         {isRankieOwner && !isClosed && !notYetOpen && (
           <div style={{ ...detailBlock, marginBottom: 16, padding: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={endLiveNow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: "pointer" }}><span style={{ width: 10, height: 10, background: "#fff", borderRadius: 2 }} /> Kết thúc sớm</button>
+            <button onClick={endLiveNow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}><span style={{ width: 10, height: 10, background: "#fff", borderRadius: 2 }} /> Kết thúc sớm</button>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
               <Clock size={15} color={C.gold} />
               <input value={extendInput} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setExtendInput(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, outline: "none" }} />
-              <button onClick={extendLive} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>+ Gia hạn</button>
+              <button onClick={extendLive} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}>+ Gia hạn</button>
             </div>
           </div>
         )}
@@ -7472,7 +7481,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               border: `1px solid ${C.gold}`,
               color: C.gold,
               fontFamily: bodyFont,
-              fontSize: 13,
+              fontSize: 14,
               marginBottom: 20,
               display: "flex",
               alignItems: "center",
@@ -7483,7 +7492,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
             <span style={{ flex: 1 }}>
               🔴 Sắp lên sóng — mở bình chọn lúc {new Date(rankie.opensAt).toLocaleString("vi-VN")}. Bạn có thể xem trước các lựa chọn.
             </span>
-            <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 14, color: C.gold, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, color: C.gold, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
               {fmtCountdown(openRemainMs)}
             </span>
           </div>
@@ -7496,7 +7505,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               border: `1px solid ${C.border}`,
               color: C.textMuted,
               fontFamily: bodyFont,
-              fontSize: 13,
+              fontSize: 14,
               marginBottom: 20,
               display: "flex",
               alignItems: "center",
@@ -7511,7 +7520,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         ) : isUnlimited ? (
           clickableChart ? null : (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 8 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 8 }}>
               Bấm liên tục để tăng vote cho phương án yêu thích — không giới hạn số lần!
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -7557,7 +7566,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                             background: C.gold,
                             color: "#1A1305",
                             fontFamily: monoFont,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: 700,
                             transition: "transform 0.1s ease",
                             transform: isActivelyTapping ? "scale(1.1)" : "scale(1)",
@@ -7577,7 +7586,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         ) : rankie.votingType === "multiple" ? (
           !voted ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 2 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 2 }}>
                 Chọn các phương án bạn ủng hộ (được chọn nhiều):
               </div>
               {options.map((o) => {
@@ -7654,7 +7663,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                 color: C.gold,
                 fontFamily: bodyFont,
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: 14,
                 marginBottom: 20,
                 display: "flex",
                 alignItems: "center",
@@ -7669,7 +7678,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         ) : rankie.votingType === "rating" ? (
           !voted ? (
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 10 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 10 }}>
                 Chọn mức đánh giá của bạn:
               </div>
               <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 14 }}>
@@ -7712,7 +7721,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                 color: C.gold,
                 fontFamily: bodyFont,
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: 14,
                 marginBottom: 20,
                 display: "flex",
                 alignItems: "center",
@@ -7732,7 +7741,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           <>
             {!clickableChart && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginBottom: 8 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 8 }}>
                   {voted ? "Bình chọn của bạn (bấm lại để hủy, hoặc chọn phương án khác):" : "Bình chọn của bạn:"}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 10 }}>
@@ -7791,7 +7800,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
                           style={{
                             fontFamily: bodyFont,
                             fontWeight: 600,
-                            fontSize: 13,
+                            fontSize: 14,
                             color: isMine ? C.gold : C.text,
                             textAlign: "center",
                             lineHeight: 1.25,
@@ -7848,7 +7857,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         {/* Presenter sessions saved for this rankie */}
         {(sessions || []).length > 0 && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, padding: "0 4px", marginBottom: 10 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, padding: "0 4px", marginBottom: 10 }}>
               🎬 Phiên trình chiếu ({sessions.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -7882,7 +7891,7 @@ function ChoiceButton({ choice, onClick, accent, layout = "col", imageSize = 76 
       >
         <Pic src={choice.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 100%)" }} />
-        <span style={{ position: "absolute", left: 12, right: 12, bottom: 10, fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: "#fff", textAlign: "left", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+        <span style={{ position: "absolute", left: 12, right: 12, bottom: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: "#fff", textAlign: "left", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
           {choice.label}
         </span>
       </button>
@@ -8002,7 +8011,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           )}
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
               Phân bố kết quả
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -8010,7 +8019,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Illustration emoji={r.emoji} image={r.image} size={30} radius={8} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 3 }}>
                       <span style={{ color: C.text, fontWeight: 600 }}>{name}</span>
                       <span style={{ color: C.textFaint, fontFamily: monoFont }}>{r.pct}%</span>
                     </div>
@@ -8105,7 +8114,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <div style={{ background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
             <Pic src={r.image} alt={step} style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block", animation: "popIn 0.4s ease" }} />
             <div style={{ padding: 14 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, marginTop: 3 }}>{r.pct}% giống bạn · {fmt(r.count)} người</div>
             </div>
@@ -8117,7 +8126,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
               <Illustration emoji={r.emoji} image={r.image} size={60} radius={16} />
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, marginTop: 3 }}>{r.pct}% giống bạn · {fmt(r.count)} người</div>
             </div>
@@ -8141,7 +8150,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                     strokeDasharray={`${(discovered / allEndings.length) * 119.4} 119.4`} transform="rotate(-90 22 22)" />
                 )}
               </svg>
-              <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: C.gold }}>
+              <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontFamily: monoFont, fontWeight: 700, fontSize: 12, color: C.gold }}>
                 {hideCount ? discovered : `${discovered}/${allEndings.length}`}
               </div>
             </div>
@@ -8159,7 +8168,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         )}
 
         <div style={{ ...detailBlock, marginBottom: 16, position: "relative", paddingBottom: 44 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố kết quả</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {Object.entries(path.results).map(([name, d]) => {
               const isUnlocked = revealAll || unlocked.has(name);
@@ -8180,7 +8189,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                       </div>
                     )}
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 3 }}>
                         <span style={{ color: C.textFaint }}>{showName ? name : "Kết quả chưa khám phá"}</span>
                         {showStats && <span style={{ color: C.textFaint, fontFamily: monoFont }}>{d.pct}%</span>}
                       </div>
@@ -8199,7 +8208,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Illustration emoji={d.emoji} image={d.image} size={30} radius={8} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 3 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 3 }}>
                       <span style={{ color: name === step ? C.gold : C.textMuted, fontWeight: name === step ? 700 : 500 }}>{name}{name === step ? " · bạn" : ""}</span>
                       <span style={{ color: C.textFaint, fontFamily: monoFont }}>{d.pct}%</span>
                     </div>
@@ -8211,14 +8220,14 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
               );
             })}
             {hideCount && remaining > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontStyle: "italic" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontStyle: "italic" }}>
                 <Lock size={13} color={C.textFaint} /> Còn những kết quả bí ẩn khác…
               </div>
             )}
           </div>
           <div style={{ position: "absolute", left: 10, bottom: 10, display: "flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: "rgba(18,14,7,0.82)", border: `1px solid ${C.border}` }}>
             <Users size={12} color="#B9AE97" />
-            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 13, color: "#F5F1E6" }}>{fmt(path.participants)}</span>
+            <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 14, color: "#F5F1E6" }}>{fmt(path.participants)}</span>
           </div>
         </div>
 
@@ -8239,7 +8248,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           if (useGlobal) {
             return (
               <div style={{ textAlign: "left", marginTop: 14 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Bình luận chung</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Bình luận chung</div>
                 <CommentsSection postId={path.id} onCommentAdded={onCommentAdded} initialComments={pathComments} supportOptions={[]} />
               </div>
             );
@@ -8251,14 +8260,14 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <div style={{ textAlign: "left", marginTop: 14 }}>
               {unlockedList.length > 1 && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Thảo luận theo kết quả</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Thảo luận theo kết quả</div>
                   <div style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
                     {unlockedList.map((name) => {
                       const active = name === activeThread;
                       return (
                         <button key={name} onClick={() => setThreadEnding(name)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : "transparent", cursor: "pointer" }}>
                           <span style={{ fontSize: 14 }}>{path.results[name].emoji}</span>
-                          <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? C.gold : C.textMuted }}>{name}</span>
+                          <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: active ? 700 : 500, color: active ? C.gold : C.textMuted }}>{name}</span>
                         </button>
                       );
                     })}
@@ -8390,12 +8399,12 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
           <Illustration emoji={myResultData.emoji} image={myResultData.image} size={38} radius={10} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
               Kết quả gần nhất của bạn
             </div>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{myResult.detail}</div>
             {allEndings.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, fontFamily: bodyFont, fontSize: 11, color: C.gold, fontWeight: 600 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, fontFamily: bodyFont, fontSize: 12, color: C.gold, fontWeight: 600 }}>
                 <GitBranch size={11} />
                 {hideCount ? `Đã khám phá ${discovered} kết quả` : `Đã khám phá ${discovered}/${allEndings.length} kết quả`}
               </div>
@@ -8410,12 +8419,12 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
           : (
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
               <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
-                <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(path.participants || 0)}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>tham gia</div>
+                <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.gold, lineHeight: 1 }}>{fmt(path.participants || 0)}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>tham gia</div>
               </div>
               <div style={{ width: 1, alignSelf: "stretch", background: `color-mix(in srgb, var(--gold) 20%, transparent)` }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>Trắc nghiệm phân nhánh</div>
+                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>Trắc nghiệm phân nhánh</div>
                 <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1 }}>{nq} câu{resultCount ? ` · ${resultCount} kết quả` : ""} · nhấn để xem chi tiết</div>
               </div>
             </div>
@@ -8428,7 +8437,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
             <GitBranch size={18} color={C.text} />
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.35 }}>
             Trắc nghiệm {nq} câu · nhấn để xem giới thiệu và thử
           </div>
         </div>
@@ -8500,7 +8509,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
         <TopBar title="Chuẩn bị trình chiếu" onBack={onBack} />
         <div style={{ padding: 24, flex: 1 }}>
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text, marginBottom: 6, lineHeight: 1.3 }}>{path.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 24 }}>
             {path.questions.length} câu hỏi · {Object.keys(path.results).length} kết quả · Người tham gia làm bài qua QR hoặc link.
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
@@ -8518,7 +8527,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> PHÒNG CHỜ</Pill>
@@ -8526,7 +8535,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
         <div style={{ flex: 1, padding: "28px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>ĐANG CHỜ NGƯỜI THAM GIA</div>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{path.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 28 }}>{path.questions.length} câu hỏi</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 28 }}>{path.questions.length} câu hỏi</div>
           <div style={{ width: 180, height: 180, background: "#fff", borderRadius: 16, display: "grid", placeItems: "center", marginBottom: 20 }}>
             <QrCode size={140} color="#111" />
           </div>
@@ -8548,7 +8557,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Đóng
         </button>
         <Pill tone="muted">KẾT QUẢ PATH</Pill>
@@ -8558,13 +8567,13 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
           <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 30, color: C.gold }}>{fmt(participants.length)}</div>
           <div style={{ ...captionText, marginTop: 2 }}>người đã tham gia</div>
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Phân bố kết quả</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Phân bố kết quả</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {distribution.map((d) => (
             <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Illustration emoji={d.emoji} image={d.image} size={34} radius={9} />
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 13, marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
                   <span style={{ color: C.text, fontWeight: 600 }}>{d.label}</span>
                   <span style={{ color: C.textFaint, fontFamily: monoFont, fontWeight: 700 }}>{d.liveCount} · {d.livePct}%</span>
                 </div>
@@ -8598,13 +8607,13 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
               </button>
             </>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>
               <Check size={16} /> Đã lưu phiên "{presenterSessionName.trim() || "không tên"}"
             </div>
           )}
           <button
             onClick={handleExportCSV}
-            style={{ padding: 11, borderRadius: 12, border: `1px solid ${csvCopied ? C.teal : C.border}`, background: C.surface, color: csvCopied ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            style={{ padding: 11, borderRadius: 12, border: `1px solid ${csvCopied ? C.teal : C.border}`, background: C.surface, color: csvCopied ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
             {csvCopied ? <Check size={14} /> : <Download size={14} />} {csvCopied ? "Đã xuất!" : "Xuất CSV"}
           </button>
@@ -8750,7 +8759,7 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
               <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                 <span style={{ color: showResults && graded ? resultBorder : C.text }}>{o.label}</span>
                 {showGradeIcon && (
-                  <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: resultBorder, marginTop: 1 }}>
+                  <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: resultBorder, marginTop: 1 }}>
                     {isCorrect ? "Đáp án đúng" : "Bạn đã chọn — sai"}
                   </span>
                 )}
@@ -8802,21 +8811,21 @@ function DeckResultsDashboard({ deck }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5 }}>KẾT QUẢ THỰC TẾ</div>
         {real && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 11, color: C.teal }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12, color: C.teal }}>
             <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> tự cập nhật
           </div>
         )}
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 12 }}>
-        <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{n}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+        <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.gold }}>{n}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã làm</div></div>
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>điểm TB</div></div></>}
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
       </div>
 
       {isExam && scores.length > 0 && (
         <div style={{ ...detailBlock, marginBottom: 12 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
           <ScoreSpectrum scores={scores} passing={passing} />
         </div>
       )}
@@ -8828,16 +8837,16 @@ function DeckResultsDashboard({ deck }) {
         </div>
       ) : (
         <div style={{ ...detailBlock }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {(eff?.questions || []).map((q, qi) => (
               <div key={q.id}>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 8 }}>
                   {qi + 1}. {q.text || "(câu hỏi)"}
-                  {isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points}đ)</span>}
+                  {isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points}đ)</span>}
                 </div>
                 {q.votingType === "text" ? (
-                  <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, fontStyle: "italic" }}>{q.answered} câu trả lời tự luận</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontStyle: "italic" }}>{q.answered} câu trả lời tự luận</div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     {q.options.map((o) => {
@@ -8846,7 +8855,7 @@ function DeckResultsDashboard({ deck }) {
                       return (
                         <div key={o.id}>
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-                            <span style={{ fontFamily: bodyFont, fontSize: 13, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ fontFamily: bodyFont, fontSize: 14, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
                             </span>
                             <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{o.count} · {pct}%</span>
@@ -8904,7 +8913,7 @@ function DeckCardResultPreview({ deck }) {
         <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surface, display: "grid", placeItems: "center", flexShrink: 0 }}>
           {isExam ? <Edit3 size={18} color={C.text} /> : <Layers size={18} color={C.text} />}
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
+        <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.35 }}>
           {isExam ? `Bài thi ${nq} câu` : `Khảo sát ${nq} câu`} · {real && !data ? "đang tải kết quả…" : "chưa có ai làm bài"}
         </div>
       </div>
@@ -8919,9 +8928,9 @@ function DeckCardResultPreview({ deck }) {
     <div style={{ ...detailBlock, marginBottom: 12 }}>
       {/* Số liệu tổng hợp */}
       <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", marginBottom: 12 }}>
-        <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã làm</div></div>
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: "#4ADE80" }}>{fmt(passCount)}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
+        <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã làm</div></div>
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>điểm TB</div></div></>}
+        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: "#4ADE80" }}>{fmt(passCount)}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
       </div>
 
       {isExam && scores.length > 0 && (
@@ -8935,8 +8944,8 @@ function DeckCardResultPreview({ deck }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {shownQ.map((q, qi) => (
           <div key={q.id}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 7 }}>
-              {qi + 1}. {q.text || "(câu hỏi)"}{isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points}đ)</span>}
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 7 }}>
+              {qi + 1}. {q.text || "(câu hỏi)"}{isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points}đ)</span>}
             </div>
             {q.votingType === "text" ? (
               <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>{fmt(q.answered)} câu trả lời tự luận</div>
@@ -9117,7 +9126,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
           <button
             onClick={() => setOwnerShowQuestions((v) => !v)}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", marginBottom: ownerShowQuestions ? 10 : 16 }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", marginBottom: ownerShowQuestions ? 10 : 16 }}
           >
             <BarChart3 size={15} />
             <span style={{ flex: 1, textAlign: "left" }}>Xem trước câu hỏi{deck.deckMode === "exam" ? " & đáp án đúng" : ""}</span>
@@ -9128,9 +9137,9 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
               {deck.questions.map((q, i) => (
                 <div key={q.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 8 }}>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 8 }}>
                     {i + 1}. {q.text}
-                    {deck.deckMode === "exam" && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>({q.points || 1}đ)</span>}
+                    {deck.deckMode === "exam" && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points || 1}đ)</span>}
                   </div>
                   {q.votingType === "text" ? (
                     <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>
@@ -9139,7 +9148,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       {q.options.map((o) => (
-                        <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, color: o.correct ? "#4ADE80" : C.textMuted }}>
+                        <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, color: o.correct ? "#4ADE80" : C.textMuted }}>
                           {o.correct ? <Check size={13} color="#4ADE80" /> : <span style={{ width: 13, display: "inline-block" }} />}
                           {o.label}
                         </div>
@@ -9237,19 +9246,19 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             <>
               {/* SECTION 1 — Kết quả chính: điểm nổi bật + Top % + số người vượt qua */}
               <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
-                <div style={{ animation: "popIn 0.4s ease", fontFamily: monoFont, fontWeight: 800, fontSize: 56, color: C.gold, lineHeight: 1 }}>
-                  {score10}<span style={{ fontSize: 22, color: C.textFaint, fontWeight: 500 }}>/10</span>
+                <div style={{ animation: "popIn 0.4s ease", fontFamily: monoFont, fontWeight: 700, fontSize: 56, color: C.gold, lineHeight: 1 }}>
+                  {score10}<span style={{ fontSize: 22, color: C.textFaint, fontWeight: 400 }}>/10</span>
                 </div>
                 {topPct != null ? (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-                    <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
                   </div>
                 ) : realParticipants != null ? (
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-                    <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14, color: C.gold }}>{fmt(realParticipants)} người đã làm</span>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>{fmt(realParticipants)} người đã làm</span>
                   </div>
                 ) : null}
-                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 10 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10 }}>
                   {beatPct != null ? (
                     <>Bạn làm tốt hơn <strong style={{ color: C.text }}>{beatPct}%</strong> người tham gia</>
                   ) : realParticipants != null && realParticipants > 1 && realAvg != null ? (
@@ -9273,12 +9282,12 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Chênh lệch của bạn</div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: diffFromAvg >= 0 ? "#4ADE80" : C.coral, marginTop: 2 }}>
+                  <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: diffFromAvg >= 0 ? "#4ADE80" : C.coral, marginTop: 2 }}>
                     {diffFromAvg >= 0 ? "+" : ""}{diffFromAvg}
                   </div>
                 </div>
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8, textAlign: "center" }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8, textAlign: "center" }}>
                 {diffFromAvg === 0
                   ? "Bạn bằng điểm trung bình cộng đồng"
                   : diffFromAvg > 0
@@ -9288,7 +9297,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
               {/* SECTION 3 — Histogram phân bố điểm + vị trí của bạn (thay xếp loại A–F) */}
               <div style={{ ...detailBlock, marginTop: 16, textAlign: "left" }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>
                   Phân bố điểm · {fmt(allScores.length)} người đã thi
                 </div>
                 {(() => {
@@ -9302,7 +9311,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                           return (
                             <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
                               {isMine && (
-                                <div style={{ fontFamily: bodyFont, fontSize: 10, fontWeight: 800, color: C.gold, marginBottom: 1, whiteSpace: "nowrap" }}>▲ Bạn</div>
+                                <div style={{ fontFamily: bodyFont, fontSize: 10, fontWeight: 700, color: C.gold, marginBottom: 1, whiteSpace: "nowrap" }}>▲ Bạn</div>
                               )}
                               {b.count > 0 && (
                                 <div style={{ fontFamily: monoFont, fontSize: 10, fontWeight: 700, color: isMine ? C.gold : C.textMuted, marginBottom: 2 }}>{b.count}</div>
@@ -9326,7 +9335,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               {/* SECTION 4 — Tiến độ: chỉ hiện khi đã có lần làm trước */}
               {prevScore != null && (
                 <div style={{ ...detailBlock, marginTop: 16, textAlign: "left" }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tiến bộ của bạn</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Tiến bộ của bạn</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ textAlign: "center", flex: 1 }}>
                       <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: C.textMuted }}>{prevScore}</div>
@@ -9334,12 +9343,12 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                     </div>
                     <ChevronRight size={18} color={C.textFaint} />
                     <div style={{ textAlign: "center", flex: 1 }}>
-                      <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 24, color: C.gold }}>{score10}</div>
+                      <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 24, color: C.gold }}>{score10}</div>
                       <div style={{ ...captionText, marginTop: 2 }}>Lần này</div>
                     </div>
                     <div style={{ flex: 1, textAlign: "center" }}>
                       <div style={{ display: "inline-block", padding: "5px 12px", borderRadius: 999, background: score10 >= prevScore ? "#4ADE8018" : `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid ${score10 >= prevScore ? "#4ADE80" : C.coral}` }}>
-                        <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: score10 >= prevScore ? "#4ADE80" : C.coral }}>
+                        <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 16, color: score10 >= prevScore ? "#4ADE80" : C.coral }}>
                           {score10 - prevScore >= 0 ? "+" : ""}{Math.round((score10 - prevScore) * 10) / 10}
                         </span>
                       </div>
@@ -9351,7 +9360,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
               {/* PHÂN TÍCH CHI TIẾT — thu gọn mặc định, mở khi người dùng muốn xem sâu */}
               <div style={{ marginTop: 16, textAlign: "left" }}>
-                <button onClick={() => setShowAnalysis((v) => !v)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "11px 12px", borderRadius: 12, background: showAnalysis ? C.goldSoft : C.surface, border: `1px solid ${showAnalysis ? C.gold : C.border}`, color: showAnalysis ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                <button onClick={() => setShowAnalysis((v) => !v)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "11px 12px", borderRadius: 12, background: showAnalysis ? C.goldSoft : C.surface, border: `1px solid ${showAnalysis ? C.gold : C.border}`, color: showAnalysis ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
                   <BarChart3 size={15} />
                   <span style={{ flex: 1 }}>Phân tích chi tiết</span>
                   <ChevronDown size={15} style={{ transform: showAnalysis ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
@@ -9401,16 +9410,16 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                           <div key={q.id} style={{ ...cardSurface, border: `1px solid ${correct ? "color-mix(in srgb, var(--teal) 33%, transparent)" : "color-mix(in srgb, var(--coral) 33%, transparent)"}` }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                               <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint }}>Câu {qi + 1}</span>
-                              <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: correct ? C.teal : C.coral }}>{correct ? "✓ Đúng" : "✗ Sai"} · {s.correctRate}% làm đúng</span>
+                              <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: correct ? C.teal : C.coral }}>{correct ? "✓ Đúng" : "✗ Sai"} · {s.correctRate}% làm đúng</span>
                             </div>
-                            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, marginBottom: 10, lineHeight: 1.3 }}>{q.text}</div>
+                            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, marginBottom: 10, lineHeight: 1.3 }}>{q.text}</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                               {q.options.map((o, oi) => {
                                 const isCorrect = oi === s.correctIdx;
                                 const isMine = oi === myIdx;
                                 return (
                                   <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: isCorrect ? C.teal : isMine ? C.coral : C.textFaint, width: 14 }}>{optLetter(oi)}</span>
+                                    <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: isCorrect ? C.teal : isMine ? C.coral : C.textFaint, width: 14 }}>{optLetter(oi)}</span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12, marginBottom: 2 }}>
                                         <span style={{ color: isCorrect ? C.teal : isMine ? C.coral : C.textMuted, fontWeight: isCorrect || isMine ? 700 : 400 }}>
@@ -9444,7 +9453,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               <div style={{ animation: "popIn 0.4s ease", width: 56, height: 56, borderRadius: 99, background: C.goldSoft, border: `1px solid ${C.gold}`, display: "grid", placeItems: "center", margin: "0 auto 10px" }}>
                 <Check size={26} color={C.gold} />
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>Cảm ơn bạn đã tham gia khảo sát.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>Cảm ơn bạn đã tham gia khảo sát.</div>
             </div>
           ) : null}
         </div>
@@ -9485,7 +9494,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                 const sortedQ = [...augOpts].sort((a, b) => b.votes - a.votes);
                 return (
                   <div key={q.id} style={{ ...detailBlock, marginBottom: 12 }}>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
                       Câu {qi + 1} · {q.votingType === "multiple" ? "Chọn nhiều" : q.votingType === "rating" ? "Đánh giá" : "Chọn một"}
                     </div>
                     <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>{q.text}</div>
@@ -9495,7 +9504,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                         const mine = isMine(o.id);
                         return (
                           <div key={o.id}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5, fontFamily: bodyFont, fontSize: 13 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5, fontFamily: bodyFont, fontSize: 14 }}>
                               <span style={{ color: mine ? C.gold : C.text, fontWeight: mine ? 700 : 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {o.emoji ? o.emoji + " " : ""}{o.label}{mine ? " · bạn chọn" : ""}
                               </span>
@@ -9520,7 +9529,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         {/* Chi tiết từng câu (chỉ Exam) — thu gọn mặc định để giữ màn kết quả gọn gàng */}
         <button
           onClick={() => setShowQuestionDetail((v) => !v)}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 0", background: "none", border: "none", borderTop: `1px solid ${C.border}`, borderBottom: showQuestionDetail ? "none" : `1px solid ${C.border}`, color: C.teal, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 0", background: "none", border: "none", borderTop: `1px solid ${C.border}`, borderBottom: showQuestionDetail ? "none" : `1px solid ${C.border}`, color: C.teal, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
         >
           {showQuestionDetail ? "Ẩn chi tiết từng câu" : "Xem chi tiết từng câu"}
           <ChevronDown size={15} style={{ transform: showQuestionDetail ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
@@ -9707,7 +9716,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
             {deck.deckMode === "exam" ? <Edit3 size={17} color={C.text} /> : <Layers size={17} color={C.text} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
               Kết quả gần nhất của bạn
             </div>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{myResult.detail}</div>
@@ -9727,7 +9736,7 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
           <div style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
             {deck.deckMode === "exam" ? <Edit3 size={18} color={C.text} /> : <Layers size={18} color={C.text} />}
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.35 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.35 }}>
             {deck.deckMode === "exam" ? `📝 ${nq} câu · Bài thi có chấm điểm` : `Bộ ${nq} câu hỏi · nhấn để xem giới thiệu và tham gia`}
           </div>
         </div>
@@ -9893,7 +9902,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
     const correctIds = reveal && result?.correctByQuestion ? (result.correctByQuestion[q.id] || []) : null;
     return (
       <div key={q.id} style={box}>
-        <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}</div>
         <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
         {q.votingType === "text" ? (
           <div style={{ ...input, marginTop: 0, minHeight: 44, whiteSpace: "pre-wrap", color: myArr[0] ? C.text : C.textFaint }}>{myArr[0] || "(bỏ trống)"}</div>
@@ -9933,15 +9942,15 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
       <div style={inner}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.gold }}>Rankev · Tham gia phiên</div>
-          {onExit && <button onClick={onExit} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontFamily: bodyFont, fontSize: 13 }}>Thoát</button>}
+          {onExit && <button onClick={onExit} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontFamily: bodyFont, fontSize: 14 }}>Thoát</button>}
         </div>
 
-        {err && <div style={{ background: `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid color-mix(in srgb, var(--coral) 33%, transparent)`, color: C.coral, borderRadius: 10, padding: "10px 12px", fontFamily: bodyFont, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+        {err && <div style={{ background: `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid color-mix(in srgb, var(--coral) 33%, transparent)`, color: C.coral, borderRadius: 10, padding: "10px 12px", fontFamily: bodyFont, fontSize: 14, marginBottom: 12 }}>{err}</div>}
 
         {phase === "code" && (
           <div style={box}>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 4 }}>Nhập mã phiên</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Mã do người trình chiếu cung cấp (6 ký tự).</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>Mã do người trình chiếu cung cấp (6 ký tự).</div>
             <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="VD: ABC123" maxLength={6} style={{ ...input, fontFamily: monoFont, fontSize: 22, letterSpacing: 3, textAlign: "center" }} />
             <button onClick={() => lookup(code)} disabled={busy || code.trim().length < 4} style={{ ...primaryButton, width: "100%", marginTop: 14, opacity: busy || code.trim().length < 4 ? 0.5 : 1 }}>Tiếp tục</button>
           </div>
@@ -9963,7 +9972,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
             <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text, marginBottom: 16 }}>{session.post?.title || session.name}</div>
             <div style={{ fontSize: 40, marginBottom: 10 }}>⏳</div>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Đang chờ chủ phiên bắt đầu…</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 6 }}>Bạn đã vào phòng chờ với tên <b style={{ color: C.gold }}>{name.trim() || "Ẩn danh"}</b>. Giữ màn hình này mở nhé.</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 6 }}>Bạn đã vào phòng chờ với tên <b style={{ color: C.gold }}>{name.trim() || "Ẩn danh"}</b>. Giữ màn hình này mở nhé.</div>
           </div>
         )}
 
@@ -9971,11 +9980,11 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, position: "sticky", top: 0, background: C.frame, padding: "2px 0 8px", zIndex: 5 }}>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.post?.title}</div>
-              {mmss && <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 16, color: remainingSec <= 30 ? C.coral : C.gold, flexShrink: 0 }}>{mmss}</div>}
+              {mmss && <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 16, color: remainingSec <= 30 ? C.coral : C.gold, flexShrink: 0 }}>{mmss}</div>}
             </div>
             {(session.post?.questions || []).map((q, qi) => (
               <div key={q.id} style={box}>
-                <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}{q.votingType === "multiple" ? " · chọn nhiều" : ""}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}{q.votingType === "multiple" ? " · chọn nhiều" : ""}</div>
                 <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
                 {q.votingType === "text" ? (
                   <textarea value={answers[q.id] || ""} onChange={(e) => setAns(q.id, e.target.value)} rows={3} placeholder="Nhập câu trả lời..." style={{ ...input, resize: "vertical", marginTop: 0 }} />
@@ -10005,9 +10014,9 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
             <div style={{ ...box, textAlign: "center", background: `color-mix(in srgb, var(--teal) 7%, transparent)`, border: `1px solid color-mix(in srgb, var(--teal) 27%, transparent)` }}>
               <div style={{ fontSize: 34, marginBottom: 4 }}>✅</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Đã nộp bài!</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4 }}>{isExam ? "Điểm sẽ hiện khi chủ phiên công bố hoặc hết giờ." : "Cảm ơn bạn đã tham gia."}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 4 }}>{isExam ? "Điểm sẽ hiện khi chủ phiên công bố hoặc hết giờ." : "Cảm ơn bạn đã tham gia."}</div>
             </div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textFaint }}>BÀI LÀM CỦA BẠN</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textFaint }}>BÀI LÀM CỦA BẠN</div>
             {(session.post?.questions || []).map((q, qi) => renderReviewQuestion(q, qi, false))}
           </div>
         )}
@@ -10021,9 +10030,9 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
                 return (
                   <>
                     <div style={{ fontSize: 40, marginBottom: 4 }}>{passed ? "🎉" : "📝"}</div>
-                    <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 52, color: C.gold, lineHeight: 1 }}>{result.score}<span style={{ fontSize: 22, color: C.textFaint }}>/10</span></div>
+                    <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 52, color: C.gold, lineHeight: 1 }}>{result.score}<span style={{ fontSize: 22, color: C.textFaint }}>/10</span></div>
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "4px 14px", borderRadius: 999, background: passed ? `color-mix(in srgb, var(--teal) 12%, transparent)` : `color-mix(in srgb, var(--coral) 12%, transparent)`, border: `1px solid ${passed ? C.teal : C.coral}55` }}>
-                      <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: passed ? C.teal : C.coral }}>{passed ? "Đạt" : "Chưa đạt"}</span>
+                      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: passed ? C.teal : C.coral }}>{passed ? "Đạt" : "Chưa đạt"}</span>
                     </div>
                     <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10 }}>
                       {result.correctCount}/{result.totalGradable} câu đúng <span style={{ color: C.textFaint }}>(cần ≥{passing} để đạt)</span>
@@ -10033,12 +10042,12 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
               })() : result?.submitted ? (
                 <><div style={{ fontSize: 40, marginBottom: 6 }}>✅</div><div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Cảm ơn bạn đã tham gia!</div></>
               ) : (
-                <><div style={{ fontSize: 40, marginBottom: 6 }}>⌛</div><div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Phiên đã kết thúc</div><div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4 }}>Bạn chưa nộp bài kịp.</div></>
+                <><div style={{ fontSize: 40, marginBottom: 6 }}>⌛</div><div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 18, color: C.text }}>Phiên đã kết thúc</div><div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 4 }}>Bạn chưa nộp bài kịp.</div></>
               )}
             </div>
             {isExam && result?.submitted && (
               <>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textFaint }}>XEM LẠI ĐÁP ÁN</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textFaint }}>XEM LẠI ĐÁP ÁN</div>
                 {(session.post?.questions || []).map((q, qi) => renderReviewQuestion(q, qi, !!result?.revealed))}
               </>
             )}
@@ -10130,10 +10139,10 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
   const codeCard = (
     <div style={{ ...cardSurface, textAlign: "center", marginBottom: 14 }}>
       <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>MÃ THAM GIA</div>
-      <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 40, letterSpacing: 6, color: C.gold }}>{sess?.code || "····"}</div>
-      <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8 }}>Người tham gia vào <b style={{ color: C.text }}>rankev-web.vercel.app</b> → nhập mã, hoặc mở link:</div>
+      <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 40, letterSpacing: 6, color: C.gold }}>{sess?.code || "····"}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>Người tham gia vào <b style={{ color: C.text }}>rankev-web.vercel.app</b> → nhập mã, hoặc mở link:</div>
       <button onClick={() => { if (joinUrl) { navigator.clipboard?.writeText(joinUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } }}
-        style={{ marginTop: 8, width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: copied ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 13, cursor: "pointer", wordBreak: "break-all" }}>
+        style={{ marginTop: 8, width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: copied ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 14, cursor: "pointer", wordBreak: "break-all" }}>
         {copied ? "✓ Đã sao chép link" : joinUrl || "…"}
       </button>
     </div>
@@ -10150,7 +10159,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
         {phase === "ended" && <Pill tone="muted">ĐÃ KẾT THÚC</Pill>}
       </div>
       <div style={{ padding: 16 }}>
-        {err && <div style={{ background: `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid color-mix(in srgb, var(--coral) 33%, transparent)`, color: C.coral, borderRadius: 10, padding: "10px 12px", fontFamily: bodyFont, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+        {err && <div style={{ background: `color-mix(in srgb, var(--coral) 9%, transparent)`, border: `1px solid color-mix(in srgb, var(--coral) 33%, transparent)`, color: C.coral, borderRadius: 10, padding: "10px 12px", fontFamily: bodyFont, fontSize: 14, marginBottom: 12 }}>{err}</div>}
 
         {/* Mã tham gia: hiện ở phòng chờ + khi đang thi (cho người vào muộn). */}
         {phase !== "ended" && codeCard}
@@ -10160,18 +10169,18 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
           <>
             {isExam && (
               <div style={{ ...cardSurface, marginBottom: 14 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
                 <DurationPicker value={duration} onChange={setDuration} />
               </div>
             )}
             <div style={{ ...cardSurface, marginBottom: 14 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Đã vào phòng chờ ({parts.length})</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Đã vào phòng chờ ({parts.length})</div>
               {parts.length === 0 ? (
-                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Đang chờ người tham gia vào…</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>Đang chờ người tham gia vào…</div>
               ) : (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {parts.map((p) => (
-                    <span key={p.id} style={{ padding: "5px 12px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.gold }}>{p.name}</span>
+                    <span key={p.id} style={{ padding: "5px 12px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.gold }}>{p.name}</span>
                   ))}
                 </div>
               )}
@@ -10191,28 +10200,28 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
           <>
             {/* Số liệu tổng */}
             <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...cardSurface, marginBottom: 14 }}>
-              <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.gold }}>{results?.joined ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã vào</div></div>
+              <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.gold }}>{results?.joined ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã vào</div></div>
               <div style={{ width: 1, background: C.border }} />
-              <div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.teal }}>{results?.submitted ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đã nộp</div></div>
-              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: C.text }}>{results?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>điểm TB</div></div></>}
-              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>đạt ≥{passingScore}</div></div></>}
+              <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.teal }}>{results?.submitted ?? 0}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã nộp</div></div>
+              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text }}>{results?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>điểm TB</div></div></>}
+              {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đạt ≥{passingScore}</div></div></>}
             </div>
 
             {/* Phổ điểm 0–10 (realtime) */}
             {isExam && scored.length > 0 && (
               <div style={{ ...cardSurface, marginBottom: 14 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
                 <ScoreSpectrum scores={scored.map((p) => p.score)} passing={passingScore} />
               </div>
             )}
 
             {/* Bảng người tham gia: hạng · tên · thời gian · điểm/xếp loại */}
             <div style={{ ...cardSurface }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
                 {phase === "ended" ? "Bảng kết quả" : "Người tham gia"} ({parts.length})
               </div>
               {parts.length === 0 ? (
-                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>{phase === "live" ? "Đang chờ người tham gia nộp…" : "Chưa có ai."}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, textAlign: "center", padding: "16px 0" }}>{phase === "live" ? "Đang chờ người tham gia nộp…" : "Chưa có ai."}</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {sorted.map((p, i) => {
@@ -10222,17 +10231,17 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
                         {isExam && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, width: 18, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                          {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>⏱ {fmtDur(secs)}</div>}
+                          {p.submitted && isExam && <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint }}>⏱ {fmtDur(secs)}</div>}
                         </div>
                         {!p.submitted ? (
-                          <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, flexShrink: 0 }}>{phase === "ended" ? "không nộp" : "đang làm…"}</span>
+                          <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, flexShrink: 0 }}>{phase === "ended" ? "không nộp" : "đang làm…"}</span>
                         ) : isExam ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                            {g && <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
-                            <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 800, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
+                            {g && <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: g.color, background: `${g.color}1E`, borderRadius: 6, padding: "1px 6px" }}>{g.grade}</span>}
+                            <span style={{ fontFamily: monoFont, fontSize: 14, fontWeight: 700, color: C.gold }}>{p.score}<span style={{ fontSize: 10, color: C.textFaint }}>/10</span></span>
                           </div>
                         ) : (
-                          <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
+                          <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.teal, flexShrink: 0 }}>✓ đã nộp</span>
                         )}
                       </div>
                     );
@@ -10250,7 +10259,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
               <div style={{ ...cardSurface, marginTop: 14 }}>
                 {!saved ? (
                   <>
-                    <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Lưu phiên vào lịch sử</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Lưu phiên vào lịch sử</div>
                     <input value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Đặt tên phiên (VD: Lớp 10A1 · buổi sáng)"
                       style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
                     <button onClick={saveSession}
@@ -10358,19 +10367,19 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <TopBar title="Chuẩn bị bài thi" onBack={onBack} />
         <div style={{ padding: 24, flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text, lineHeight: 1.3 }}>{deck.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>
             {deck.questions.length} câu · Tổng {maxPts} điểm · Người tham gia làm bài qua QR / link
           </div>
 
           {/* Duration */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng làm bài</div>
             <DurationPicker value={durationMinutes} onChange={setDurationMinutes} />
           </div>
 
           {/* Passing score — free text input, e.g. "7,5/10" */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Điểm đạt (thang 10)</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>Điểm đạt (thang 10)</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
                 type="number" min={0} max={10} step={0.1}
@@ -10378,23 +10387,23 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                 onChange={(e) => setPassingScore(Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
                 style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
               />
-              <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
             </div>
           </div>
 
           {/* Question overview */}
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Tổng quan câu hỏi</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Tổng quan câu hỏi</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {deck.questions.map((q, qi) => {
                 const correct = q.options.filter((o) => o.correct);
                 const typeLabel = q.votingType === "text" ? "Tự luận" : correct.length > 1 ? "Nhiều đáp án" : "1 đáp án";
                 return (
                   <div key={q.id} style={{ ...cardSurface, padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.text }}>Câu {qi+1}: {q.text.slice(0,40)}{q.text.length > 40 ? "…" : ""}</span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text }}>Câu {qi+1}: {q.text.slice(0,40)}{q.text.length > 40 ? "…" : ""}</span>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      {q.votingType !== "text" && <span style={{ fontFamily: monoFont, fontSize: 11, color: C.gold, fontWeight: 700 }}>{q.points||1}đ</span>}
-                      <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal }}>{typeLabel}</span>
+                      {q.votingType !== "text" && <span style={{ fontFamily: monoFont, fontSize: 12, color: C.gold, fontWeight: 700 }}>{q.points||1}đ</span>}
+                      <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal }}>{typeLabel}</span>
                     </div>
                   </div>
                 );
@@ -10415,7 +10424,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> PHÒNG CHỜ</Pill>
@@ -10424,7 +10433,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <div style={{ flex: 1, padding: "20px 18px", display: "flex", flexDirection: "column" }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.text, marginBottom: 4 }}>{deck.title}</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>{deck.questions.length} câu · {durationMinutes} phút · Tổng {maxPts} điểm</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>{deck.questions.length} câu · {durationMinutes} phút · Tổng {maxPts} điểm</div>
           </div>
 
           {/* QR */}
@@ -10433,7 +10442,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
               <QrCode size={68} color="#111" />
             </div>
             <div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>Quét để vào phòng thi</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 }}>Quét để vào phòng thi</div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>rankev.app/exam/{deck.id}</div>
             </div>
           </div>
@@ -10455,7 +10464,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                   <div key={p.id} style={{
                     padding: "5px 12px", borderRadius: 999,
                     background: C.goldSoft, border: `1px solid ${C.gold}`,
-                    fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.gold,
+                    fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.gold,
                     animation: "popIn 0.2s ease",
                   }}>
                     {p.name}
@@ -10484,7 +10493,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -10496,7 +10505,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
         <div style={{ flex: 1, padding: "24px 18px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, marginBottom: 6, lineHeight: 1.3 }}>{deck.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 32 }}>{deck.questions.length} câu · Tổng {maxPts} điểm</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 32 }}>{deck.questions.length} câu · Tổng {maxPts} điểm</div>
 
           {/* Live counter */}
           <div style={{ display: "flex", gap: 28, justifyContent: "center", marginBottom: 36 }}>
@@ -10516,7 +10525,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
               <QrCode size={48} color="#111" />
             </div>
             <div style={{ textAlign: "left" }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>Vào muộn? Vẫn quét được</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text }}>Vào muộn? Vẫn quét được</div>
               <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal }}>rankev.app/exam/{deck.id}</div>
             </div>
           </div>
@@ -10545,7 +10554,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Đóng
         </button>
         <Pill tone="muted">KẾT QUẢ BÀI THI</Pill>
@@ -10577,7 +10586,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
 
         {/* Grade distribution — public filter (thí sinh chỉ thấy số lượng mỗi loại) */}
         <div style={{ ...cardSurface, marginBottom: 16 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textFaint, marginBottom: 12 }}>PHÂN LOẠI KẾT QUẢ</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textFaint, marginBottom: 12 }}>PHÂN LOẠI KẾT QUẢ</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <button onClick={() => setGradeFilter("all")}
               style={{ padding: "6px 14px", borderRadius: 99, border: `1px solid ${gradeFilter === "all" ? C.gold : C.border}`, background: gradeFilter === "all" ? C.goldSoft : C.surface, color: gradeFilter === "all" ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
@@ -10602,9 +10611,9 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
               const pct = Math.round((cnt / max) * 100);
               return (
                 <div key={g.grade} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                  <div style={{ fontFamily: monoFont, fontSize: 11, fontWeight: 700, color: g.color }}>{cnt}</div>
+                  <div style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: g.color }}>{cnt}</div>
                   <div style={{ width: "100%", height: `${Math.max(pct * 0.52, 4)}px`, background: g.color, borderRadius: "4px 4px 0 0", opacity: gradeFilter === "all" || gradeFilter === g.grade ? 1 : 0.25, transition: "opacity 0.2s" }} />
-                  <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: g.color }}>{g.grade}</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: g.color }}>{g.grade}</div>
                 </div>
               );
             })}
@@ -10644,8 +10653,8 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                   </div>
                   {/* Score badge */}
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 20, color: grade.color, lineHeight: 1 }}>{p.score10}</div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, color: grade.color, fontWeight: 700, marginTop: 2 }}>{grade.grade} · {grade.label}</div>
+                    <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: grade.color, lineHeight: 1 }}>{p.score10}</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: grade.color, fontWeight: 700, marginTop: 2 }}>{grade.grade} · {grade.label}</div>
                   </div>
                   <ChevronDown size={14} color={C.textFaint} style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
                 </div>
@@ -10663,7 +10672,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                           return (
                             <div key={q.id}>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                                <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text }}>
+                                <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text }}>
                                   Câu {qi+1}: {q.text.slice(0,50)}{q.text.length>50?"…":""}
                                   <span style={{ marginLeft: 6, fontFamily: bodyFont, fontSize: 10, fontWeight: 700, color: C.textFaint }}>· TỰ LUẬN</span>
                                 </span>
@@ -10673,12 +10682,12 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                 {eScore?.estimated && !eScore.confirmed && (
-                                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.teal, background: `color-mix(in srgb, var(--teal) 9%, transparent)`, border: `1px solid color-mix(in srgb, var(--teal) 25%, transparent)`, borderRadius: 99, padding: "3px 9px" }}>
+                                  <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal, background: `color-mix(in srgb, var(--teal) 9%, transparent)`, border: `1px solid color-mix(in srgb, var(--teal) 25%, transparent)`, borderRadius: 99, padding: "3px 9px" }}>
                                     🤖 Gợi ý AI: {eScore.score}/{pts}đ
                                   </span>
                                 )}
                                 {eScore?.confirmed && (
-                                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: "#4ADE80", background: "#4ADE8018", border: "1px solid #4ADE8040", borderRadius: 99, padding: "3px 9px", display: "flex", alignItems: "center", gap: 4 }}>
+                                  <span style={{ fontFamily: bodyFont, fontSize: 12, color: "#4ADE80", background: "#4ADE8018", border: "1px solid #4ADE8040", borderRadius: 99, padding: "3px 9px", display: "flex", alignItems: "center", gap: 4 }}>
                                     <Check size={10} strokeWidth={3} /> Đã chốt: {eScore.score}/{pts}đ
                                   </span>
                                 )}
@@ -10690,9 +10699,9 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                                     type="number" min={0} max={pts} step={0.1}
                                     defaultValue={eScore?.score || 0}
                                     onBlur={(e) => setEssayScore(p.id, q.id, Math.max(0, Math.min(pts, parseFloat(e.target.value.replace(",", ".")) || 0)))}
-                                    style={{ width: 52, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 13, textAlign: "center" }}
+                                    style={{ width: 52, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 14, textAlign: "center" }}
                                   />
-                                  <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>/{pts}đ</span>
+                                  <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>/{pts}đ</span>
                                 </div>
                               </div>
                             </div>
@@ -10706,10 +10715,10 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                         return (
                           <div key={q.id}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                              <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 13, color: C.text }}>
+                              <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text }}>
                                 Câu {qi+1}: {q.text.slice(0,50)}{q.text.length>50?"…":""}
                               </span>
-                              <span style={{ fontFamily: monoFont, fontSize: 11, color: qColor, fontWeight: 700, flexShrink: 0, marginLeft: 6 }}>
+                              <span style={{ fontFamily: monoFont, fontSize: 12, color: qColor, fontWeight: 700, flexShrink: 0, marginLeft: 6 }}>
                                 {isCorrect ? `+${pts}` : "0"}/{pts}đ
                               </span>
                             </div>
@@ -10770,7 +10779,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             </button>
           </>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>
             <Check size={16} /> Đã lưu phiên "{presenterSessionName.trim() || "không tên"}"
           </div>
         )}
@@ -10779,11 +10788,11 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={handleExportCSV}
-            style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${csvDone ? C.teal : C.border}`, background: C.surface, color: csvDone ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}>
+            style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${csvDone ? C.teal : C.border}`, background: C.surface, color: csvDone ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}>
             {csvDone ? <Check size={14} /> : <Download size={14} />} {csvDone ? "Đã xuất!" : "Xuất CSV"}
           </button>
           <button onClick={() => setShareOpen(true)}
-            style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <FbShareIcon size={14} color={C.text} /> Chia sẻ
           </button>
         </div>
@@ -10860,10 +10869,10 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <TopBar title="Chuẩn bị trình chiếu" onBack={onBack} />
         <div style={{ padding: 24, flex: 1 }}>
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text, marginBottom: 6, lineHeight: 1.3 }}>{deck.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 24 }}>
             {deck.questions.length} câu hỏi · Người tham gia trả lời qua QR hoặc link.
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng phiên</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Thời lượng phiên</div>
           <DurationPicker value={durationMinutes} onChange={setDurationMinutes} />
           <div style={{ marginTop: 14, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
             Sau bước này là phòng chờ — người tham gia quét mã trước, đồng hồ chỉ chạy khi bạn bấm "Bắt đầu".
@@ -10881,7 +10890,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Thoát
           </button>
           <Pill tone="live"><span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> PHÒNG CHỜ</Pill>
@@ -10889,7 +10898,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <div style={{ flex: 1, padding: "28px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 6 }}>ĐANG CHỜ NGƯỜI THAM GIA</div>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{deck.title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 28 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 28 }}>
             {deck.questions.length} câu hỏi{durationMinutes != null ? ` · ${durationMinutes} phút` : " · không giới hạn thời gian"}
           </div>
           <div style={{ width: 180, height: 180, background: "#fff", borderRadius: 16, display: "grid", placeItems: "center", marginBottom: 20 }}>
@@ -10917,7 +10926,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
             <ChevronLeft size={18} /> Đóng
           </button>
           <Pill tone="muted">KẾT QUẢ KHẢO SÁT</Pill>
@@ -10948,7 +10957,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             const sortedQ = [...question.options].sort((a, b) => (counts[qi][b.id] || 0) - (counts[qi][a.id] || 0));
             return (
               <div key={question.id} style={{ ...cardSurface, marginBottom: 12 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
                   Câu {qi + 1} · {question.votingType === "multiple" ? "Chọn nhiều" : question.votingType === "rating" ? "Đánh giá" : "Chọn một"}
                 </div>
                 <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>
@@ -10965,7 +10974,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                           <span style={{ color: isTop ? C.text : C.textMuted, fontWeight: isTop ? 700 : 500 }}>
                             {isTop && "🥇 "}{o.label}
                           </span>
-                          <span style={{ color: COLORS[i % 5], fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 11 }}>({fmt(v)})</span></span>
+                          <span style={{ color: COLORS[i % 5], fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 12 }}>({fmt(v)})</span></span>
                         </div>
                         <div style={{ height: 22, borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${pct}%`, background: COLORS[i % 5], borderRadius: 8, transition: "width 0.6s cubic-bezier(.22,1,.36,1)" }} />
@@ -11001,7 +11010,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
               </button>
             </>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>
               <Check size={16} /> Đã lưu phiên "{presenterSessionName.trim() || "không tên"}"
             </div>
           )}
@@ -11011,19 +11020,19 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={handleExportCSV}
-              style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${csvCopied ? C.teal : C.border}`, background: C.surface, color: csvCopied ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}
+              style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${csvCopied ? C.teal : C.border}`, background: C.surface, color: csvCopied ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}
             >
               {csvCopied ? <Check size={14} /> : <Download size={14} />} {csvCopied ? "Đã xuất!" : "Xuất CSV"}
             </button>
             <button
               onClick={handleSaveImage}
-              style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${imgSaved ? C.teal : C.border}`, background: C.surface, color: imgSaved ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}
+              style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${imgSaved ? C.teal : C.border}`, background: C.surface, color: imgSaved ? C.teal : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}
             >
               {imgSaved ? <Check size={14} /> : <ImagePlus size={14} />} {imgSaved ? "Đã lưu!" : "Lưu ảnh"}
             </button>
             <button
               onClick={() => setShareOpen(true)}
-              style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+              style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
               <FbShareIcon size={14} color={C.text} /> Chia sẻ
             </button>
@@ -11047,7 +11056,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Thoát
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -11113,7 +11122,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             <QrCode size={54} color="#111" />
           </div>
           <div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>Quét để trả lời</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>Quét để trả lời</div>
             <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>rankev.app/deck/{deck.id}</div>
           </div>
         </div>
@@ -11130,27 +11139,27 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
           <button
             onClick={() => { if (qIdx > 0) { setQIdx((i) => i - 1); setRevealed(false); } }}
             disabled={qIdx === 0}
-            style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: qIdx === 0 ? C.textFaint : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: qIdx === 0 ? "not-allowed" : "pointer" }}
+            style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: qIdx === 0 ? C.textFaint : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: qIdx === 0 ? "not-allowed" : "pointer" }}
           >
             ← Câu trước
           </button>
           <button
             onClick={() => setRevealed((r) => !r)}
-            style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${revealed ? C.gold : C.border}`, background: revealed ? C.goldSoft : C.surface, color: revealed ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+            style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${revealed ? C.gold : C.border}`, background: revealed ? C.goldSoft : C.surface, color: revealed ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
           >
             {revealed ? <EyeOff size={15} /> : <Eye size={15} />} {revealed ? "Ẩn kết quả" : "Hiện kết quả"}
           </button>
           {qIdx < deck.questions.length - 1 ? (
             <button
               onClick={() => { setQIdx((i) => i + 1); setRevealed(false); }}
-              style={{ padding: "10px 16px", borderRadius: 10, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              style={{ padding: "10px 16px", borderRadius: 10, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
             >
               Câu tiếp →
             </button>
           ) : (
             <button
               onClick={() => setSessionEnded(true)}
-              style={{ padding: "10px 16px", borderRadius: 10, border: "none", background: C.coral, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+              style={{ padding: "10px 16px", borderRadius: 10, border: "none", background: C.coral, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
             >
               <ChevronsDown size={15} /> Kết thúc &amp; Xem kết quả
             </button>
@@ -11255,7 +11264,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
         </div>
         <div>
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 3 }}>{title}</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.4 }}>{desc}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.4 }}>{desc}</div>
         </div>
       </button>
     );
@@ -11267,7 +11276,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text, marginBottom: 6, lineHeight: 1.3 }}>
             {rankie.title}
           </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 24 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 24 }}>
             Rankie này hiện có <span style={{ color: C.gold, fontWeight: 600 }}>{fmt(existingTotal)}</span> lượt bình chọn. Bạn muốn bắt đầu buổi trình chiếu thế nào?
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -11288,7 +11297,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           </div>
 
           <div style={{ marginTop: 24 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>
               Thời lượng phiên trình chiếu
             </div>
             <DurationPicker value={durationMinutes} onChange={setDurationMinutes} />
@@ -11319,7 +11328,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
         color: active ? C.gold : C.text,
         fontFamily: bodyFont,
         fontWeight: 600,
-        fontSize: 13,
+        fontSize: 14,
         cursor: "pointer",
       }}
     >
@@ -11331,7 +11340,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 13, fontWeight: 600 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600 }}>
           <ChevronLeft size={18} /> Thoát trình chiếu
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -11401,7 +11410,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           </div>
           <div>
             <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>Quét để bình chọn</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginBottom: 6 }}>Không cần cài app hay đăng nhập.</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 6 }}>Không cần cài app hay đăng nhập.</div>
             <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700 }}>rankev.app/vote/{rankie.id}</div>
           </div>
         </div>
@@ -11410,7 +11419,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
       {/* Presenter controls */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "16px", borderTop: `1px solid ${C.border}` }}>
         {(expired || sessionEnded) && (
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.coral, fontWeight: 600 }}>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.coral, fontWeight: 600 }}>
             {expired ? "⏰ Đã hết thời gian trình chiếu." : "✅ Phiên trình chiếu đã kết thúc."}
           </div>
         )}
@@ -11423,7 +11432,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
         {/* Post-session action panel */}
         {sessionEnded && (
           <div style={{ width: "100%", marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, textAlign: "center", marginBottom: 4 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, textAlign: "center", marginBottom: 4 }}>
               Phiên kết thúc · {fmt(options.reduce((s, o) => s + o.votes, 0))} lượt bình chọn
             </div>
             {!presenterSessionSaved ? (
@@ -11443,26 +11452,26 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
                 </button>
               </>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: 10, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14 }}>
                 <Check size={16} /> Đã lưu phiên "{sessionName.trim() || "không tên"}"
               </div>
             )}
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={handleExportCSV}
-                style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <Download size={14} /> Xuất CSV
               </button>
               <button
                 onClick={handleCopyLink}
-                style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <Link2 size={14} /> Chia sẻ link
               </button>
               <button
                 onClick={handleSaveImage}
-                style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <ImagePlus size={14} /> Lưu ảnh
               </button>
@@ -11519,7 +11528,7 @@ function HashtagInput({ tags = [], onChange, suggestions = DEFAULT_HASHTAGS, pla
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 10px", minHeight: 42 }}>
         {tags.map((t, i) => (
-          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700 }}>
+          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 14, fontWeight: 700 }}>
             #{t}
             <button onClick={() => remove(i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.gold, display: "grid", placeItems: "center", padding: 0, lineHeight: 1 }}><X size={12} /></button>
           </span>
@@ -11530,7 +11539,7 @@ function HashtagInput({ tags = [], onChange, suggestions = DEFAULT_HASHTAGS, pla
       {sugg.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {sugg.map((s) => (
-            <button key={s} onClick={() => add(s)} style={{ padding: "5px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>#{s}</button>
+            <button key={s} onClick={() => add(s)} style={{ padding: "5px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>#{s}</button>
           ))}
         </div>
       )}
@@ -11648,21 +11657,21 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px 16px", marginBottom: 16 }}>
         <Hero />
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginTop: 8 }}>{meta.name}</div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginTop: 2, lineHeight: 1.45 }}>{meta.tagline}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 2, lineHeight: 1.45 }}>{meta.tagline}</div>
       </div>
 
       {type === "rankie" ? (
         // Rankie có 3 KIỂU thật — mỗi thẻ vào một trình tạo riêng.
         <>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Chọn kiểu Rankie</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Chọn kiểu Rankie</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {variants.map((v, i) => (
               <button key={i} onClick={v.onClick} style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, cursor: "pointer" }}>
                 <div style={{ height: 44, display: "flex", alignItems: "center" }}>
                   {v.visual ? v.visual : <span style={{ fontSize: 30 }}>{v.emoji}</span>}
                 </div>
-                <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, color: C.text }}>{v.label}</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
+                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{v.label}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
               </button>
             ))}
           </div>
@@ -11670,14 +11679,14 @@ function CreateTypeLanding({ type, onStart, onStartTournament }) {
       ) : (
         // Path/Survey/Exam chỉ có 1 loại — liệt kê tính năng rồi 1 nút bắt đầu.
         <>
-          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Tính năng nổi bật</div>
+          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Tính năng nổi bật</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
             {variants.map((v, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface }}>
                 <span style={{ fontSize: 22, flexShrink: 0 }}>{v.emoji}</span>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.text }}>{v.label}</div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{v.label}</div>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.3 }}>{v.desc}</div>
                 </div>
               </div>
             ))}
@@ -11756,9 +11765,9 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, letterSpacing: 0.3 }}>Xem trước & chọn biểu đồ</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, letterSpacing: 0.3 }}>Xem trước & chọn biểu đồ</span>
         {remain != null && (
-          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.surface, border: `1px solid ${C.border}`, fontFamily: monoFont, fontSize: 11.5, fontWeight: 700, color: remain < 3600000 ? C.coral : C.gold }}>
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: C.surface, border: `1px solid ${C.border}`, fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: remain < 3600000 ? C.coral : C.gold }}>
             <Clock size={12} /> {fmtRemain(remain)}
           </span>
         )}
@@ -11767,7 +11776,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
         {skins.map((s) => {
           const on = active === s.id;
           return (
-            <button key={s.id} onClick={() => setChartType(s.id)} style={{ padding: "6px 12px", borderRadius: 999, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{s.label}</button>
+            <button key={s.id} onClick={() => setChartType(s.id)} style={{ padding: "6px 12px", borderRadius: 999, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{s.label}</button>
           );
         })}
       </div>
@@ -12365,7 +12374,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   useEffect(() => { if (!savedToast) return; const id = setTimeout(() => setSavedToast(false), 3500); return () => clearTimeout(id); }, [savedToast]);
 
   const field = { marginBottom: 20 };
-  const label = { fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.textMuted, marginBottom: 8, display: "block", letterSpacing: 0.3 };
+  const label = { fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 8, display: "block", letterSpacing: 0.3 };
   const input = {
     width: "100%",
     padding: "12px 14px",
@@ -12389,7 +12398,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         background: opt.active ? C.goldSoft : C.surface,
         color: opt.active ? C.gold : C.textMuted,
         fontFamily: bodyFont,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 600,
         cursor: "pointer",
         textAlign: "center",
@@ -12413,7 +12422,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
             key={t.id}
             disabled={editing}
             onClick={editing ? undefined : () => { setContentType(t.id); if (t.id === "exam") { setDeckMode("exam"); setDeckAnswerMode("scroll"); } else if (t.id === "deck") { setDeckMode("survey"); } }}
-            style={{ flex: "1 1 21%", minWidth: 70, padding: "10px 6px", borderRadius: 9, border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: active ? C.gold : "transparent", color: active ? "#1A1305" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: editing ? "default" : "pointer", opacity: editing && contentType !== t.id ? 0.4 : 1, lineHeight: 1.3 }}
+            style={{ flex: "1 1 21%", minWidth: 70, padding: "10px 6px", borderRadius: 9, border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: active ? C.gold : "transparent", color: active ? "#1A1305" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: editing ? "default" : "pointer", opacity: editing && contentType !== t.id ? 0.4 : 1, lineHeight: 1.3 }}
           >
             <t.Icon size={18} color={active ? "#1A1305" : C.textMuted} />
             {t.label}
@@ -12434,21 +12443,21 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {savedToast && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}`, marginBottom: 12 }}>
             <Check size={16} color={C.gold} strokeWidth={3} />
-            <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>Đã lưu bản nháp</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.gold }}>Đã lưu bản nháp</span>
           </div>
         )}
         {drafts.length > 0 && (
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3, marginBottom: 8 }}>BẢN NHÁP ({drafts.length})</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3, marginBottom: 8 }}>BẢN NHÁP ({drafts.length})</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {drafts.map((d) => (
                 <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surface, border: `1px solid ${C.border}` }}>
                   <span style={{ width: 38, height: 38, borderRadius: 10, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Save size={18} color={C.gold} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>{DRAFT_TYPE_LABEL[d.contentType] || "Rankie"}</div>
-                    <div style={{ fontFamily: displayFont, fontSize: 15, fontWeight: 600, color: C.text, ...ellip }}>{(d.title || "").trim() || "Chưa có tiêu đề"}</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.3 }}>{DRAFT_TYPE_LABEL[d.contentType] || "Rankie"}</div>
+                    <div style={{ fontFamily: displayFont, fontSize: 16, fontWeight: 600, color: C.text, ...ellip }}>{(d.title || "").trim() || "Chưa có tiêu đề"}</div>
                   </div>
-                  <button onClick={() => (d.contentType === "tournament" ? onResumeTournamentDraft?.(d) : resumeDraft(d))} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tiếp tục</button>
+                  <button onClick={() => (d.contentType === "tournament" ? onResumeTournamentDraft?.(d) : resumeDraft(d))} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Tiếp tục</button>
                   <button onClick={() => { deleteDraft(d.id); setDraftTick((t) => t + 1); }} title="Xoá nháp" style={{ flexShrink: 0, background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center", padding: 4 }}><Trash2 size={16} /></button>
                 </div>
               ))}
@@ -12504,8 +12513,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         {draftRestored && (
           <div style={{ ...field, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
             <Save size={15} color={C.gold} />
-            <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp</span>
-            <button onClick={clearDraft} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Bỏ nháp</button>
+            <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp</span>
+            <button onClick={clearDraft} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Bỏ nháp</button>
           </div>
         )}
         {/* KHUNG SOẠN THẢO HỢP NHẤT: câu hỏi + mô tả + media + hashtag trong 1 khối */}
@@ -12538,11 +12547,11 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           ) : tags.length > 0 && (
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {tags.map((t) => (
-                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700 }}>
+                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700 }}>
                   <Hash size={12} />{t}
                 </span>
               ))}
-              <button onClick={() => setShowHashtag(true)} title="Sửa hashtag" style={{ padding: "4px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Sửa</button>
+              <button onClick={() => setShowHashtag(true)} title="Sửa hashtag" style={{ padding: "4px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Sửa</button>
             </div>
           )}
         </div>
@@ -12565,7 +12574,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 {openTool === "privacy" && (
                   <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 25, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", overflow: "hidden", width: "max-content" }}>
                     {privacyOpts.map((o, i) => (
-                      <button key={o.id} onClick={() => { setAudience(o.id); setOpenTool(null); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px 9px 12px", background: audience === o.id ? C.goldSoft : "none", border: "none", borderTop: i ? `1px solid ${C.border}` : "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 13.5, fontWeight: audience === o.id ? 700 : 500, color: audience === o.id ? C.gold : C.text, whiteSpace: "nowrap", textAlign: "left" }}>
+                      <button key={o.id} onClick={() => { setAudience(o.id); setOpenTool(null); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 14px 9px 12px", background: audience === o.id ? C.goldSoft : "none", border: "none", borderTop: i ? `1px solid ${C.border}` : "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 14, fontWeight: audience === o.id ? 700 : 500, color: audience === o.id ? C.gold : C.text, whiteSpace: "nowrap", textAlign: "left" }}>
                         <o.Icon size={15} color={audience === o.id ? C.gold : C.textMuted} /> {o.t}
                       </button>
                     ))}
@@ -12589,7 +12598,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                     onBlur={() => setTimeInline(false)}
                     placeholder="24:30"
                     inputMode="numeric"
-                    style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 15, fontWeight: 700, padding: 0 }}
+                    style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 16, fontWeight: 700, padding: 0 }}
                   />
                 </div>
               ) : (
@@ -12612,15 +12621,15 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
           <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
             {openTool === "media" && (
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => { addImageMedia(); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ImagePlus size={15} /> Thêm ảnh</button>
-                <button onClick={() => { addMockMedia("video"); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Play size={15} /> Thêm video</button>
+                <button onClick={() => { addImageMedia(); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ImagePlus size={15} /> Thêm ảnh</button>
+                <button onClick={() => { addMockMedia("video"); setOpenTool(null); }} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.textMuted, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Play size={15} /> Thêm video</button>
               </div>
             )}
             {openTool === "vote" && (
               <div>
                 {rankieKind === "versus" ? (
                   <button onClick={() => setVotingType(votingType === "unlimited" ? "single" : "unlimited")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${votingType === "unlimited" ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Flame size={15} color={votingType === "unlimited" ? C.gold : C.textMuted} /> Bình chọn không giới hạn</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}><Flame size={15} color={votingType === "unlimited" ? C.gold : C.textMuted} /> Bình chọn không giới hạn</span>
                     <span style={{ width: 40, height: 22, borderRadius: 999, background: votingType === "unlimited" ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: votingType === "unlimited" ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
                   </button>
                 ) : (
@@ -12638,19 +12647,19 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             {openTool === "schedule" && (
               <div>
                 <input type="datetime-local" value={openAtLocal} onChange={(e) => setOpenAtLocal(e.target.value)} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${openAtLocal ? C.gold : C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", colorScheme: "light dark", boxSizing: "border-box" }} />
-                {openAtLocal && <button onClick={() => setOpenAtLocal("")} style={{ marginTop: 8, background: "none", border: "none", color: C.coral, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Xoá giờ hẹn</button>}
+                {openAtLocal && <button onClick={() => setOpenAtLocal("")} style={{ marginTop: 8, background: "none", border: "none", color: C.coral, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Xoá giờ hẹn</button>}
                 <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>Không điền thì đăng luôn Rankie. Trước giờ lên sóng, Rankie hiện "sắp diễn ra".</div>
               </div>
             )}
             {openTool === "present" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
                   <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
                 </button>
                 <div>
                   <span style={label}>Series (Chapter)</span>
-                  <input value={seriesInput} onChange={(e) => { setSeriesInput(e.target.value); setSelectedSeriesId(null); }} placeholder="Tên series (để trống nếu độc lập)" style={{ ...input, fontSize: 15 }} />
+                  <input value={seriesInput} onChange={(e) => { setSeriesInput(e.target.value); setSelectedSeriesId(null); }} placeholder="Tên series (để trống nếu độc lập)" style={{ ...input, fontSize: 16 }} />
                   {mySeries.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                       {mySeries.map((s) => { const a = selectedSeriesId === s.id; return (
@@ -12694,13 +12703,13 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       onChange={(e) => updateOpt(i, { label: e.target.value })}
                       placeholder={`Đội ${i + 1}`}
                       rows={2}
-                      style={{ position: "relative", zIndex: 2, flex: 1, width: "100%", border: "none", background: "transparent", outline: "none", resize: "none", color: "#fff", fontFamily: displayFont, fontWeight: 800, fontSize: 19, lineHeight: 1.2, textAlign: "center", textShadow: "0 1px 8px rgba(0,0,0,0.55)", padding: "80px 8px 44px", boxSizing: "border-box" }}
+                      style={{ position: "relative", zIndex: 2, flex: 1, width: "100%", border: "none", background: "transparent", outline: "none", resize: "none", color: "#fff", fontFamily: displayFont, fontWeight: 700, fontSize: 18, lineHeight: 1.2, textAlign: "center", textShadow: "0 1px 8px rgba(0,0,0,0.55)", padding: "80px 8px 44px", boxSizing: "border-box" }}
                     />
                   </div>
                 );
               })}
               {/* VS cách điệu ở giữa */}
-              <div style={{ position: "absolute", left: "50%", top: "45%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 19, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
+              <div style={{ position: "absolute", left: "50%", top: "45%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 18, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>
             </div>
           ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -12753,14 +12762,14 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
               <button
                 onClick={addOpt}
-                style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                style={{ background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
               >
                 <PlusCircle size={14} /> Thêm phương án
               </button>
               {(rk?.basket?.length || 0) > 0 && (
                 <button
                   onClick={() => setBasketPickerOpen(true)}
-                  style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                  style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                 >
                   🔖 Chọn từ Đã lưu ({rk.basket.length})
                 </button>
@@ -12808,7 +12817,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
           {pathQuestions.map((q, qi) => (
             <div key={q.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 12, color: C.gold }}>CÂU {qi + 1}</span>
+                <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 12, color: C.gold }}>CÂU {qi + 1}</span>
                 {pathQuestions.length > 1 && (
                   <button onClick={() => removeQuestion(q.id)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center", padding: 2 }} title="Xoá câu hỏi">
                     <X size={16} />
@@ -12840,7 +12849,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       </div>
                     ))}
                     {placingHotspot && placingHotspot.qid === q.id && (
-                      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.4)", fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: "#fff", textAlign: "center", padding: 16 }}>
+                      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.4)", fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: "#fff", textAlign: "center", padding: 16 }}>
                         👆 Chạm vào vị trí muốn đặt nút
                       </div>
                     )}
@@ -12850,7 +12859,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                   </div>
                   {/* Chip chọn nút để đặt vị trí trên ảnh */}
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 6 }}>Đặt nút lựa chọn lên ảnh (tuỳ chọn):</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>Đặt nút lựa chọn lên ảnh (tuỳ chọn):</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {q.answers.map((a) => {
                         const active = placingHotspot && placingHotspot.qid === q.id && placingHotspot.aid === a.id;
@@ -12899,7 +12908,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       <select
                         value={`${a.target.type}:${a.target.id}`}
                         onChange={(e) => setAnswerTarget(q.id, a.id, e.target.value)}
-                        style={{ flex: 1, padding: "7px 9px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}
+                        style={{ flex: 1, padding: "7px 9px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, cursor: "pointer" }}
                       >
                         <optgroup label="🏁 Kết thúc tại kết quả">
                           {pathEndings.map((e, ei) => (
@@ -12929,7 +12938,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 ))}
               </div>
               {q.answers.length < 4 && (
-                <button onClick={() => addAnswer(q.id)} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                <button onClick={() => addAnswer(q.id)} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                   <PlusCircle size={14} /> Thêm lựa chọn
                 </button>
               )}
@@ -12975,7 +12984,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             ))}
           </div>
           {pathEndings.length < 8 && (
-            <button onClick={addEnding} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={addEnding} style={{ marginTop: 10, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               <PlusCircle size={14} /> Thêm kết quả
             </button>
           )}
@@ -12985,7 +12994,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             văn bản gọn cho mobile, không cần kéo-thả. */}
         <div style={field}>
           <button onClick={() => setShowFlowMap((v) => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 12px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, cursor: "pointer" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>
               <GitBranch size={15} color={C.text} /> Sơ đồ nhánh Path
             </span>
             <ChevronDown size={16} color={C.textFaint} style={{ transform: showFlowMap ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
@@ -12995,8 +13004,8 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
               {pathQuestions.map((q, qi) => (
                 <div key={q.id}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
-                    <span style={{ fontFamily: monoFont, fontWeight: 800, fontSize: 11, color: "#1A1305", background: C.gold, padding: "2px 7px", borderRadius: 6 }}>CÂU {qi + 1}</span>
-                    <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.text.trim() || "(chưa có nội dung)"}</span>
+                    <span style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 12, color: "#1A1305", background: C.gold, padding: "2px 7px", borderRadius: 6 }}>CÂU {qi + 1}</span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.text.trim() || "(chưa có nội dung)"}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5, paddingLeft: 12, borderLeft: `2px solid ${C.border}`, marginLeft: 6 }}>
                     {q.answers.filter((a) => a.label.trim() || a.target).map((a) => {
@@ -13031,8 +13040,8 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
 
           {/* Chế độ tiết lộ kết quả cho người chơi (tài liệu PATH: 4 mức) */}
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>Tiết lộ kết quả chưa khám phá</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginBottom: 8 }}>Kiểm soát người chơi thấy gì về các kết quả họ chưa mở</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 }}>Tiết lộ kết quả chưa khám phá</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 8 }}>Kiểm soát người chơi thấy gì về các kết quả họ chưa mở</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {[
                 { id: "hidden", label: "Ẩn hết", desc: "Giữ bí ẩn tối đa, khuyến khích chơi lại" },
@@ -13047,8 +13056,8 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       {active && <div style={{ width: 9, height: 9, borderRadius: "50%", background: C.gold }} />}
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text }}>{m.label}</div>
-                      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>{m.desc}</div>
+                      <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>{m.label}</div>
+                      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 1 }}>{m.desc}</div>
                     </div>
                   </button>
                 );
@@ -13067,8 +13076,8 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 <div style={{ position: "absolute", top: 2, left: hidePathEndingCount ? 16 : 2, width: 16, height: 16, borderRadius: 999, background: "#fff", transition: "left 0.15s" }} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.text }}>Ẩn số lượng kết quả</div>
-                <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 1 }}>Người chơi không biết còn bao nhiêu kết quả — tăng tò mò</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text }}>Ẩn số lượng kết quả</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 1 }}>Người chơi không biết còn bao nhiêu kết quả — tăng tò mò</div>
               </div>
             </button>
           )}
@@ -13111,9 +13120,9 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 { id: "scroll", label: "Một trang", desc: "Cuộn trả lời tất cả" },
               ].map((m) => (
                 <button key={m.id} onClick={() => setDeckAnswerMode(m.id)}
-                  style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${deckAnswerMode === m.id ? C.gold : C.border}`, background: deckAnswerMode === m.id ? C.goldSoft : C.surface, color: deckAnswerMode === m.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", lineHeight: 1.3, textAlign: "center" }}>
+                  style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1px solid ${deckAnswerMode === m.id ? C.gold : C.border}`, background: deckAnswerMode === m.id ? C.goldSoft : C.surface, color: deckAnswerMode === m.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", lineHeight: 1.3, textAlign: "center" }}>
                   {m.label}
-                  <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.85, marginTop: 2 }}>{m.desc}</div>
+                  <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.85, marginTop: 2 }}>{m.desc}</div>
                 </button>
               ))}
             </div>
@@ -13129,7 +13138,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 { id: false, text: "Có giới hạn" },
               ].map((o) => (
                 <button key={String(o.id)} onClick={() => setExamDurationUnlimited(o.id)}
-                  style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: `1px solid ${examDurationUnlimited === o.id ? C.gold : C.border}`, background: examDurationUnlimited === o.id ? C.goldSoft : C.surface, color: examDurationUnlimited === o.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                  style={{ flex: 1, padding: "9px 8px", borderRadius: 10, border: `1px solid ${examDurationUnlimited === o.id ? C.gold : C.border}`, background: examDurationUnlimited === o.id ? C.goldSoft : C.surface, color: examDurationUnlimited === o.id ? C.gold : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                   {o.text}
                 </button>
               ))}
@@ -13145,7 +13154,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 <select
                   value={examDurationUnit}
                   onChange={(e) => setExamDurationUnit(e.target.value)}
-                  style={{ padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                  style={{ padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
                 >
                   <option value="giay">Giây</option>
                   <option value="phut">Phút</option>
@@ -13167,7 +13176,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 onChange={(e) => setExamPassingScore(Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
                 style={{ width: 84, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.gold, fontFamily: monoFont, fontWeight: 700, fontSize: 16, textAlign: "center" }}
               />
-              <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>/ 10 — ví dụ 7,5</span>
             </div>
           </div>
         )}
@@ -13186,7 +13195,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                   <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.gold }}>
                     Câu {qi + 1}
                     {deckMode === "exam" && (
-                      <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 500 }}>·</span>
+                      <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>·</span>
                     )}
                     {deckMode === "exam" && (
                       <span style={{ marginLeft: 4, display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -13195,7 +13204,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                           onChange={(e) => setQuestionPoints(qi, Math.max(0, Math.min(10, parseFloat(e.target.value.replace(",", ".")) || 0)))}
                           title="Bấm để tự chỉnh điểm câu này — phần còn lại sẽ tự chia lại cho đủ 10 điểm"
                           style={{ width: 56, background: C.surfaceRaised, border: `1px solid ${q.pointsLocked ? C.gold : C.border}`, borderRadius: 6, color: C.teal, fontFamily: monoFont, fontWeight: 700, fontSize: 12, textAlign: "center", padding: "2px 4px" }}
-                        /> <span style={{ color: C.textFaint, fontSize: 11, fontWeight: 500 }}>điểm</span>
+                        /> <span style={{ color: C.textFaint, fontSize: 12, fontWeight: 400 }}>điểm</span>
                         {q.pointsLocked && (
                           <button onClick={() => resetQuestionPoints(qi)} title="Chia đều lại"
                             style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 0, display: "flex" }}>
@@ -13219,7 +13228,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                 <select
                   value={q.votingType}
                   onChange={(e) => updateDeckQ(qi, { votingType: e.target.value })}
-                  style={{ ...input, marginBottom: 10, padding: "8px 10px", fontSize: 13, cursor: "pointer" }}
+                  style={{ ...input, marginBottom: 10, padding: "8px 10px", fontSize: 14, cursor: "pointer" }}
                 >
                   <option value="single">{deckMode === "exam" ? "Chọn 1 đáp án" : "1 phương án"}</option>
                   <option value="multiple">{deckMode === "exam" ? "Chọn nhiều đáp án" : "Nhiều phương án"}</option>
@@ -13238,7 +13247,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                         value={q.answerKey || ""}
                         onChange={(e) => updateDeckQ(qi, { answerKey: e.target.value })}
                         rows={2}
-                        style={{ ...input, width: "100%", resize: "vertical", fontFamily: bodyFont, fontSize: 13, padding: "8px 10px" }}
+                        style={{ ...input, width: "100%", resize: "vertical", fontFamily: bodyFont, fontSize: 14, padding: "8px 10px" }}
                       />
                       <div style={{ ...captionText, marginTop: 6, lineHeight: 1.4 }}>
                         Có đáp án mẫu → hệ thống tự gợi ý điểm dựa trên từ khoá trùng khớp khi có kết quả; bạn xem lại và chốt điểm trước khi công bố. Không nhập thì chấm hoàn toàn thủ công.
@@ -13268,7 +13277,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                           </button>
                         )}
                         <input
-                          style={{ ...input, flex: 1, padding: "8px 10px", fontSize: 13,
+                          style={{ ...input, flex: 1, padding: "8px 10px", fontSize: 14,
                             borderColor: deckMode === "exam" && o.correct ? "#4ADE8055" : undefined,
                             background: deckMode === "exam" && o.correct ? "#4ADE8011" : C.surface,
                           }}
@@ -13284,7 +13293,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       </div>
                     ))}
                     {deckMode === "exam" && !q.options.some((o) => o.correct) && (
-                      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.coral, marginTop: 2 }}>
+                      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 2 }}>
                         ⚠️ Chọn ít nhất 1 đáp án đúng (bấm vào ô tròn/vuông bên trái)
                       </div>
                     )}
@@ -13298,7 +13307,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             ))}
           </div>
           <button onClick={addDeckQuestion}
-            style={{ marginTop: 12, width: "100%", padding: 11, borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", color: C.teal, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            style={{ marginTop: 12, width: "100%", padding: 11, borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", color: C.teal, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <PlusCircle size={15} /> Thêm câu hỏi
           </button>
           <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.4 }}>
@@ -13383,8 +13392,8 @@ function ChatListView({ conversations = [], onOpen, onNewChat, notifCount = 0, o
       <div style={{ position: "sticky", top: 0, background: C.bg, zIndex: 10, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", alignItems: "center", padding: "10px 8px" }}>
           {headBtn(Search, "Tìm hội thoại", () => setSearchOpen((v) => !v), searchOpen)}
-          <div style={{ flex: 1, textAlign: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>
-            Hộp thư{totalUnread > 0 && <span style={{ marginLeft: 6, fontSize: 11, background: C.coral, color: "#fff", borderRadius: 999, padding: "1px 6px", verticalAlign: 2, fontWeight: 800 }}>{totalUnread}</span>}
+          <div style={{ flex: 1, textAlign: "center", fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>
+            Hộp thư{totalUnread > 0 && <span style={{ marginLeft: 6, fontSize: 12, background: C.coral, color: "#fff", borderRadius: 999, padding: "1px 6px", verticalAlign: 2, fontWeight: 700 }}>{totalUnread}</span>}
           </div>
           {headBtn(PlusCircle, "Tin nhắn mới", () => setComposeOpen(true))}
         </div>
@@ -13410,7 +13419,7 @@ function ChatListView({ conversations = [], onOpen, onNewChat, notifCount = 0, o
                   <Avatar author={a} size={58} />
                   {c.unread > 0 && <span style={{ position: "absolute", right: 1, bottom: 1, width: 14, height: 14, borderRadius: 99, background: C.coral, border: `2.5px solid ${C.bg}` }} />}
                 </div>
-                <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
               </button>
             );
           })}
@@ -13422,15 +13431,15 @@ function ChatListView({ conversations = [], onOpen, onNewChat, notifCount = 0, o
         <div onClick={onOpenNotifications} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" }}>
           <div style={{ width: 56, height: 56, borderRadius: 99, background: C.goldSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Bell size={24} color={C.gold} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text }}>Hoạt động</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 13, color: notifCount > 0 ? C.text : C.textFaint, marginTop: 2, fontWeight: notifCount > 0 ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{notifCount > 0 ? `${notifCount} thông báo mới` : "@nhắc tên, bài mới từ người bạn RankUp"}</div>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Hoạt động</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: notifCount > 0 ? C.text : C.textFaint, marginTop: 2, fontWeight: notifCount > 0 ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{notifCount > 0 ? `${notifCount} thông báo mới` : "@nhắc tên, bài mới từ người bạn RankUp"}</div>
           </div>
-          {notifCount > 0 && <span style={{ minWidth: 20, height: 20, borderRadius: 99, background: C.coral, color: "#fff", display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: 11, padding: "0 5px", flexShrink: 0 }}>{notifCount}</span>}
+          {notifCount > 0 && <span style={{ minWidth: 20, height: 20, borderRadius: 99, background: C.coral, color: "#fff", display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, padding: "0 5px", flexShrink: 0 }}>{notifCount}</span>}
         </div>
       )}
 
       {filtered.length === 0 && (
-        <div style={{ textAlign: "center", padding: "48px 28px", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, lineHeight: 1.7 }}>
+        <div style={{ textAlign: "center", padding: "48px 28px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.7 }}>
           {kw ? "Không tìm thấy hội thoại nào." : <>Chưa có cuộc trò chuyện nào.<br />Bấm <b style={{ color: C.text }}>⊕</b> ở góc phải để nhắn tin cho ai đó.</>}
         </div>
       )}
@@ -13441,8 +13450,8 @@ function ChatListView({ conversations = [], onOpen, onNewChat, notifCount = 0, o
           <div key={c.id} onClick={() => onOpen(c)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" }}>
             <Avatar author={a} size={56} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: unread ? 800 : 600, fontSize: 15, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>
-              <div style={{ display: "flex", gap: 4, fontFamily: bodyFont, fontSize: 13, marginTop: 2, color: unread ? C.text : C.textFaint, fontWeight: unread ? 600 : 400, minWidth: 0 }}>
+              <div style={{ fontFamily: bodyFont, fontWeight: unread ? 800 : 600, fontSize: 16, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</div>
+              <div style={{ display: "flex", gap: 4, fontFamily: bodyFont, fontSize: 14, marginTop: 2, color: unread ? C.text : C.textFaint, fontWeight: unread ? 600 : 400, minWidth: 0 }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.lastMessage || "Bắt đầu trò chuyện…"}</span>
                 {c.lastTime && <span style={{ flexShrink: 0, color: C.textFaint, fontWeight: 400 }}>· {chatTimeAgo(Date.parse(c.lastTime))}</span>}
               </div>
@@ -13474,7 +13483,7 @@ function NewChatSheet({ conversations = [], onPick, onClose }) {
   const list = q.trim().length >= 2 ? users : suggested;
   return (
     <BottomSheet onClose={onClose}>
-      <div style={{ padding: "0 16px 8px", textAlign: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text }}>Tin nhắn mới</div>
+      <div style={{ padding: "0 16px 8px", textAlign: "center", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Tin nhắn mới</div>
       <div style={{ padding: "0 16px 8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, borderRadius: 10, padding: "9px 12px" }}>
           <Search size={15} color={C.textFaint} />
@@ -13487,13 +13496,13 @@ function NewChatSheet({ conversations = [], onPick, onClose }) {
           <div key={u.id} onClick={() => onPick(u)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 16px", cursor: "pointer" }}>
             <Avatar author={u} size={44} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.name || "Người dùng"}</div>
-              {u.handle && <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint }}>{String(u.handle).startsWith("@") ? u.handle : "@" + u.handle}</div>}
+              <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.name || "Người dùng"}</div>
+              {u.handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{String(u.handle).startsWith("@") ? u.handle : "@" + u.handle}</div>}
             </div>
           </div>
         ))}
-        {q.trim().length >= 2 && !busy && users.length === 0 && <div style={{ textAlign: "center", padding: 20, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Không tìm thấy người dùng.</div>}
-        {busy && <div style={{ textAlign: "center", padding: 16, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tìm…</div>}
+        {q.trim().length >= 2 && !busy && users.length === 0 && <div style={{ textAlign: "center", padding: 20, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Không tìm thấy người dùng.</div>}
+        {busy && <div style={{ textAlign: "center", padding: 16, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Đang tìm…</div>}
       </div>
     </BottomSheet>
   );
@@ -13514,7 +13523,7 @@ function ChatShareCard({ msg, onOpenShare }) {
 
   if (msg.ref === null) {
     return (
-      <div style={{ ...box, cursor: "default", padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>
+      <div style={{ ...box, cursor: "default", padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>
         <EyeOff size={15} /> Bài viết không còn tồn tại
       </div>
     );
@@ -13524,7 +13533,7 @@ function ChatShareCard({ msg, onOpenShare }) {
     return (
       <button onClick={() => onOpenShare?.(msg.refType, msg.refId)} style={{ ...box, padding: 10, display: "flex", alignItems: "center", gap: 8 }}>
         <TypeIcon size={18} color={C.text} />
-        <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.text }}>{typeLabel} được chia sẻ</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text }}>{typeLabel} được chia sẻ</span>
       </button>
     );
   }
@@ -13551,7 +13560,7 @@ function ChatShareCard({ msg, onOpenShare }) {
           <TypeIcon size={12} />
         </span>
       </div>
-      <div style={{ padding: "7px 12px 0", fontFamily: displayFont, fontWeight: 600, fontSize: 15, lineHeight: 1.3, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.title}</div>
+      <div style={{ padding: "7px 12px 0", fontFamily: displayFont, fontWeight: 600, fontSize: 16, lineHeight: 1.3, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.title}</div>
       {ref.caption && (
         <div style={{ padding: "3px 12px 0", fontFamily: bodyFont, fontSize: 12, lineHeight: 1.4, color: C.textMuted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ref.caption}</div>
       )}
@@ -13578,7 +13587,7 @@ function ChatShareCard({ msg, onOpenShare }) {
               </div>
             );
           })}
-          {opts.length > 3 && <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>+{opts.length - 3} lựa chọn khác</div>}
+          {opts.length > 3 && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>+{opts.length - 3} lựa chọn khác</div>}
         </div>
       )}
       {!isTour && (ref.type === "path" || ref.type === "deck") && (
@@ -13588,7 +13597,7 @@ function ChatShareCard({ msg, onOpenShare }) {
         </div>
       )}
       {isTour && (
-        <div style={{ padding: "8px 12px 0", fontFamily: bodyFont, fontSize: 12.5, color: champ ? C.gold : C.textMuted, fontWeight: champ ? 700 : 500 }}>
+        <div style={{ padding: "8px 12px 0", fontFamily: bodyFont, fontSize: 12, color: champ ? C.gold : C.textMuted, fontWeight: champ ? 700 : 500 }}>
           {champ ? `🏆 Vô địch: ${champ}` : ref.status === "completed" ? "Đã kết thúc" : "Đang diễn ra"}
         </div>
       )}
@@ -13598,8 +13607,8 @@ function ChatShareCard({ msg, onOpenShare }) {
         {!isTour && stat(ref.engagement, ENGAGEMENT_TYPE_ICON[ref.type === "deck" ? (ref.deckMode === "exam" ? "exam" : "survey") : ref.type] || BarChart3)}
         {!isTour && stat(ref.commentsCount, MessageCircle)}
         {!isTour && stat(ref.sharesCount, Send)}
-        {!isTour && (ref.closed ? <span style={{ marginLeft: "auto", fontFamily: bodyFont, fontSize: 11, color: C.textFaint }}>Đã kết thúc</span>
-          : ref.live ? <span style={{ marginLeft: "auto", fontFamily: bodyFont, fontSize: 11, fontWeight: 800, color: C.teal }}>● LIVE</span> : null)}
+        {!isTour && (ref.closed ? <span style={{ marginLeft: "auto", fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Đã kết thúc</span>
+          : ref.live ? <span style={{ marginLeft: "auto", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.teal }}>● LIVE</span> : null)}
         {isTour && <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>Xem bảng đấu →</span>}
       </div>
     </button>
@@ -13624,15 +13633,15 @@ function ChatPollCard({ msg, onVote }) {
           return (
             <button key={i} onClick={() => onVote?.(msg.id, i)} style={{ position: "relative", textAlign: "left", border: `1px solid ${mine ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: "pointer", background: C.surfaceRaised, padding: 0 }}>
               <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: mine ? "rgba(231,188,85,.20)" : "rgba(95,201,168,.12)", transition: "width .3s" }} />
-              <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 11px", fontFamily: bodyFont, fontSize: 13 }}>
+              <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 11px", fontFamily: bodyFont, fontSize: 14 }}>
                 <span style={{ color: C.text, fontWeight: mine ? 700 : 500 }}>{o.emoji ? o.emoji + " " : ""}{o.label}</span>
-                <span style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint }}>{pct}%</span>
+                <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint }}>{pct}%</span>
               </div>
             </button>
           );
         })}
       </div>
-      <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 8 }}>{total} lượt bình chọn{my != null ? " · đã chọn" : ""}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 8 }}>{total} lượt bình chọn{my != null ? " · đã chọn" : ""}</div>
     </div>
   );
 }
@@ -13646,7 +13655,7 @@ function ChatPollComposer({ onCreate, onCancel }) {
   return (
     <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}`, background: C.bg, display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.gold }}>📊 Tạo bình chọn nhanh</div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>📊 Tạo bình chọn nhanh</div>
         <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={16} /></button>
       </div>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Câu hỏi…" style={f} />
@@ -13657,8 +13666,8 @@ function ChatPollComposer({ onCreate, onCancel }) {
         </div>
       ))}
       <div style={{ display: "flex", gap: 8 }}>
-        {opts.length < 6 && <button onClick={() => setOpts((p) => [...p, ""])} style={{ flex: 1, padding: 9, borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>+ Lựa chọn</button>}
-        <button disabled={!canMake} onClick={() => onCreate({ question: q.trim(), options: opts.filter((o) => o.trim()).map((o) => ({ label: o.trim() })) })} style={{ flex: 2, padding: 9, borderRadius: 9, background: canMake ? C.gold : C.surfaceRaised, border: "none", color: canMake ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 13, cursor: canMake ? "pointer" : "default" }}>Gửi bình chọn</button>
+        {opts.length < 6 && <button onClick={() => setOpts((p) => [...p, ""])} style={{ flex: 1, padding: 9, borderRadius: 9, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.teal, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>+ Lựa chọn</button>}
+        <button disabled={!canMake} onClick={() => onCreate({ question: q.trim(), options: opts.filter((o) => o.trim()).map((o) => ({ label: o.trim() })) })} style={{ flex: 2, padding: 9, borderRadius: 9, background: canMake ? C.gold : C.surfaceRaised, border: "none", color: canMake ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: canMake ? "pointer" : "default" }}>Gửi bình chọn</button>
       </div>
     </div>
   );
@@ -13766,7 +13775,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
   };
   const handle = author.handle ? (String(author.handle).startsWith("@") ? author.handle : "@" + author.handle) : "";
   const canOpenProfile = !!(onOpenAuthor && author.id && !conversation.isGroup);
-  const bubble = (msg, isMe, r) => ({ padding: "9px 14px", borderRadius: r, background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 15, lineHeight: 1.4, wordBreak: "break-word", whiteSpace: "pre-wrap" });
+  const bubble = (msg, isMe, r) => ({ padding: "9px 14px", borderRadius: r, background: isMe ? C.gold : C.surfaceRaised, color: isMe ? "#1A1305" : C.text, fontFamily: bodyFont, fontSize: 16, lineHeight: 1.4, wordBreak: "break-word", whiteSpace: "pre-wrap" });
   const lastMine = [...messages].reverse().find((m) => m.senderId === currentUserId);
 
   return (
@@ -13778,8 +13787,8 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
         <button onClick={() => canOpenProfile && onOpenAuthor(author.id)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "none", border: "none", cursor: canOpenProfile ? "pointer" : "default", padding: 0 }}>
           <Avatar author={author} size={30} />
           <div style={{ minWidth: 0, textAlign: "left" }}>
-            <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15.5, color: C.text, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{conversation.title}</div>
-            {handle && <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, lineHeight: 1.2 }}>{handle}</div>}
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{conversation.title}</div>
+            {handle && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.2 }}>{handle}</div>}
           </div>
         </button>
         <button onClick={() => setMoreOpen(true)} aria-label="Tuỳ chọn" style={{ width: 40, height: 40, display: "grid", placeItems: "center", background: "none", border: "none", color: C.text, cursor: "pointer", visibility: conversation.isGroup ? "hidden" : "visible" }}><MoreHorizontal size={22} /></button>
@@ -13790,13 +13799,13 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
         {!loading && !conversation.isGroup && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 0 22px" }}>
             <Avatar author={author} size={84} />
-            <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 18, color: C.text, marginTop: 10 }}>{conversation.title}</div>
-            {handle && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 2 }}>{handle}</div>}
-            {canOpenProfile && <button onClick={() => onOpenAuthor(author.id)} style={{ marginTop: 12, padding: "7px 18px", borderRadius: 8, background: C.surfaceRaised, border: "none", color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Xem hồ sơ</button>}
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text, marginTop: 10 }}>{conversation.title}</div>
+            {handle && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginTop: 2 }}>{handle}</div>}
+            {canOpenProfile && <button onClick={() => onOpenAuthor(author.id)} style={{ marginTop: 12, padding: "7px 18px", borderRadius: 8, background: C.surfaceRaised, border: "none", color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Xem hồ sơ</button>}
           </div>
         )}
-        {loading && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: 20 }}>Đang tải…</div>}
-        {!loading && messages.length === 0 && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, padding: "0 20px 20px" }}>Gửi lời chào đầu tiên 👋</div>}
+        {loading && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 14, padding: 20 }}>Đang tải…</div>}
+        {!loading && messages.length === 0 && <div style={{ textAlign: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 14, padding: "0 20px 20px" }}>Gửi lời chào đầu tiên 👋</div>}
         {messages.map((msg, i) => {
           const isMe = msg.senderId === currentUserId;
           const prev = messages[i - 1], next = messages[i + 1];
@@ -13820,13 +13829,13 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
           );
           return (
             <React.Fragment key={msg.id}>
-              {sep && <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, margin: i === 0 ? "0 0 10px" : "14px 0 10px" }}>{stamp(tsOf(msg))}</div>}
+              {sep && <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 12, color: C.textFaint, margin: i === 0 ? "0 0 10px" : "14px 0 10px" }}>{stamp(tsOf(msg))}</div>}
               <div style={{ display: "flex", alignItems: "flex-end", justifyContent: isMe ? "flex-end" : "flex-start", gap: 8, marginTop: samePrev ? 2 : 8, opacity: msg._pending ? 0.6 : 1 }}>
                 {!isMe && <div style={{ width: 28, flexShrink: 0 }}>{!sameNext && <Avatar author={author} size={28} />}</div>}
                 <div style={{ maxWidth: "76%" }}>{body}</div>
               </div>
               {isMe && msg === lastMine && (msg._pending || !next) && (
-                <div style={{ alignSelf: "flex-end", fontFamily: bodyFont, fontSize: 11, color: C.textFaint, marginTop: 3 }}>{msg._pending ? "Đang gửi…" : "Đã gửi"}</div>
+                <div style={{ alignSelf: "flex-end", fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 3 }}>{msg._pending ? "Đang gửi…" : "Đã gửi"}</div>
               )}
             </React.Fragment>
           );
@@ -13835,7 +13844,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
       </div>
 
       {sendError && (
-        <div style={{ padding: "8px 14px", fontFamily: bodyFont, fontSize: 12.5, color: C.coral, borderTop: `1px solid ${C.border}`, background: C.bg }}>{sendError}</div>
+        <div style={{ padding: "8px 14px", fontFamily: bodyFont, fontSize: 12, color: C.coral, borderTop: `1px solid ${C.border}`, background: C.bg }}>{sendError}</div>
       )}
       {pollOpen ? (
         <ChatPollComposer onCreate={createPoll} onCancel={() => setPollOpen(false)} />
@@ -13844,7 +13853,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px" }}>
             <button onClick={() => setPollOpen(true)} title="Bình chọn nhanh" aria-label="Bình chọn nhanh" style={{ width: 38, height: 38, borderRadius: 99, display: "grid", placeItems: "center", background: C.surfaceRaised, border: "none", color: C.text, cursor: "pointer", flexShrink: 0 }}><BarChart3 size={19} /></button>
             <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", background: C.surfaceRaised, borderRadius: 999, padding: "4px 6px 4px 14px", gap: 4 }}>
-              <input ref={inputRef} value={text} onFocus={() => setEmojiOpen(false)} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Gửi tin nhắn…" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 15, padding: "6px 0" }} />
+              <input ref={inputRef} value={text} onFocus={() => setEmojiOpen(false)} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder="Gửi tin nhắn…" style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 16, padding: "6px 0" }} />
               <button onClick={() => { setEmojiOpen((v) => !v); inputRef.current?.blur(); }} title="Emoji" aria-label="Emoji" style={{ width: 32, height: 32, borderRadius: 99, display: "grid", placeItems: "center", background: "none", border: "none", color: emojiOpen ? C.gold : C.textMuted, cursor: "pointer", flexShrink: 0 }}><Smile size={21} /></button>
             </div>
             {text.trim() && (
@@ -13855,7 +13864,7 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
           </div>
           {emojiOpen && (
             <div style={{ height: 230, overflowY: "auto", padding: "4px 8px max(8px, env(safe-area-inset-bottom, 8px))", borderTop: `1px solid ${C.border}` }}>
-              {!emojiList ? <div style={{ textAlign: "center", padding: 24, color: C.textFaint, fontFamily: bodyFont, fontSize: 13 }}>Đang tải emoji…</div> : (
+              {!emojiList ? <div style={{ textAlign: "center", padding: 24, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Đang tải emoji…</div> : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 2 }}>
                   {quickEmoji.map((em, k) => <button key={k} onClick={() => insertEmoji(em)} style={{ fontSize: 26, height: 42, border: "none", background: "none", cursor: "pointer", padding: 0 }}>{em}</button>)}
                 </div>
@@ -14054,7 +14063,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
           <Pic src={data.media.url} alt="" style={{ ...postBleed, maxHeight: 280, objectFit: "cover", display: "block", marginBottom: 14 }} /* ảnh bìa tràn viền như feed */ />
         )}
         {data.caption && (
-          <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
         )}
         {(data.tags?.length || data.category) && (
           <div style={{ marginBottom: 14 }}><TagPills tags={data.tags} category={data.category} max={6} /></div>
@@ -14064,7 +14073,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         {roster.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Đấu thủ</div>
+              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text }}>Đấu thủ</div>
               <button onClick={() => { setRosterOpen((v) => !v); setFocusName(null); }} aria-label={rosterOpen ? "Thu gọn" : "Xem chi tiết"} title={rosterOpen ? "Thu gọn" : "Xem chi tiết"} style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 30, height: 30, color: C.textMuted }}>
                 <ChevronDown size={18} style={{ transform: rosterOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
               </button>
@@ -14074,9 +14083,9 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                 {roster.map((c) => (
                   <button key={c.name} onClick={() => { setFocusName(c.name); setRosterOpen(true); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", minWidth: 0, textAlign: "center" }}>
                     <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, border: `1px solid ${c.color || C.border}`, display: "grid", placeItems: "center" }}>
-                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 26 : 22, fontFamily: bodyFont, fontWeight: 800 }}>{c.emoji || initialOf(c.name)}</span>}
+                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 26 : 22, fontFamily: bodyFont, fontWeight: 700 }}>{c.emoji || initialOf(c.name)}</span>}
                     </div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, fontWeight: 600, color: C.text, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.text, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
                   </button>
                 ))}
               </div>
@@ -14088,7 +14097,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                   const focused = focusName === c.name;
                   const pennant = (
                     <div style={{ width: 124, height: 156, flexShrink: 0, borderRadius: "10px 10px 0 0", clipPath: "polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)", background: c.color ? `linear-gradient(160deg, ${c.color}, ${c.color}cc)` : C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
-                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 52 : 40, marginTop: -18, fontFamily: bodyFont, fontWeight: 800 }}>{c.emoji || initialOf(c.name)}</span>}
+                      {c.imageUrl ? <Pic src={c.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 52 : 40, marginTop: -18, fontFamily: bodyFont, fontWeight: 700 }}>{c.emoji || initialOf(c.name)}</span>}
                     </div>
                   );
                   const text = (
@@ -14101,14 +14110,14 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                       </div>
                       {editing ? (
                         <div style={{ marginTop: 6 }}>
-                          <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Mô tả đấu thủ…" rows={2} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", resize: "vertical", textAlign: "left" }} />
+                          <textarea value={descDraft} onChange={(e) => setDescDraft(e.target.value)} placeholder="Mô tả đấu thủ…" rows={2} style={{ width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", resize: "vertical", textAlign: "left" }} />
                           <div style={{ display: "flex", gap: 8, marginTop: 6, justifyContent: left ? "flex-start" : "flex-end" }}>
-                            <button onClick={() => setEditDescName(null)} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Huỷ</button>
-                            <button onClick={() => saveContestantDesc(c.name, descDraft)} style={{ padding: "6px 14px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>Lưu</button>
+                            <button onClick={() => setEditDescName(null)} style={{ padding: "6px 12px", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Huỷ</button>
+                            <button onClick={() => saveContestantDesc(c.name, descDraft)} style={{ padding: "6px 14px", borderRadius: 8, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Lưu</button>
                           </div>
                         </div>
                       ) : c.desc ? (
-                        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>{c.desc}</div>
+                        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>{c.desc}</div>
                       ) : null}
                     </div>
                   );
@@ -14124,7 +14133,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         )}
         {/* Giải dự đoán: điểm đoán đúng của người xem (vòng/nhà vô địch đã thể hiện trong bảng nhánh). */}
         {isPrediction && decided.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
             <span style={{ padding: "3px 9px", borderRadius: 999, background: C.goldSoft, color: C.gold, fontWeight: 700 }}>Dự đoán</span>
             <span>Bạn đoán đúng <b style={{ color: C.teal }}>{myCorrect}/{decided.length}</b></span>
           </div>
@@ -14133,7 +14142,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
         {/* BẢNG NHÁNH ĐẤU (kiểu liquipedia) — nội dung chính. Chạm một trận để mở chi tiết. */}
         <div style={{ ...detailBlock, paddingBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 15, color: C.text }}>Bảng nhánh đấu</div>
+            <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text }}>Bảng nhánh đấu</div>
             {/* Chủ giải: đóng sớm mọi trận đang live của vòng (trận hết giờ vốn tự chốt + tự điền vòng trong). */}
             {isOwner && !champ && roundHasLive && (
               <button onClick={advance} disabled={busy} title="Đóng sớm mọi trận đang live của vòng này" style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 9, background: C.goldSoft, border: `1px solid ${C.gold}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
@@ -14183,7 +14192,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
             const av = (ref, size) => ref
               ? (ref.imageUrl
                   ? <Pic src={ref.imageUrl} alt="" style={{ width: size, height: size, borderRadius: 7, objectFit: "cover", flexShrink: 0, background: C.surfaceRaised }} />
-                  : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(size * 0.45), color: C.text }}>{initialOf(ref.name)}</span>}</div>)
+                  : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), background: ref.color ? ref.color + "26" : C.surfaceRaised, border: `1px solid ${ref.color || C.border}` }}>{ref.emoji || <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: Math.round(size * 0.45), color: C.text }}>{initialOf(ref.name)}</span>}</div>)
               : <div style={{ width: size, height: size, borderRadius: 7, flexShrink: 0, background: C.surfaceRaised, border: `1px dashed ${C.border}` }} />;
             const hseg = (xa, xb, y, col) => <div style={{ position: "absolute", left: Math.min(xa, xb), top: y - 1, width: Math.abs(xa - xb) || 2, height: 2, background: col }} />;
             const vseg = (x, ya, yb, col) => <div style={{ position: "absolute", left: x - 1, top: Math.min(ya, yb), width: 2, height: Math.abs(ya - yb) || 2, background: col }} />;
@@ -14241,8 +14250,8 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                         <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", background: win ? "rgba(231,188,85,.14)" : "transparent", opacity: lose ? 0.55 : 1 }}>
                           {av(ref, 20)}
                           <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: bodyFont, fontSize: 12, fontWeight: win ? 800 : 600, color: win ? C.gold : ref ? C.text : C.textFaint, fontStyle: ref ? "normal" : "italic" }}>{ref ? ref.name : emptyLabel}</span>
-                          {hasBoth && started && <span style={{ fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 11, fontWeight: 700, color: win ? C.gold : C.textFaint, flexShrink: 0 }}>{fmt(cnt)}</span>}
-                          {win && <span style={{ fontSize: 11, flexShrink: 0 }}>🏆</span>}
+                          {hasBoth && started && <span style={{ fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 12, fontWeight: 700, color: win ? C.gold : C.textFaint, flexShrink: 0 }}>{fmt(cnt)}</span>}
+                          {win && <span style={{ fontSize: 12, flexShrink: 0 }}>🏆</span>}
                         </div>
                       );
                     };
@@ -14254,7 +14263,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                           <div style={{ height: 1, background: C.border }} />
                           {slot(m.bRef, "b")}
                         </div>
-                        {badge && <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 2, fontFamily: bodyFont, fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: badge.c, whiteSpace: "nowrap" }}>{badge.t}</div>}
+                        {badge && <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 2, fontFamily: bodyFont, fontSize: 10, fontWeight: 700, letterSpacing: 0.3, color: badge.c, whiteSpace: "nowrap" }}>{badge.t}</div>}
                       </div>
                     );
                   }))}
@@ -14268,7 +14277,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
                         <div style={{ width: 44, height: 44, margin: "0 auto", borderRadius: 10, overflow: "hidden", position: "relative", background: champ.color ? champ.color + "33" : C.surfaceRaised, display: "grid", placeItems: "center" }}>
                           {champ.imageUrl ? <Pic src={champ.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24 }}>{champ.emoji || "🏆"}</span>}
                         </div>
-                        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 13, color: C.gold, marginTop: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{champ.name}</div>
+                        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold, marginTop: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{champ.name}</div>
                       </div>
                     ) : <div style={{ height: 44, background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 9 }} />}
                   </div>
@@ -14376,7 +14385,7 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
             {[["a", m.aRef, aName, setAName, aImg, setAImg], ["b", m.bRef, bName, setBName, bImg, setBImg]].map(([side, ref, name, setName, img, setImg]) => (
               <React.Fragment key={side}>
-                {side === "b" && <div style={{ alignSelf: "center", fontFamily: displayFont, fontWeight: 900, fontSize: 16, fontStyle: "italic", color: C.gold }}>VS</div>}
+                {side === "b" && <div style={{ alignSelf: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 16, fontStyle: "italic", color: C.gold }}>VS</div>}
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <button onClick={isOwner ? () => uploadFor(setImg, ref) : undefined} title={isOwner ? "Đổi ảnh" : undefined} style={{ border: "none", background: "none", cursor: isOwner ? "pointer" : "default", padding: 0, position: "relative" }}>
                     {flagAv(ref, img, 74)}
@@ -14385,7 +14394,7 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
                   {isOwner ? (
                     <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Đấu thủ ${side.toUpperCase()}`} style={{ ...inp, textAlign: "center", fontWeight: 700 }} />
                   ) : (
-                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, textAlign: "center", ...ellip }}>{ref?.name || "—"}</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, textAlign: "center", ...ellip }}>{ref?.name || "—"}</div>
                   )}
                 </div>
               </React.Fragment>
@@ -14399,7 +14408,7 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
             </div>
           )}
           {isOwner && dirty && (
-            <button onClick={saveCustom} disabled={saving} style={{ width: "100%", padding: "10px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, cursor: "pointer", marginBottom: 16, opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu thay đổi"}</button>
+            <button onClick={saveCustom} disabled={saving} style={{ width: "100%", padding: "10px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 16, opacity: saving ? 0.6 : 1 }}>{saving ? "Đang lưu…" : "Lưu thay đổi"}</button>
           )}
 
           {/* Bước ĐỆM: đặt thời lượng + lên sóng / hẹn giờ (chỉ khi chưa lên sóng) */}
@@ -14408,14 +14417,14 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: C.bg, border: `1px solid ${C.border}` }}>
                 <Clock size={17} color={C.gold} />
                 <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, flex: 1 }}>Thời lượng</span>
-                <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="24:00" style={{ width: 74, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 15, fontWeight: 700, outline: "none" }} />
+                <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="24:00" style={{ width: 74, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 16, fontWeight: 700, outline: "none" }} />
               </div>
-              <button onClick={goLiveNow} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "13px", borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
+              <button onClick={goLiveNow} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "13px", borderRadius: 12, background: C.coral, border: "none", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, cursor: "pointer" }}>
                 <span style={{ width: 10, height: 10, borderRadius: 99, background: "#fff" }} /> Lên sóng ngay
               </button>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input type="datetime-local" value={schAt} onChange={(e) => setSchAt(e.target.value)} style={{ flex: 1, minWidth: 0, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 10px", color: C.text, fontFamily: bodyFont, fontSize: 13, outline: "none", colorScheme: "dark" }} />
-                <button onClick={scheduleAt} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, cursor: "pointer", whiteSpace: "nowrap" }}><CalendarClock size={16} /> Hẹn giờ</button>
+                <input type="datetime-local" value={schAt} onChange={(e) => setSchAt(e.target.value)} style={{ flex: 1, minWidth: 0, width: "100%", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 10px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none", colorScheme: "dark" }} />
+                <button onClick={scheduleAt} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}><CalendarClock size={16} /> Hẹn giờ</button>
               </div>
             </div>
           )}
@@ -14424,19 +14433,19 @@ function MatchSheet({ match: m, roundName, isOwner, isPrediction, onClose, onCus
               đi tiếp hoặc gia hạn thêm giờ (mở lại bình chọn). */}
           {isOwner && needResult && (
             <div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: tie && !isPrediction ? C.coral : C.textMuted, fontWeight: tie && !isPrediction ? 700 : 400, marginBottom: 10 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: tie && !isPrediction ? C.coral : C.textMuted, fontWeight: tie && !isPrediction ? 700 : 400, marginBottom: 10 }}>
                 {isPrediction ? "Chọn đội thắng thật:" : `Hoà ${m.votes?.a || 0}–${m.votes?.b || 0} — chọn bên đi tiếp:`}
               </div>
               <div style={{ display: "flex", gap: 8, marginBottom: tie && !isPrediction ? 12 : 0 }}>
                 {[["a", m.aRef], ["b", m.bRef]].map(([side, ref]) => (
-                  <button key={side} onClick={() => onSetResult(side)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${ws === side ? C.gold : C.border}`, background: ws === side ? C.goldSoft : C.surfaceRaised, color: ws === side ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🏆 {ref?.name}</button>
+                  <button key={side} onClick={() => onSetResult(side)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${ws === side ? C.gold : C.border}`, background: ws === side ? C.goldSoft : C.surfaceRaised, color: ws === side ? C.gold : C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🏆 {ref?.name}</button>
                 ))}
               </div>
               {tie && !isPrediction && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, flex: 1 }}>hoặc mở lại bình chọn thêm</span>
+                  <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, flex: 1 }}>hoặc mở lại bình chọn thêm</span>
                   <input value={dur} onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 4); setDur(d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`); }} inputMode="numeric" placeholder="00:30" style={{ width: 64, textAlign: "center", background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 0", color: C.gold, fontFamily: bodyFont, fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, outline: "none" }} />
-                  <button onClick={() => onSchedule({ closesAt: new Date(Date.now() + hrs() * 3600000).toISOString() })} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>Gia hạn</button>
+                  <button onClick={() => onSchedule({ closesAt: new Date(Date.now() + hrs() * 3600000).toISOString() })} style={{ padding: "9px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}>Gia hạn</button>
                 </div>
               )}
             </div>
@@ -14499,7 +14508,7 @@ function BracketPreview({ contestants, swapSel, onTap, nameOf }) {
     const c = contestants[i];
     return (
       <div style={{ width: size, height: size, borderRadius: 99, overflow: "hidden", position: "relative", background: C.surfaceRaised, display: "grid", placeItems: "center", fontSize: Math.round(size * 0.55), boxShadow: sel ? `0 0 0 3px ${C.gold}` : gold ? `0 0 0 2px ${C.gold}` : `0 0 0 1px ${C.border}`, transform: sel ? "scale(1.12)" : "none", transition: "transform .15s, box-shadow .15s" }}>
-        {c?.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c?.emoji || <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(size * 0.42), color: C.text }}>{(nameOf(c, i) || "?").trim().charAt(0).toUpperCase()}</span>)}
+        {c?.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : (c?.emoji || <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: Math.round(size * 0.42), color: C.text }}>{(nameOf(c, i) || "?").trim().charAt(0).toUpperCase()}</span>)}
       </div>
     );
   };
@@ -14536,7 +14545,7 @@ function BracketPreview({ contestants, swapSel, onTap, nameOf }) {
           const d = Math.round(D * (w != null ? 0.78 : 0.5));
           nodes.push(
             <div key={`n${side}${lvl}-${k}`} style={{ position: "absolute", left: x - d / 2, top: y - d / 2 }}>
-              {w != null ? avatar(w, d, { gold: true }) : <div style={{ width: d, height: d, borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 800, fontSize: Math.round(d * 0.5), color: C.textFaint }}>?</div>}
+              {w != null ? avatar(w, d, { gold: true }) : <div style={{ width: d, height: d, borderRadius: 99, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", fontFamily: bodyFont, fontWeight: 700, fontSize: Math.round(d * 0.5), color: C.textFaint }}>?</div>}
             </div>,
           );
         }
@@ -14638,7 +14647,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
   }, [openTool, showHashtag, headerMenuOpen, timeInline]);
 
   const field = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", color: C.text, fontFamily: bodyFont, fontSize: 14, outline: "none" };
-  const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.textMuted, marginBottom: 8 };
+  const label = { fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.textMuted, marginBottom: 8 };
   const updateC = (i, patch) => setContestants((p) => p.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   const nameOf = (c, i) => (c?.name || "").trim() || `Đấu thủ ${i + 1}`; // ô tên để trống → tên mặc định
   // Lưới khung ảnh: ô "+" thêm đấu thủ rồi focus ngay ô tên của khung mới.
@@ -14712,8 +14721,8 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
         {draftRestored && (
           <div style={{ ...field, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
             <Save size={15} color={C.gold} />
-            <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp giải đấu</span>
-            <button onClick={clearDraft} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Bỏ nháp</button>
+            <span style={{ flex: 1, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.gold }}>Đã khôi phục bản nháp giải đấu</span>
+            <button onClick={clearDraft} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Bỏ nháp</button>
           </div>
         )}
         {/* ===== KHUNG SOẠN THẢO HỢP NHẤT (giống Rankie): tên giải + mô tả + ảnh bìa + hashtag ===== */}
@@ -14742,16 +14751,16 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
           {showHashtag ? (
             <div ref={hashtagRef} style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
               <HashtagInput tags={tags} onChange={setTags} placeholder="Thêm hashtag: thethao, esports…" />
-              <button onClick={() => setShowHashtag(false)} style={{ marginTop: 8, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Xong</button>
+              <button onClick={() => setShowHashtag(false)} style={{ marginTop: 8, background: "none", border: "none", color: C.teal, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Xong</button>
             </div>
           ) : tags.length > 0 && (
             <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {tags.map((t) => (
-                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700 }}>
+                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700 }}>
                   <Hash size={12} />{t}
                 </span>
               ))}
-              <button onClick={() => setShowHashtag(true)} title="Sửa hashtag" style={{ padding: "4px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Sửa</button>
+              <button onClick={() => setShowHashtag(true)} title="Sửa hashtag" style={{ padding: "4px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Sửa</button>
             </div>
           )}
         </div>
@@ -14780,7 +14789,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
                       onBlur={() => setTimeInline(false)}
                       placeholder="24:30"
                       inputMode="numeric"
-                      style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 15, fontWeight: 700, padding: 0 }}
+                      style={{ width: 64, border: "none", background: "transparent", outline: "none", color: C.gold, fontFamily: monoFont, fontSize: 16, fontWeight: 700, padding: 0 }}
                     />
                   </div>
                 ) : (
@@ -14798,7 +14807,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
           {openTool === "present" && (
             <div style={{ ...field, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
               <button onClick={() => setAllowGuestPresent((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${allowGuestPresent ? C.gold : C.border}`, cursor: "pointer", fontFamily: bodyFont }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 14, fontWeight: 600 }}><Monitor size={15} color={allowGuestPresent ? C.gold : C.textMuted} /> Cho phép người khác trình chiếu</span>
                 <span style={{ width: 40, height: 22, borderRadius: 999, background: allowGuestPresent ? C.gold : C.border, position: "relative", flexShrink: 0, transition: "background .2s" }}><span style={{ position: "absolute", top: 2, left: allowGuestPresent ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .2s" }} /></span>
               </button>
             </div>
@@ -14818,7 +14827,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
                     title={c.refType ? c.name : "Đổi ảnh / emoji"}
                     style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", position: "relative", padding: 0, cursor: c.refType ? "default" : "pointer", display: "grid", placeItems: "center", background: C.surfaceRaised, border: `1.5px solid ${picking ? C.gold : C.border}` }}
                   >
-                    {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 30 : 24, fontFamily: bodyFont, fontWeight: 800, color: C.text }}>{c.emoji || initialOf(c.name)}</span>}
+                    {c.image ? <Pic src={c.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: c.emoji ? 30 : 24, fontFamily: bodyFont, fontWeight: 700, color: C.text }}>{c.emoji || initialOf(c.name)}</span>}
                     {!c.refType && (
                       <span style={{ position: "absolute", right: 4, bottom: 4, width: 20, height: 20, borderRadius: 99, background: C.gold, display: "grid", placeItems: "center", border: `2px solid ${C.surface}` }}><ImagePlus size={11} color="#231a05" /></span>
                     )}
@@ -14861,7 +14870,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
           return (
             <div style={{ display: "flex", gap: 10, padding: "11px 13px", borderRadius: 12, background: "rgba(226,114,91,0.12)", border: `1px solid ${C.coral}` }}>
               <span style={{ fontSize: 18, lineHeight: 1.2 }}>⚠️</span>
-              <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.text, lineHeight: 1.45 }}>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.text, lineHeight: 1.45 }}>
                 <b>{n} đấu thủ</b> không phải số chẵn của bảng đấu (2, 4, 8, 16…) → sẽ có <b>{byes} suất miễn đấu</b>, một số đấu thủ <b>vào thẳng vòng trong</b>. Thêm <b>{byes}</b> người (đủ {pow}) hoặc bớt <b>{n - prev}</b> người (còn {prev}) để công bằng. Đấu thủ ở <b>cuối sơ đồ (nhánh phải)</b> được miễn đấu — đổi chỗ trên sơ đồ để chọn ai được miễn.
               </div>
             </div>
@@ -14872,7 +14881,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
           <div>
             <div style={label}>Sơ đồ nhánh — chạm 2 đấu thủ để đổi chỗ</div>
             <BracketPreview contestants={contestants} swapSel={swapSel} onTap={tapSwap} nameOf={nameOf} />
-            <div style={{ minHeight: 18, textAlign: "center", fontFamily: bodyFont, fontSize: 12.5, color: swapSel != null ? C.gold : C.textFaint, marginTop: 8 }}>
+            <div style={{ minHeight: 18, textAlign: "center", fontFamily: bodyFont, fontSize: 12, color: swapSel != null ? C.gold : C.textFaint, marginTop: 8 }}>
               {swapSel != null ? <>Đổi chỗ <b>{nameOf(contestants[swapSel], swapSel)}</b> với… (chạm đấu thủ khác)</> : "Ô nét đứt = miễn đấu · ô vàng = vào thẳng vòng sau"}
             </div>
           </div>
@@ -14888,7 +14897,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
               const active = advanceMode === m.id;
               return (
                 <button key={m.id} onClick={() => setAdvanceMode(m.id)} style={{ textAlign: "left", padding: "11px 13px", borderRadius: 12, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.goldSoft : C.surface, cursor: "pointer" }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: active ? C.gold : C.text }}>{m.title}</div>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: active ? C.gold : C.text }}>{m.title}</div>
                   <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 2, lineHeight: 1.35 }}>{m.desc}</div>
                 </button>
               );
@@ -14932,10 +14941,10 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
   // Mọi chip đều: SỐ bên trái, ICON bên phải (một hàng ngang) — quy tắc UI chung.
   const Chip = ({ count, icon, label, color, align }) => (
     <div style={{ display: "flex", flexDirection: "column", alignItems: align, gap: 1 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, color, fontFamily: monoFont, fontWeight: 800, fontSize: 13 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, color, fontFamily: monoFont, fontWeight: 700, fontSize: 14 }}>
         <span>{count}</span>{icon}
       </div>
-      {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 8.5, fontWeight: 700, color: C.textFaint }}>{label}</span>}
+      {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 10, fontWeight: 700, color: C.textFaint }}>{label}</span>}
     </div>
   );
   return (
@@ -14971,7 +14980,7 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
         <Chip count={fmtCompact(views)} icon={<Eye size={15} color={C.gold} />} label="Lượt xem" color={C.gold} align="flex-end" />
       </div>
 
-      <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 8.5, color: C.textFaint, marginTop: 2 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
+      <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 10, color: C.textFaint, marginTop: 2 }}>{showLabels ? "chạm để ẩn nhãn" : "chạm để hiện nhãn"}</div>
     </div>
   );
 }
@@ -14996,7 +15005,7 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
   const opts = !isShare && item.type === "rankie" ? item.options || [] : [];
   const live = !isShare && item.type === "rankie" && item.live && !isRankieClosed(item);
   const pic = (o, size) => (
-    <div style={{ width: size, height: size, borderRadius: 99, background: o?.color || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, fontSize: size * 0.55, fontFamily: bodyFont, fontWeight: 800, color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,.35)" }}>
+    <div style={{ width: size, height: size, borderRadius: 99, background: o?.color || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, fontSize: size * 0.55, fontFamily: bodyFont, fontWeight: 700, color: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,.35)" }}>
       {o?.image || o?.imageUrl ? <Pic src={o.image || o.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : o?.emoji ? o.emoji : (o?.label || o?.name || "?").trim().charAt(0).toUpperCase()}
     </div>
   );
@@ -15010,7 +15019,7 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
   } else if (opts.length === 2) {
     art = (
       <div style={{ position: "absolute", inset: "18px 0 30px", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-        {pic(opts[0], 34)}<span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 10, color: C.gold }}>VS</span>{pic(opts[1], 34)}
+        {pic(opts[0], 34)}<span style={{ fontFamily: logoFont, fontWeight: 700, fontSize: 10, color: C.gold }}>VS</span>{pic(opts[1], 34)}
       </div>
     );
   } else if (opts.length >= 3) {
@@ -15053,7 +15062,7 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
         {item.pinned && <Pin size={12} color={C.gold} fill={C.gold} />}
         {live && <span style={{ width: 7, height: 7, borderRadius: 99, background: C.teal, boxShadow: `0 0 0 2px rgba(0,0,0,.4)` }} title="LIVE" />}
       </span>
-      <div style={{ position: "absolute", left: 6, right: 6, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, lineHeight: 1.25, color: "#F5F1E6", textShadow: "0 1px 3px rgba(0,0,0,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{title}</div>
+      <div style={{ position: "absolute", left: 6, right: 6, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, lineHeight: 1.25, color: "#F5F1E6", textShadow: "0 1px 3px rgba(0,0,0,.7)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{title}</div>
     </button>
   );
 }
@@ -15073,11 +15082,11 @@ class ScreenBoundary extends React.Component {
     return (
       <div style={{ padding: "64px 24px", textAlign: "center", fontFamily: bodyFont, color: C.text }}>
         <AlertTriangle size={36} color={C.coral} />
-        <div style={{ fontWeight: 800, fontSize: 17, marginTop: 12 }}>Không mở được nội dung này</div>
-        <div style={{ fontSize: 13.5, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>Có thể bài đã bị xoá hoặc chưa tải xong. Thử lại sau nhé.</div>
+        <div style={{ fontWeight: 700, fontSize: 18, marginTop: 12 }}>Không mở được nội dung này</div>
+        <div style={{ fontSize: 14, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>Có thể bài đã bị xoá hoặc chưa tải xong. Thử lại sau nhé.</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
           <button onClick={() => { this.setState({ err: null }); this.props.onBack?.(); }} style={{ padding: "10px 18px", borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, cursor: "pointer" }}>Quay lại</button>
-          <button onClick={() => this.setState({ err: null })} style={{ padding: "10px 18px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, cursor: "pointer" }}>Thử lại</button>
+          <button onClick={() => this.setState({ err: null })} style={{ padding: "10px 18px", borderRadius: 10, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, cursor: "pointer" }}>Thử lại</button>
         </div>
       </div>
     );
@@ -15147,14 +15156,14 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
       setErr(e?.status === 409 || /handle/i.test(e?.message || "") ? "@handle này đã có người dùng" : e?.message || "Lưu thất bại, thử lại sau");
     } finally { setSaving(false); }
   };
-  const field = { width: "100%", padding: "11px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 15, outline: "none" };
+  const field = { width: "100%", padding: "11px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 16, outline: "none" };
   const lab = { fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted, margin: "12px 0 6px" };
   return (
     <BottomSheet onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px 6px" }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 15, cursor: "pointer" }}>Huỷ</button>
-        <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text }}>Sửa hồ sơ</div>
-        <button onClick={save} disabled={!canSave} style={{ background: "none", border: "none", color: canSave ? C.gold : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, cursor: canSave ? "pointer" : "default" }}>{saving ? "Đang lưu…" : "Xong"}</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 16, cursor: "pointer" }}>Huỷ</button>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Sửa hồ sơ</div>
+        <button onClick={save} disabled={!canSave} style={{ background: "none", border: "none", color: canSave ? C.gold : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, cursor: canSave ? "pointer" : "default" }}>{saving ? "Đang lưu…" : "Xong"}</button>
       </div>
       <div style={{ padding: "6px 18px 8px" }}>
         <div style={{ display: "grid", placeItems: "center", margin: "6px 0 4px" }}>
@@ -15162,7 +15171,7 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
             <div style={{ width: 76, height: 76, borderRadius: 99, background: currentUser.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 34 }}>
               {currentUser.avatarUrl ? <img src={currentUser.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (currentUser.avatarEmoji || "🙂")}
             </div>
-            <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>Đổi ảnh đại diện</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.gold }}>Đổi ảnh đại diện</span>
           </button>
         </div>
         <div style={lab}>Tên</div>
@@ -15172,12 +15181,12 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
         {!handleOk && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.coral, marginTop: 4 }}>3–20 ký tự: chữ, số, dấu _</div>}
         <div style={lab}>Tiểu sử</div>
         <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} rows={3} style={{ ...field, resize: "none", lineHeight: 1.45 }} />
-        <div style={{ textAlign: "right", fontFamily: bodyFont, fontSize: 11, color: C.textFaint, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{bio.length}/500</div>
+        <div style={{ textAlign: "right", fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{bio.length}/500</div>
         {demo && (() => {
           // Nút mắt: công khai (hiện trên hồ sơ) ↔ ẩn (chỉ dùng cho thống kê ẩn danh).
           const vis = (k) => (
             <button onClick={() => setPub((p) => ({ ...p, [k]: !p[k] }))} title={pub[k] ? "Công khai trên hồ sơ — chạm để ẩn" : "Đang ẩn — chạm để công khai"} aria-label={pub[k] ? "Công khai" : "Ẩn"}
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 9px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, border: `1px solid ${pub[k] ? C.border : C.gold}`, background: pub[k] ? "transparent" : C.goldSoft, color: pub[k] ? C.textMuted : C.gold }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 9px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, border: `1px solid ${pub[k] ? C.border : C.gold}`, background: pub[k] ? "transparent" : C.goldSoft, color: pub[k] ? C.textMuted : C.gold }}>
               {pub[k] ? <><Eye size={12} /> Công khai</> : <><EyeOff size={12} /> Ẩn</>}
             </button>
           );
@@ -15191,8 +15200,8 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
                 <>
                   <DobWheel value={dob} onChange={setDob} />
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                    <button onClick={() => { setDob(null); setDobOpen(false); }} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 12.5, cursor: "pointer" }}>Xoá ngày sinh</button>
-                    <button onClick={() => setDobOpen(false)} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Xong</button>
+                    <button onClick={() => { setDob(null); setDobOpen(false); }} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, cursor: "pointer" }}>Xoá ngày sinh</button>
+                    <button onClick={() => setDobOpen(false)} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Xong</button>
                   </div>
                 </>
               ) : (
@@ -15210,11 +15219,11 @@ function EditProfileSheet({ onClose, onChangeAvatar, onSaved }) {
               {head("Nghề nghiệp", "occupation")}
               <input value={occupation} onChange={(e) => setOccupation(e.target.value)} maxLength={60} list="rk-occupations" placeholder="Tìm hoặc nhập nghề nghiệp" style={field} />
               <datalist id="rk-occupations">{ONB_OCCUPATIONS.map((o) => <option key={o} value={o} />)}</datalist>
-              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Mục <b>Ẩn</b> không hiện trên hồ sơ, chỉ góp vào thống kê ẩn danh.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 8, lineHeight: 1.4 }}>Mục <b>Ẩn</b> không hiện trên hồ sơ, chỉ góp vào thống kê ẩn danh.</div>
             </>
           );
         })()}
-        {err && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.coral, marginTop: 6 }}>{err}</div>}
+        {err && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.coral, marginTop: 6 }}>{err}</div>}
       </div>
     </BottomSheet>
   );
@@ -15421,7 +15430,7 @@ function ProfileView({
   // radar chuyển vào bảng Thống kê, Series/Giải thành hàng vòng tròn nổi bật, bài viết dạng LƯỚI.
   const statBtn = (n, icon, title) => (
     <button onClick={() => setShowStatsDetail(true)} title={title} aria-label={title}
-      style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "4px 2px", cursor: "pointer", color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>
+      style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "4px 2px", cursor: "pointer", color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 18, fontVariantNumeric: "tabular-nums" }}>
       {fmtCompact(n || 0)}{icon}
     </button>
   );
@@ -15499,17 +15508,17 @@ function ProfileView({
           {canManage && iconPill(Search, "Tìm trong hồ sơ", () => setShowSearch((v) => !v), showSearch)}
           {isMe && iconPill(Settings, "Cài đặt", () => setSettingsOpen(true))}
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 1 }}>{author.handle}</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginTop: 1 }}>{author.handle}</div>
         {author.bio && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, marginTop: 6, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{author.bio}</div>}
         {demoLine && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 12.5, color: C.textFaint, marginTop: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>
             {demoLine}
           </div>
         )}
 
         {settingsOpen && (
           <BottomSheet onClose={() => setSettingsOpen(false)}>
-            <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 17, color: C.text }}>Cài đặt</div>
+            <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Cài đặt</div>
             <SheetRow icon={Edit3} label="Sửa hồ sơ" hint="Tên, @handle, tiểu sử, tuổi · giới tính · nghề nghiệp (ẩn/công khai)" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
             {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" hint="Tài khoản đã chặn, đã ẩn bài, bài viết đã ẩn" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
             {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
@@ -15520,7 +15529,7 @@ function ProfileView({
           <BottomSheet onClose={() => setShowStatsDetail(false)}>
             <div style={{ display: "flex", justifyContent: "space-around", padding: "8px 18px 4px" }}>
               {[1, 2, 3].map((t) => (
-                <div key={t} title={RANK_TIERS[t].label} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontWeight: 800, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums" }}>
+                <div key={t} title={RANK_TIERS[t].label} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums" }}>
                   {fmtCompact(rankCounts[`tier${t}`] || 0)}<RankCircleChevrons level={t} color={RANK_TIERS[t].color} size={20} />
                 </div>
               ))}
@@ -15547,11 +15556,11 @@ function ProfileView({
               <RankUpControl variant="pill" align="left" tier={rankTier} onSetTier={(lv) => onSetRank(author.id, lv)} fanCount={fanCount} />
             )}
             {theyBlocked ? (
-              <button onClick={() => mod.unblock(author)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              <button onClick={() => mod.unblock(author)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                 <Ban size={16} /> Bỏ chặn
               </button>
             ) : onMessage && (
-              <button onClick={() => onMessage(author.id, author)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              <button onClick={() => onMessage(author.id, author)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                 <MessageCircle size={16} /> Nhắn tin
               </button>
             )}
@@ -15565,7 +15574,7 @@ function ProfileView({
         {userSheet && <ModerationSheet author={author} onClose={() => setUserSheet(false)} />}
         {privacyOpen && <PrivacySheet onClose={() => setPrivacyOpen(false)} />}
         {!isMe && (theyBlocked || theyMuted) && (
-          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted }}>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 11, background: C.surfaceRaised, border: `1px solid ${C.border}`, fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>
             {theyBlocked ? <Ban size={14} /> : <EyeOff size={14} />}
             {theyBlocked ? "Bạn đã chặn tài khoản này — bài của họ bị ẩn." : "Bạn đã ẩn bài của người này khỏi bảng tin (vẫn xem được ở đây)."}
           </div>
@@ -15582,7 +15591,7 @@ function ProfileView({
                   {h.img ? <Pic src={h.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : h.emoji ? h.emoji : <h.Icon size={22} color={C.gold} />}
                 </div>
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.label}</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.label}</div>
             </button>
           ))}
         </div>
@@ -15726,7 +15735,7 @@ function ProfileView({
         const visLabel = it.visibility === "private" ? "Chỉ mình tôi" : it.visibility === "unlisted" ? "Theo link" : "Công khai";
         return (
           <BottomSheet onClose={close}>
-            <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isShare ? it.sharedTitle : it.title}</div>
+            <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isShare ? it.sharedTitle : it.title}</div>
             <SheetRow icon={it.pinned ? PinOff : Pin} label={it.pinned ? "Bỏ ghim" : "Ghim lên đầu"} onClick={run(() => onPin(it))} />
             {!isShare && <SheetRow icon={Edit3} label="Chỉnh sửa" onClick={run(() => (it.type === "path" || it.type === "deck" ? onEditStructure?.(it) : setEditingPost(it)))} />}
             {!isShare && <SheetRow icon={Copy} label="Nhân bản" onClick={run(() => onDuplicate(it))} />}
@@ -15834,14 +15843,14 @@ function ProfileView({
                 <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                   {chips.map(([k, IconEl, label, n]) => (k !== "all" && !n ? null : (
                     <button key={k} onClick={() => setSavedFilter(k)} title={label} aria-label={label}
-                      style={{ height: 32, minWidth: 40, padding: "0 11px", borderRadius: 99, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", background: savedFilter === k ? C.text : "transparent", border: `1px solid ${savedFilter === k ? C.text : C.border}`, color: savedFilter === k ? C.bg : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
+                      style={{ height: 32, minWidth: 40, padding: "0 11px", borderRadius: 99, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", background: savedFilter === k ? C.text : "transparent", border: `1px solid ${savedFilter === k ? C.text : C.border}`, color: savedFilter === k ? C.bg : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                       {n > 0 ? n : null}<IconEl size={15} />
                     </button>
                   )))}
                   <div style={{ flex: 1 }} />
                   {pool.length >= 2 && onCreateTournament && (
                     <button onClick={() => onCreateTournament(pool)} title={`Tạo giải đấu từ ${pool.length} mục đã lưu`} aria-label="Tạo giải đấu"
-                      style={{ height: 32, padding: "0 11px", borderRadius: 99, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 12.5 }}>
+                      style={{ height: 32, padding: "0 11px", borderRadius: 99, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 12 }}>
                       {pool.length}<Trophy size={15} />
                     </button>
                   )}
@@ -16435,7 +16444,7 @@ function AuthGate({ onAuthed }) {
     <button
       onClick={() => socialSignIn(provider)}
       disabled={!!socialBusy}
-      style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "12px", marginBottom: 10, borderRadius: 12, cursor: socialBusy ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14.5, border: dark ? "none" : `1px solid ${C.border}`, background: dark ? "#000" : "#fff", color: dark ? "#fff" : "#1A1305", opacity: socialBusy && socialBusy !== provider ? 0.5 : 1 }}
+      style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "12px", marginBottom: 10, borderRadius: 12, cursor: socialBusy ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, border: dark ? "none" : `1px solid ${C.border}`, background: dark ? "#000" : "#fff", color: dark ? "#fff" : "#1A1305", opacity: socialBusy && socialBusy !== provider ? 0.5 : 1 }}
     >
       <BrandIcon provider={provider} /> {socialBusy === provider ? "Đang mở…" : label}
     </button>
@@ -16446,7 +16455,7 @@ function AuthGate({ onAuthed }) {
       {FONT_IMPORT}
       <div style={{ width: "100%", maxWidth: 400, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", boxSizing: "border-box" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <div style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 700, fontSize: 46, color: C.gold, lineHeight: 1 }}>Rankev</div>
+          <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 46, color: C.gold, lineHeight: 1 }}>Rankev</div>
           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>
             {mode === "login" ? "Đăng nhập để bình chọn & xếp hạng mọi thứ" : "Tạo tài khoản Rankev"}
           </div>
@@ -16475,19 +16484,19 @@ function AuthGate({ onAuthed }) {
         )}
         <input style={inputStyle} type="email" placeholder="Email" value={email} autoCapitalize="none" onChange={(e) => setEmail(e.target.value)} />
         <input style={inputStyle} type="password" placeholder="Mật khẩu" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
-        {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 13, margin: "2px 0 10px", lineHeight: 1.4 }}>{err}</div>}
+        {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 14, margin: "2px 0 10px", lineHeight: 1.4 }}>{err}</div>}
         <button onClick={submit} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1, marginTop: 2 }}>
           {busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Đăng ký"}
         </button>
 
         {/* Chuyển đăng nhập / đăng ký */}
-        <div style={{ textAlign: "center", marginTop: 18, fontFamily: bodyFont, fontSize: 13.5, color: C.textMuted }}>
+        <div style={{ textAlign: "center", marginTop: 18, fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>
           {mode === "login" ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
-          <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(null); }} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 800, fontSize: 13.5, cursor: "pointer", padding: 0 }}>
+          <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(null); }} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer", padding: 0 }}>
             {mode === "login" ? "Đăng ký" : "Đăng nhập"}
           </button>
         </div>
-        <div style={{ textAlign: "center", marginTop: 16, fontFamily: bodyFont, fontSize: 11, color: C.textFaint, lineHeight: 1.5 }}>
+        <div style={{ textAlign: "center", marginTop: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
           Bằng việc tiếp tục, bạn đồng ý với Điều khoản & Chính sách bảo mật của Rankev.
         </div>
       </div>
@@ -16579,8 +16588,8 @@ function RankieRefPreview({ item }) {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
         <MessageCircle size={16} color={C.teal} style={{ marginTop: 2, flexShrink: 0 }} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text || item.label}</div>
-          <div style={{ fontFamily: monoFont, fontSize: 11, color: C.textFaint, marginTop: 2 }}>▲ {fmt(p.rankUp || 0)} · ▼ {fmt(p.rankDown || 0)}{p.user ? " · " + p.user : ""}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text || item.label}</div>
+          <div style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint, marginTop: 2 }}>▲ {fmt(p.rankUp || 0)} · ▼ {fmt(p.rankDown || 0)}{p.user ? " · " + p.user : ""}</div>
         </div>
       </div>
     );
@@ -16590,7 +16599,7 @@ function RankieRefPreview({ item }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
       <div style={{ width: 34, height: 34, borderRadius: 9, background: C.surfaceRaised, display: "grid", placeItems: "center", flexShrink: 0 }}><TypeIcon size={16} color={C.text} /></div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{fmtCompact(p.participants || 0)} tham gia · {fmt(p.comments || 0)} bình luận</div>
       </div>
     </div>
@@ -16624,7 +16633,7 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={onCancel} style={{ flex: 1, padding: 12, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Hủy</button>
-              <button onClick={onConfirm} style={{ flex: 2, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🔖 Lưu</button>
+              <button onClick={onConfirm} style={{ flex: 2, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🔖 Lưu</button>
             </div>
           </div>
         </div>
@@ -16637,13 +16646,13 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
               <button onClick={() => setBasketOpen(false)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={18} /></button>
             </div>
             {basket.length === 0 ? (
-              <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, textAlign: "center", padding: "18px 0" }}>Chưa có gì. Nhấn-giữ vào bài viết, người dùng hoặc bình luận để lưu.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, textAlign: "center", padding: "18px 0" }}>Chưa có gì. Nhấn-giữ vào bài viết, người dùng hoặc bình luận để lưu.</div>
             ) : (
               <>
                 {/* Tìm kiếm trong giỏ */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", marginBottom: 12 }}>
                   <Search size={15} color={C.textFaint} />
-                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm trong giỏ…" style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 13.5 }} />
+                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm trong giỏ…" style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
                   {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 0 }}><X size={14} /></button>}
                 </div>
                 {/* Nhóm theo loại: Người dùng / Bài viết / Bình luận */}
@@ -16652,7 +16661,7 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
                   if (!items.length) return null;
                   return (
                     <div key={g.type} style={{ marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, letterSpacing: 0.4, textTransform: "uppercase", color: C.textFaint, marginBottom: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: "uppercase", color: C.textFaint, marginBottom: 6 }}>
                         <g.Icon size={13} /> {g.label} · {items.length}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -16666,11 +16675,11 @@ function RankieSaveOverlay({ pending, onConfirm, onCancel, basket, basketOpen, s
                     </div>
                   );
                 })}
-                {filtered.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "10px 0" }}>Không tìm thấy mục nào.</div>}
+                {filtered.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, textAlign: "center", padding: "10px 0" }}>Không tìm thấy mục nào.</div>}
               </>
             )}
             {basket.length >= 2 && onCreateTournament && (
-              <button onClick={() => onCreateTournament(basket)} style={{ width: "100%", marginTop: 6, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>🏆 Tạo giải đấu ({basket.length} đấu thủ)</button>
+              <button onClick={() => onCreateTournament(basket)} style={{ width: "100%", marginTop: 6, padding: 12, borderRadius: 12, background: C.gold, border: "none", color: "#231a05", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🏆 Tạo giải đấu ({basket.length} đấu thủ)</button>
             )}
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, textAlign: "center", marginTop: 14 }}>Khi tạo Rankie mới, bạn chọn các mục này làm lựa chọn.</div>
           </div>
@@ -16701,8 +16710,8 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", marginBottom: 10 }}>
           <Search size={15} color={C.textFaint} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm trong giỏ…" style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 13.5 }} />
-          {filtered.length > 0 && <button onClick={toggleAll} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{allShown ? "Bỏ chọn" : "Chọn tất cả"}</button>}
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm trong giỏ…" style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontFamily: bodyFont, fontSize: 14 }} />
+          {filtered.length > 0 && <button onClick={toggleAll} style={{ background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>{allShown ? "Bỏ chọn" : "Chọn tất cả"}</button>}
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
           {BASKET_GROUPS.map((g) => {
@@ -16710,7 +16719,7 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
             if (!items.length) return null;
             return (
               <div key={g.type} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, letterSpacing: 0.4, textTransform: "uppercase", color: C.textFaint, marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: "uppercase", color: C.textFaint, marginBottom: 6 }}>
                   <g.Icon size={13} /> {g.label} · {items.length}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -16728,9 +16737,9 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
               </div>
             );
           })}
-          {filtered.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, textAlign: "center", padding: "18px 0" }}>Không tìm thấy mục nào.</div>}
+          {filtered.length === 0 && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, textAlign: "center", padding: "18px 0" }}>Không tìm thấy mục nào.</div>}
         </div>
-        <button onClick={() => onAdd(selectedItems)} disabled={selectedItems.length === 0} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, background: selectedItems.length ? C.gold : C.surfaceRaised, border: "none", color: selectedItems.length ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: selectedItems.length ? "pointer" : "default" }}>Thêm {selectedItems.length || ""} mục làm lựa chọn</button>
+        <button onClick={() => onAdd(selectedItems)} disabled={selectedItems.length === 0} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, background: selectedItems.length ? C.gold : C.surfaceRaised, border: "none", color: selectedItems.length ? "#231a05" : C.textFaint, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: selectedItems.length ? "pointer" : "default" }}>Thêm {selectedItems.length || ""} mục làm lựa chọn</button>
       </div>
     </div>
   );
@@ -16840,9 +16849,9 @@ function OnbResultRow({ label, count, total, mine }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
     <div style={{ marginBottom: 9 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontFamily: bodyFont, fontSize: 13.5, marginBottom: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
         <span style={{ fontWeight: mine ? 800 : 600, color: mine ? C.gold : C.text }}>{label}{mine && " ✓"}</span>
-        <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums", fontSize: 12.5 }}>{pct}% · {count} người</span>
+        <span style={{ color: C.textMuted, fontVariantNumeric: "tabular-nums", fontSize: 12 }}>{pct}% · {count} người</span>
       </div>
       <div style={{ height: 8, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden" }}>
         <div style={{ height: "100%", width: pct + "%", borderRadius: 99, background: mine ? C.gold : "color-mix(in srgb, var(--teal) 65%, transparent)", transition: "width .5s cubic-bezier(.2,.7,.2,1)" }} />
@@ -16907,7 +16916,7 @@ function WheelColumn({ items, value, onChange, disabled, render }) {
       <div ref={ref} onScroll={onScroll} className="wheelcol" style={{ height: "100%", overflowY: "scroll", scrollSnapType: "y mandatory", scrollbarWidth: "none" }}>
         <div style={{ height: H * 2 }} />
         {items.map((it) => (
-          <div key={it} onClick={() => !disabled && onChange(it)} style={{ height: H, scrollSnapAlign: "center", display: "grid", placeItems: "center", cursor: disabled ? "default" : "pointer", fontFamily: bodyFont, fontSize: 17, fontWeight: it === value ? 800 : 500, color: it === value ? C.gold : C.textFaint }}>
+          <div key={it} onClick={() => !disabled && onChange(it)} style={{ height: H, scrollSnapAlign: "center", display: "grid", placeItems: "center", cursor: disabled ? "default" : "pointer", fontFamily: bodyFont, fontSize: 18, fontWeight: it === value ? 800 : 500, color: it === value ? C.gold : C.textFaint }}>
             {render ? render(it) : it}
           </div>
         ))}
@@ -16935,15 +16944,15 @@ function DobWheel({ value, onChange, disabled }) {
     <div style={{ display: "flex", gap: 6, border: `1.5px solid ${value ? C.gold : C.border}`, borderRadius: 14, background: C.surface, padding: "6px 10px", opacity: disabled ? 0.7 : 1 }}>
       <style>{`.wheelcol::-webkit-scrollbar{display:none}`}</style>
       <div style={{ flex: 1 }}>
-        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Ngày</div>
+        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Ngày</div>
         <WheelColumn items={days} value={parsed.d} onChange={(d) => set({ d })} disabled={disabled} />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Tháng</div>
+        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Tháng</div>
         <WheelColumn items={months} value={parsed.m} onChange={(m) => set({ m })} disabled={disabled} render={(v) => `Th ${v}`} />
       </div>
       <div style={{ flex: 1.3 }}>
-        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Năm</div>
+        <div style={{ textAlign: "center", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Năm</div>
         <WheelColumn items={years} value={parsed.y} onChange={(y) => set({ y })} disabled={disabled} />
       </div>
     </div>
@@ -16998,7 +17007,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   // Công tắc Ẩn/Công khai cho một field nhân khẩu học.
   const visToggle = (key) => (
     <button onClick={() => setVisible((v) => ({ ...v, [key]: !v[key] }))} title={visible[key] ? "Đang công khai — bấm để ẩn khỏi hồ sơ" : "Đang ẩn — bấm để công khai"}
-      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 11.5, border: `1px solid ${visible[key] ? C.border : C.gold}`, background: visible[key] ? "transparent" : C.goldSoft, color: visible[key] ? C.textFaint : C.gold }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 99, cursor: "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 12, border: `1px solid ${visible[key] ? C.border : C.gold}`, background: visible[key] ? "transparent" : C.goldSoft, color: visible[key] ? C.textFaint : C.gold }}>
       {visible[key] ? <><Eye size={12} /> Công khai</> : <><EyeOff size={12} /> Ẩn</>}
     </button>
   );
@@ -17008,7 +17017,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
     return p == null ? null : (
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, background: C.goldSoft, marginBottom: 12 }}>
         <span style={{ fontSize: 18 }}>🎯</span>
-        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text }}><b style={{ color: C.gold, fontWeight: 800 }}>{p}%</b> người dùng {noun} giống bạn</span>
+        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text }}><b style={{ color: C.gold, fontWeight: 700 }}>{p}%</b> người dùng {noun} giống bạn</span>
       </div>
     );
   };
@@ -17032,15 +17041,15 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
           <div style={{ flex: 1, display: "flex", gap: 5 }}>
             {steps.map((_, i) => <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? C.gold : C.border, transition: "background .2s" }} />)}
           </div>
-          <button onClick={() => onDone()} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Bỏ qua</button>
+          <button onClick={() => onDone()} style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Bỏ qua</button>
         </div>
 
         <div key={s} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", animation: "popIn 0.25s ease" }}>
           {s === "intro" && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
-              <div style={{ fontFamily: displayFont, fontStyle: "italic", fontWeight: 700, fontSize: 40, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Mỗi lựa chọn của bạn là một lá phiếu — chọn xong sẽ thấy ngay cả cộng đồng đang nghĩ gì.</div>
+              <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 40, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 16, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Mỗi lựa chọn của bạn là một lá phiếu — chọn xong sẽ thấy ngay cả cộng đồng đang nghĩ gì.</div>
               <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 26, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Bắt đầu <ChevronRight size={18} /></button>
             </div>
           )}
@@ -17048,7 +17057,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
           {s === "theme" && (
             <div>
               <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Bạn thích giao diện nào hơn?</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Chọn thử — giao diện đổi ngay, rồi xem mọi người chọn gì.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 18 }}>Chọn thử — giao diện đổi ngay, rồi xem mọi người chọn gì.</div>
               <div style={{ display: "flex", gap: 12 }}>
                 {[{ id: "light", label: "Sáng", emoji: "☀️" }, { id: "dark", label: "Tối", emoji: "🌙" }].map((o) => {
                   const on = choice.theme === o.id;
@@ -17056,14 +17065,14 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                     <button key={o.id} disabled={busy} onClick={() => { setChoice((c) => ({ ...c, theme: o.id })); setTheme(o.id); submitVote("theme", [o.id]); }}
                       style={{ flex: 1, padding: "22px 10px", borderRadius: 16, cursor: "pointer", border: `2px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, textAlign: "center" }}>
                       <div style={{ fontSize: 34 }}>{o.emoji}</div>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text, marginTop: 6 }}>{o.label}</div>
+                      <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, marginTop: 6 }}>{o.label}</div>
                     </button>
                   );
                 })}
               </div>
               {revealed.theme && (
                 <div style={{ marginTop: 20, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, animation: "popIn .3s ease" }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cả cộng đồng chọn</div>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cả cộng đồng chọn</div>
                   {[{ id: "light", label: "☀️ Sáng" }, { id: "dark", label: "🌙 Tối" }].map((o) => (
                     <OnbResultRow key={o.id} label={o.label} count={stats.theme?.counts?.[o.id] || 0} total={stats.theme?.voters || 0} mine={choice.theme === o.id} />
                   ))}
@@ -17076,7 +17085,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
           {s === "type" && (
             <div>
               <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Bạn thích dạng nội dung nào?</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 16 }}>Chọn nhiều cũng được — mỗi loại là một kiểu "rank everything".</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 16 }}>Chọn nhiều cũng được — mỗi loại là một kiểu "rank everything".</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {ONB_TYPES.map((o) => {
                   const on = (choice.type || []).includes(o.id);
@@ -17087,7 +17096,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <Icon size={18} color={on ? C.gold : C.textMuted} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}>{o.label}</div>
+                          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>{o.label}</div>
                           <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{o.sub}</div>
                         </div>
                         <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : "transparent", border: `1.5px solid ${on ? C.gold : C.border}` }}>{on && <Check size={14} color="#231a05" strokeWidth={3} />}</span>
@@ -17099,7 +17108,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               </div>
               {revealed.type && (
                 <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, animation: "popIn .3s ease" }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng thích gì</div>
+                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng thích gì</div>
                   {ONB_TYPES.map((o) => (
                     <OnbResultRow key={o.id} label={o.label} count={stats.type?.counts?.[o.id] || 0} total={stats.type?.voters || 0} mine={(choice.type || []).includes(o.id)} />
                   ))}
@@ -17114,7 +17123,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
           {s === "rating" && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Ứng dụng Rankev đáng mấy sao?</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 20 }}>Ấn tượng đầu của bạn về Rankev — rồi xem mọi người chấm bao nhiêu.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 20 }}>Ấn tượng đầu của bạn về Rankev — rồi xem mọi người chấm bao nhiêu.</div>
               <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} disabled={busy || revealed.rating} onClick={() => { setChoice((c) => ({ ...c, rating: n })); submitVote("rating", [String(n)]); }} style={{ background: "none", border: "none", cursor: revealed.rating ? "default" : "pointer", padding: 2 }}>
@@ -17125,7 +17134,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               {revealed.rating && (
                 <div style={{ marginTop: 20, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, textAlign: "left", animation: "popIn .3s ease" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4 }}>Điểm cộng đồng</span>
+                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, textTransform: "uppercase", letterSpacing: 0.4 }}>Điểm cộng đồng</span>
                     {ratingAvg() && <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 20, color: C.gold }}>{ratingAvg()} ★</span>}
                   </div>
                   {[5, 4, 3, 2, 1].map((n) => (
@@ -17143,16 +17152,16 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text }}>Bạn sinh ngày nào?</div>
                 {visToggle("age")}
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Xem bao nhiêu người cùng độ tuổi với bạn. Bật <b>Ẩn</b> để không hiện trên hồ sơ.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 18 }}>Xem bao nhiêu người cùng độ tuổi với bạn. Bật <b>Ẩn</b> để không hiện trên hồ sơ.</div>
               <DobWheel value={choice.dob} onChange={(dob) => setChoice((c) => ({ ...c, dob }))} disabled={revealed.age} />
               {choice.dob && onbAge(choice.dob) != null && (
-                <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 8 }}>Bạn <b style={{ color: C.gold }}>{onbAge(choice.dob)} tuổi</b> · nhóm {onbAgeBucket(choice.dob)}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>Bạn <b style={{ color: C.gold }}>{onbAge(choice.dob)} tuổi</b> · nhóm {onbAgeBucket(choice.dob)}</div>
               )}
               {revealed.age && (
                 <div style={{ marginTop: 18, animation: "popIn .3s ease" }}>
                   {likeYouLine("age", "cùng độ tuổi")}
                   <div style={{ padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Phổ tuổi cộng đồng</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Phổ tuổi cộng đồng</div>
                     {statRows("age", ONB_AGE_BUCKETS)}
                   </div>
                 </div>
@@ -17160,7 +17169,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               {!revealed.age
                 ? <button onClick={() => submitDemo({ dob: choice.dob, visible: { age: visible.age } }, "age")} disabled={busy || !choice.dob} style={{ ...primaryFull, opacity: choice.dob ? 1 : 0.5, cursor: choice.dob ? "pointer" : "default" }}>Xem người giống bạn →</button>
                 : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
-              {!revealed.age && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
+              {!revealed.age && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Bỏ qua</button>}
             </div>
           )}
 
@@ -17170,13 +17179,13 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text }}>Giới tính của bạn?</div>
                 {visToggle("gender")}
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 18 }}>Chọn xong xem bao nhiêu người giống bạn.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 18 }}>Chọn xong xem bao nhiêu người giống bạn.</div>
               <div style={{ display: "flex", gap: 10 }}>
                 {ONB_GENDERS.map((op) => {
                   const on = choice.gender === op;
                   return (
                     <button key={op} disabled={revealed.gender} onClick={() => setChoice((c) => ({ ...c, gender: op }))}
-                      style={{ flex: 1, padding: "14px 8px", borderRadius: 14, cursor: revealed.gender ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 15, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted }}>{op}</button>
+                      style={{ flex: 1, padding: "14px 8px", borderRadius: 14, cursor: revealed.gender ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 16, border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface, color: on ? C.gold : C.textMuted }}>{op}</button>
                   );
                 })}
               </div>
@@ -17184,7 +17193,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 <div style={{ marginTop: 18, animation: "popIn .3s ease" }}>
                   {likeYouLine("gender", "")}
                   <div style={{ padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng</div>
                     {statRows("gender", ONB_GENDERS)}
                   </div>
                 </div>
@@ -17192,7 +17201,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               {!revealed.gender
                 ? <button onClick={() => submitDemo({ gender: choice.gender, visible: { gender: visible.gender } }, "gender")} disabled={busy || !choice.gender} style={{ ...primaryFull, opacity: choice.gender ? 1 : 0.5, cursor: choice.gender ? "pointer" : "default" }}>Xem người giống bạn →</button>
                 : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
-              {!revealed.gender && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
+              {!revealed.gender && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Bỏ qua</button>}
             </div>
           )}
 
@@ -17202,7 +17211,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text }}>Bạn làm nghề gì?</div>
                 {visToggle("occupation")}
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 13.5, color: C.textFaint, marginBottom: 16 }}>Gõ để tìm — hoặc tự nhập nghề của bạn.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 16 }}>Gõ để tìm — hoặc tự nhập nghề của bạn.</div>
               {!revealed.occupation && (
                 <div style={{ position: "relative" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${choice.occupation ? C.gold : C.border}`, background: C.surface }}>
@@ -17210,8 +17219,8 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                     <input value={occQuery} placeholder={choice.occupation || "Tìm nghề nghiệp…"} onFocus={() => setOccOpen(true)}
                       onChange={(e) => { setOccQuery(e.target.value); setOccOpen(true); }}
                       onKeyDown={(e) => { if (e.key === "Enter" && occQuery.trim()) { setChoice((c) => ({ ...c, occupation: occQuery.trim() })); setOccOpen(false); } }}
-                      style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: C.text, fontFamily: bodyFont, fontSize: 15 }} />
-                    {choice.occupation && <span style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: C.gold }}>{choice.occupation}</span>}
+                      style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: C.text, fontFamily: bodyFont, fontSize: 16 }} />
+                    {choice.occupation && <span style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.gold }}>{choice.occupation}</span>}
                   </div>
                   {occOpen && (occQuery.trim() || true) && (() => {
                     const q = occQuery.trim().toLowerCase();
@@ -17227,7 +17236,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                           <button key={o} onClick={() => { setChoice((c) => ({ ...c, occupation: o })); setOccQuery(""); setOccOpen(false); }}
                             style={{ width: "100%", textAlign: "left", padding: "11px 14px", background: choice.occupation === o ? C.goldSoft : "transparent", border: "none", borderBottom: `1px solid ${C.border}`, cursor: "pointer", fontFamily: bodyFont, fontSize: 14, color: C.text }}>{o}</button>
                         ))}
-                        {matches.length === 0 && !showCustom && <div style={{ padding: "11px 14px", fontFamily: bodyFont, fontSize: 13, color: C.textFaint }}>Gõ để tìm nghề…</div>}
+                        {matches.length === 0 && !showCustom && <div style={{ padding: "11px 14px", fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>Gõ để tìm nghề…</div>}
                       </div>
                     );
                   })()}
@@ -17237,7 +17246,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 <div style={{ marginTop: 4, animation: "popIn .3s ease" }}>
                   {likeYouLine("occupation", "cùng nghề")}
                   <div style={{ padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Nghề phổ biến nhất</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Nghề phổ biến nhất</div>
                     {statRows("occupation")}
                   </div>
                 </div>
@@ -17247,7 +17256,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                     <button onClick={() => { if (!occVal) return; setChoice((c) => ({ ...c, occupation: occVal })); setOccOpen(false); submitDemo({ occupation: occVal, visible: { occupation: visible.occupation } }, "occupation"); }} disabled={busy || !occVal} style={{ ...primaryFull, opacity: occVal ? 1 : 0.5, cursor: occVal ? "pointer" : "default" }}>Xem người giống bạn →</button>
                   ); })()
                 : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
-              {!revealed.occupation && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Bỏ qua</button>}
+              {!revealed.occupation && <button onClick={next} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, background: "transparent", border: "none", color: C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Bỏ qua</button>}
             </div>
           )}
 
@@ -17255,7 +17264,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 54, marginBottom: 8 }}>🎉</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 30, color: C.text, lineHeight: 1.1 }}>Giờ tới lượt bạn!</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 12, lineHeight: 1.5 }}>Tạo Rankie đầu tiên để mọi người bình chọn, hoặc khám phá cộng đồng trước.</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 16, color: C.textMuted, marginTop: 12, lineHeight: 1.5 }}>Tạo Rankie đầu tiên để mọi người bình chọn, hoặc khám phá cộng đồng trước.</div>
               <button onClick={() => onDone("create")} style={{ ...primaryButton, width: "100%", marginTop: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✍️ Tạo Rankie đầu tiên</button>
               <button onClick={() => onDone()} style={{ width: "100%", marginTop: 10, padding: 13, borderRadius: 12, background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Khám phá đã →</button>
             </div>
@@ -18995,7 +19004,7 @@ export default function RankevApp() {
       {notifOpen && <NotificationsPanel items={notifItems} onClose={() => setNotifOpen(false)} onOpenItem={onNotifClick} onOpenHandle={openAuthorByHandle} />}
       {seriesPickerPost && <SeriesPickerModal post={seriesPickerPost} mySeries={mySeries} onClose={() => setSeriesPickerPost(null)} onAdd={(sid, newName) => addPostToSeries(seriesPickerPost, sid, newName)} />}
       {toast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(24,20,12,0.96)", color: "#F5F1E6", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, maxWidth: "90%", textAlign: "center", boxShadow: "0 6px 20px rgba(0,0,0,0.35)" }}>
+        <div style={{ position: "fixed", left: "50%", bottom: 84, transform: "translateX(-50%)", zIndex: 9999, background: "rgba(24,20,12,0.96)", color: "#F5F1E6", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12, padding: "10px 16px", fontFamily: bodyFont, fontSize: 14, maxWidth: "90%", textAlign: "center", boxShadow: "0 6px 20px rgba(0,0,0,0.35)" }}>
           {toast}
         </div>
       )}
