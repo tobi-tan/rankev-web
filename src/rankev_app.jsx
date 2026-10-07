@@ -2964,6 +2964,7 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
               <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 5 }}>
                 Câu {qi + 1}{isExam ? ` · ${q.points || 0} điểm` : ""}
               </div>
+              <QuestionPic src={q.image} />
               <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{q.text}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 {sorted.map((o, i) => {
@@ -3380,14 +3381,8 @@ function EditPostModal({ post, onClose, onSave }) {
   const urlOK = (v) => (typeof v === "string" && /^(https?:|data:)/.test(v) ? v : undefined);
   const uploadInto = (apply) => {
     const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.onchange = () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
-      apply(URL.createObjectURL(file));
-      api.uploadImage(file, "image").then((res) => { if (res && res.url) apply(res.url); }).catch(() => {});
-    };
-    input.click();
+    void input; pickMediaUpload("image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime", apply); // sửa bài: ảnh / video / GIF
+    return;
   };
   const setOpt = (i, patch) => setOptions((prev) => prev.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
   const addOpt = () => setOptions((prev) => [...prev, { id: undefined, label: "", emoji: null, image: null }]);
@@ -3568,6 +3563,17 @@ const initialOf = (n) => (String(n || "?").trim().charAt(0) || "?").toUpperCase(
 const isVideoUrl = (u) => typeof u === "string" && (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(u) || /\/video\/upload\//.test(u) || /#rk-video$/.test(u));
 // Ảnh HOẶC video (tự nhận theo URL) — dùng cho ảnh bìa, ảnh lựa chọn, đấu thủ… Video: tự phát,
 // tắt tiếng, lặp, không điều khiển (như ảnh động); giữ nguyên style/objectFit của ảnh.
+// Ảnh / video / GIF của câu hỏi Survey-Exam — dùng chung ở MỌI màn (làm bài, kết quả, trình chiếu, lịch sử).
+function QuestionPic({ src, h = 200 }) {
+  if (!src) return null;
+  return <Pic src={src} style={{ display: "block", width: "100%", maxHeight: h, objectFit: "cover", borderRadius: 12, marginBottom: 10, background: C.surfaceRaised }} />;
+}
+// Đầu dòng đáp án: ảnh thu nhỏ nếu có, không thì emoji.
+function OptLead({ o }) {
+  if (o?.image) return <Pic src={o.image} style={{ width: 20, height: 20, borderRadius: 4, objectFit: "cover", verticalAlign: "-5px", marginRight: 6, display: "inline-block" }} />;
+  return o?.emoji ? o.emoji + " " : null;
+}
+
 function Pic({ src, alt = "", style, onError, ...rest }) {
   if (isVideoUrl(src)) {
     return <video src={src} autoPlay muted loop playsInline preload="metadata" style={style} onError={onError} {...rest} />;
@@ -3619,8 +3625,8 @@ function pickMediaUpload(accept, apply) {
   input.click();
 }
 
-function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClose, allowVideo = true }) {
-  const [tab, setTab] = useState(value.image ? (isGifUrl(value.image) ? "gif" : "media") : "emoji");
+function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClose, allowVideo = true, allowEmoji = true }) {
+  const [tab, setTab] = useState(value.image ? (isGifUrl(value.image) ? "gif" : "media") : allowEmoji ? "emoji" : "media");
   const [data, setData] = useState(EMOJI_DATA);
   const [group, setGroup] = useState(0);
   const [q, setQ] = useState("");
@@ -3654,7 +3660,7 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
         )}
       </div>
       <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
-        {tabBtn("emoji", <Smile size={20} />, "Emoji")}
+        {allowEmoji && tabBtn("emoji", <Smile size={20} />, "Emoji")}
         {tabBtn("media", allowVideo ? <span style={{ display: "flex", gap: 4 }}><ImageIcon size={20} /><Video size={20} /></span> : <ImageIcon size={20} />, allowVideo ? "Ảnh / Video" : "Ảnh")}
         {tabBtn("gif", <span style={{ border: "2px solid currentColor", borderRadius: 6, padding: "0 5px", fontSize: 12, letterSpacing: 0.5 }}>GIF</span>, "GIF")}
       </div>
@@ -8321,7 +8327,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         // Cảnh tương tác (Scene): ảnh nền + câu hỏi đè lên (Scene-Based Interaction).
         // Ảnh do người tạo gắn thủ công — không phụ thuộc AI.
         <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", marginBottom: 16, minHeight: interactive ? 0 : 150 }}>
-          <img src={q.sceneImage} alt="" style={interactive
+          <Pic src={q.sceneImage} style={interactive
             ? { width: "100%", height: "auto", display: "block" }
             : { width: "100%", display: "block", maxHeight: 260, objectFit: "cover" }} />
           <div style={{ position: "absolute", inset: 0, background: interactive
@@ -8756,6 +8762,7 @@ function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
                   {isSel && <Check size={11} strokeWidth={3} color="#1A1305" />}
                 </span>
               )}
+              {o.image && <Pic src={o.image} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />}
               <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                 <span style={{ color: showResults && graded ? resultBorder : C.text }}>{o.label}</span>
                 {showGradeIcon && (
@@ -8856,7 +8863,7 @@ function DeckResultsDashboard({ deck }) {
                         <div key={o.id}>
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
                             <span style={{ fontFamily: bodyFont, fontSize: 14, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
+                              {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}<OptLead o={o} />{o.label}
                             </span>
                             <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{o.count} · {pct}%</span>
                           </div>
@@ -8957,7 +8964,7 @@ function DeckCardResultPreview({ deck }) {
                     <div key={o.id}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
                         <span style={{ fontFamily: bodyFont, fontSize: 12, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}{o.emoji ? o.emoji + " " : ""}{o.label}
+                          {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}<OptLead o={o} />{o.label}
                         </span>
                         <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.count)} · {pct}%</span>
                       </div>
@@ -9137,6 +9144,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
               {deck.questions.map((q, i) => (
                 <div key={q.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+                  <QuestionPic src={q.image} />
                   <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 8 }}>
                     {i + 1}. {q.text}
                     {deck.deckMode === "exam" && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points || 1}đ)</span>}
@@ -9412,6 +9420,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                               <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint }}>Câu {qi + 1}</span>
                               <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: correct ? C.teal : C.coral }}>{correct ? "✓ Đúng" : "✗ Sai"} · {s.correctRate}% làm đúng</span>
                             </div>
+                            <QuestionPic src={q.image} />
                             <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, marginBottom: 10, lineHeight: 1.3 }}>{q.text}</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                               {q.options.map((o, oi) => {
@@ -9497,6 +9506,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                     <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
                       Câu {qi + 1} · {q.votingType === "multiple" ? "Chọn nhiều" : q.votingType === "rating" ? "Đánh giá" : "Chọn một"}
                     </div>
+                    <QuestionPic src={q.image} />
                     <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>{q.text}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                       {sortedQ.map((o) => {
@@ -9506,7 +9516,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                           <div key={o.id}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5, fontFamily: bodyFont, fontSize: 14 }}>
                               <span style={{ color: mine ? C.gold : C.text, fontWeight: mine ? 700 : 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {o.emoji ? o.emoji + " " : ""}{o.label}{mine ? " · bạn chọn" : ""}
+                                <OptLead o={o} />{o.label}{mine ? " · bạn chọn" : ""}
                               </span>
                               <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.votes)} · {pct}%</span>
                             </div>
@@ -9540,6 +9550,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               const { correct, earned, max } = scoreQuestion(q);
               return (
                 <div key={q.id} style={{ background: C.surface, border: `1px solid ${deck.deckMode === "exam" ? (correct ? "color-mix(in srgb, var(--teal) 33%, transparent)" : "color-mix(in srgb, var(--coral) 33%, transparent)") : C.border}`, borderRadius: 14, padding: 14 }}>
+                  <QuestionPic src={q.image} />
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
                     <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, flex: 1 }}>
                       {i + 1}. {q.text}
@@ -9610,6 +9621,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 18 }}>
           Câu {stepIdx + 1} / {deck.questions.length}
         </div>
+        {q.image && <Pic src={q.image} style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 14, marginBottom: 14, background: C.surfaceRaised }} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 20, color: C.text, marginBottom: 20, lineHeight: 1.3 }}>
           {q.text}
         </div>
@@ -9654,6 +9666,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {deck.questions.map((q, i) => (
           <div key={q.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
+            {q.image && <Pic src={q.image} style={{ display: "block", width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 12, marginBottom: 10, background: C.surfaceRaised }} />}
             <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 12 }}>
               {i + 1}. {q.text}
             </div>
@@ -9903,6 +9916,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
     return (
       <div key={q.id} style={box}>
         <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}</div>
+        <QuestionPic src={q.image} />
         <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
         {q.votingType === "text" ? (
           <div style={{ ...input, marginTop: 0, minHeight: 44, whiteSpace: "pre-wrap", color: myArr[0] ? C.text : C.textFaint }}>{myArr[0] || "(bỏ trống)"}</div>
@@ -9920,7 +9934,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
               return (
                 <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, border: `1.5px solid ${border}`, background: bg, color: C.text, fontFamily: bodyFont, fontSize: 14 }}>
                   <span style={{ width: 18, height: 18, borderRadius: q.votingType === "multiple" ? 5 : 99, border: `2px solid ${picked ? (reveal ? border : C.gold) : C.border}`, background: picked ? (reveal ? border : C.gold) : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>{picked && <Check size={11} color="#1A1305" strokeWidth={3} />}</span>
-                  <span style={{ flex: 1 }}>{o.emoji ? o.emoji + " " : ""}{o.label}</span>
+                  <span style={{ flex: 1 }}><OptLead o={o} />{o.label}</span>
                   {mark}
                 </div>
               );
@@ -9985,6 +9999,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
             {(session.post?.questions || []).map((q, qi) => (
               <div key={q.id} style={box}>
                 <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}{q.votingType === "multiple" ? " · chọn nhiều" : ""}</div>
+                <QuestionPic src={q.image} />
                 <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
                 {q.votingType === "text" ? (
                   <textarea value={answers[q.id] || ""} onChange={(e) => setAns(q.id, e.target.value)} rows={3} placeholder="Nhập câu trả lời..." style={{ ...input, resize: "vertical", marginTop: 0 }} />
@@ -9997,7 +10012,7 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
                         <button key={o.id} onClick={() => (multi ? toggleMulti(q.id, o.id) : setAns(q.id, o.id))}
                           style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, border: `1.5px solid ${sel ? C.gold : C.border}`, background: sel ? C.goldSoft : C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
                           <span style={{ width: 20, height: 20, borderRadius: multi ? 5 : 99, border: `2px solid ${sel ? C.gold : C.border}`, background: sel ? C.gold : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>{sel && <Check size={12} color="#1A1305" strokeWidth={3} />}</span>
-                          {o.emoji ? o.emoji + " " : ""}{o.label}
+                          <OptLead o={o} />{o.label}
                         </button>
                       );
                     })}
@@ -10960,6 +10975,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                 <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
                   Câu {qi + 1} · {question.votingType === "multiple" ? "Chọn nhiều" : question.votingType === "rating" ? "Đánh giá" : "Chọn một"}
                 </div>
+                <QuestionPic src={question.image} />
                 <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>
                   {question.text}
                 </div>
@@ -11078,6 +11094,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 8 }}>
           Câu {qIdx + 1} / {deck.questions.length} · {deck.title}
         </div>
+        <QuestionPic src={q.image} />
         <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, marginBottom: 18, lineHeight: 1.25 }}>
           {q.text}
         </div>
@@ -11984,6 +12001,8 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Upload ảnh THẬT (Phần 6): mở file picker → preview ngay (optimistic) → POST /uploads/image
   // → thay bằng URL thật. Lỗi/offline → dùng ảnh SVG mock làm fallback.
   const pickAndUpload = (apply, kind = "image", fallbackSvg = null) => {
+    // Ảnh cảnh Path / ảnh lựa chọn… nhận cả VIDEO + GIF (Pic tự phát video).
+    if (kind !== "marker") { void fallbackSvg; pickMediaUpload("image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime", apply); return; }
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -12091,6 +12110,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
 
   const updateDeckQ = (qi, patch) =>
     setDeckQuestions((prev) => prev.map((q, i) => (i === qi ? { ...q, ...patch } : q)));
+  const [deckMediaFor, setDeckMediaFor] = useState(null); // { qi, oi|null } — đang đính kèm cho câu hỏi / đáp án
   const updateDeckOpt = (qi, oi, patch) =>
     setDeckQuestions((prev) =>
       prev.map((q, i) => i === qi ? { ...q, options: q.options.map((o, j) => j === oi ? (typeof patch === "string" ? { ...o, label: patch } : { ...o, ...patch }) : o) } : q)
@@ -12162,6 +12182,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
         votingType: q.votingType,
         points: deckMode === "exam" ? (q.points || 1) : 1,
         answerKey: deckMode === "exam" && q.votingType === "text" ? (q.answerKey || "") : undefined,
+        image: q.image || null, // ảnh / video / GIF của câu hỏi
         options:
           q.votingType === "rating"
             ? [
@@ -12173,7 +12194,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
               ]
             : q.votingType === "text"
             ? []
-            : q.options.filter((o) => (o.label||"").trim()).map((o, oi) => ({ id: "o" + oi, label: o.label, votes: 0, correct: !!o.correct })),
+            : q.options.filter((o) => (o.label||"").trim() || o.image).map((o, oi) => ({ id: "o" + oi, label: o.label, image: o.image || null, votes: 0, correct: !!o.correct })),
       })),
     });
   };
@@ -12205,7 +12226,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Upload ảnh cho sticker "đã bình chọn".
   const mockUploadVoteMarker = () => {
     const svg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='${encodeURIComponent(C.gold)}'/><text x='40' y='48' font-size='28' text-anchor='middle' fill='white'>${voteMarker?.emoji || "⭐"}</text></svg>`;
-    pickAndUpload((url) => setVoteMarker({ emoji: voteMarker?.emoji || "⭐", image: url }), "image", svg);
+    pickAndUpload((url) => setVoteMarker({ emoji: voteMarker?.emoji || "⭐", image: url }), "marker", svg);
   };
 
   const canSubmit = title.trim() && opts.filter((o) => o.label.trim() || o.refId).length >= 2;
@@ -12840,7 +12861,7 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                       setPlacingHotspot(null);
                     }}
                   >
-                    <img src={q.sceneImage} alt="" style={{ width: "100%", height: "auto", display: "block" }} />
+                    <Pic src={q.sceneImage} style={{ width: "100%", height: "auto", display: "block" }} />
                     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.15)" }} />
                     {/* Marker các nút đã đặt vị trí */}
                     {q.answers.filter((a) => a.hotspot).map((a) => (
@@ -13189,6 +13210,21 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {deckMediaFor && deckQuestions[deckMediaFor.qi] && (() => {
+              const { qi, oi } = deckMediaFor;
+              const target = oi == null ? deckQuestions[qi] : deckQuestions[qi].options[oi];
+              if (!target) return null;
+              const apply = (patch) => (oi == null ? updateDeckQ(qi, patch) : updateDeckOpt(qi, oi, patch));
+              return (
+                <MediaPickerSheet allowEmoji={false}
+                  title={oi == null ? `Câu ${qi + 1}` : `Câu ${qi + 1} · phương án ${oi + 1}`}
+                  value={{ image: target.image }}
+                  onEmoji={() => {}}
+                  onMedia={(url) => apply({ image: url })}
+                  onClear={() => apply({ image: null })}
+                  onClose={() => setDeckMediaFor(null)} />
+              );
+            })()}
             {deckQuestions.map((q, qi) => (
               <div key={qi} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -13221,8 +13257,14 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                   )}
                 </div>
 
-                <input style={{ ...input, marginBottom: 8 }} placeholder="Nội dung câu hỏi"
-                  value={q.text} onChange={(e) => updateDeckQ(qi, { text: e.target.value })} />
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+                  <input style={{ ...input, flex: 1 }} placeholder="Nội dung câu hỏi"
+                    value={q.text} onChange={(e) => updateDeckQ(qi, { text: e.target.value })} />
+                  <button onClick={() => setDeckMediaFor({ qi, oi: null })} title="Ảnh / video / GIF cho câu hỏi" aria-label="Đính kèm cho câu hỏi"
+                    style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0, overflow: "hidden", padding: 0, display: "grid", placeItems: "center", border: `1px solid ${q.image ? C.gold : C.border}`, background: C.surface, color: C.textMuted, cursor: "pointer" }}>
+                    {q.image ? <Pic src={q.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Paperclip size={16} />}
+                  </button>
+                </div>
 
                 {/* voting type — dropdown, same options family for both Survey and Exam */}
                 <select
@@ -13285,6 +13327,10 @@ Thời lượng mở bình chọn (giờ:phút). Bỏ trống = không giới h�
                           value={o.label}
                           onChange={(e) => updateDeckOpt(qi, oi, e.target.value)}
                         />
+                        <button onClick={() => setDeckMediaFor({ qi, oi })} title="Ảnh / video / GIF cho đáp án" aria-label={`Đính kèm cho phương án ${oi + 1}`}
+                          style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, overflow: "hidden", padding: 0, display: "grid", placeItems: "center", border: `1px solid ${o.image ? C.gold : C.border}`, background: C.surface, color: C.textMuted, cursor: "pointer" }}>
+                          {o.image ? <Pic src={o.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Paperclip size={14} />}
+                        </button>
                         {q.options.length > 2 && (
                           <button onClick={() => removeDeckOpt(qi, oi)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", padding: 4, flexShrink: 0 }}>
                             <X size={13} />
@@ -13634,7 +13680,7 @@ function ChatPollCard({ msg, onVote }) {
             <button key={i} onClick={() => onVote?.(msg.id, i)} style={{ position: "relative", textAlign: "left", border: `1px solid ${mine ? C.gold : C.border}`, borderRadius: 9, overflow: "hidden", cursor: "pointer", background: C.surfaceRaised, padding: 0 }}>
               <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: mine ? "rgba(231,188,85,.20)" : "rgba(95,201,168,.12)", transition: "width .3s" }} />
               <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 11px", fontFamily: bodyFont, fontSize: 14 }}>
-                <span style={{ color: C.text, fontWeight: mine ? 700 : 500 }}>{o.emoji ? o.emoji + " " : ""}{o.label}</span>
+                <span style={{ color: C.text, fontWeight: mine ? 700 : 500 }}><OptLead o={o} />{o.label}</span>
                 <span style={{ fontFamily: monoFont, fontSize: 12, color: C.textFaint }}>{pct}%</span>
               </div>
             </button>
@@ -16156,7 +16202,7 @@ function apiDeckToProto(d) {
     ...(d.sharesCount != null ? { shares: d.sharesCount } : {}),
     passingScore: d.passingScore, examDurationMinutes: d.examDurationMinutes,
     questions: (d.questions || []).map((q) => ({
-      id: q.id, text: q.text || "", votingType: q.votingType || "single", points: q.points || 0,
+      id: q.id, text: q.text || "", image: q.imageUrl || null, votingType: q.votingType || "single", points: q.points || 0,
       options: (q.options || []).map((o) => ({ id: o.id, label: o.label || "", emoji: o.emoji || undefined, image: o.imageUrl || null, votes: 0, correct: o.correct })),
     })),
     _api: true,
@@ -16251,6 +16297,7 @@ function protoToCreatePayload(item) {
   if (item.type === "deck") {
     const questions = (item.questions || []).map((q) => ({
       text: q.text || undefined,
+      imageUrl: urlOK(q.image),
       votingType: q.votingType || "single",
       points: item.deckMode === "exam" ? q.points || 0 : 0,
       options: (q.options || []).map((o) => ({ label: o.label || undefined, imageUrl: urlOK(o.image), correct: !!o.correct })),
