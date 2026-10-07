@@ -12,7 +12,7 @@ import {
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
   MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText,
-  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays,
+  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
 
@@ -2939,41 +2939,8 @@ function SessionDetailView({ session, post, onBack, onOpenPost }) {
 
         {/* === THỐNG KÊ: PHÂN BỐ THEO CÂU HỎI === */}
         {(isSurvey || (isExam && examTab === "stats")) && post?.questions?.map((q, qi) => {
-          const opts = q.options || [];
-          const dist = questionDist(qi, opts);
-          const qTotal = dist.reduce((s, o) => s + o.filteredVotes, 0) || 1;
-          const sorted = [...dist].sort((a, b) => b.filteredVotes - a.filteredVotes);
-          return (
-            <div key={q.id} style={{ ...detailBlock, marginBottom: 12 }}>
-              <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 5 }}>
-                Câu {qi + 1}{isExam ? ` · ${q.points || 0} điểm` : ""}
-              </div>
-              <QuestionPic src={q.image} />
-              <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{q.text}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                {sorted.map((o, i) => {
-                  const pct = Math.round((o.filteredVotes / qTotal) * 1000) / 10;
-                  const isTop = i === 0;
-                  const isCorrect = isExam && o.correct;
-                  const barColor = isCorrect ? C.teal : isTop ? palette[1] : palette[i % palette.length];
-                  return (
-                    <div key={o.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 14, marginBottom: 4 }}>
-                        <span style={{ color: isTop ? C.text : C.textMuted, fontWeight: isTop ? 700 : 400, display: "flex", alignItems: "center", gap: 5 }}>
-                          {isTop && "🥇 "}{o.label}
-                          {isCorrect && <Check size={13} color={C.teal} strokeWidth={3} />}
-                        </span>
-                        <span style={{ color: barColor, fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 12 }}>({fmt(o.filteredVotes)})</span></span>
-                      </div>
-                      <div style={{ height: 20, borderRadius: 7, background: C.surfaceRaised, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 7, transition: "width 0.5s cubic-bezier(.22,1,.36,1)" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
+          const dist = questionDist(qi, q.options || []);
+          return <ResultQuestion key={q.id} qi={qi} isExam={isExam} q={{ ...q, options: dist.map((o) => ({ ...o, count: o.filteredVotes })) }} />;
         })}
 
         {/* Path / Rankie — phân bố kết quả */}
@@ -8614,6 +8581,94 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
 
 // ---------- DECK (multi-question survey / future exam) ----------
 // One question inside a Deck. Handles single / multiple / rating, tracks its own answer.
+// ===== KẾT QUẢ SURVEY / EXAM — MỘT kiểu hiển thị cho MỌI màn =====
+// (vừa làm xong · chi tiết bài · đang trình chiếu · trình chiếu xong · xem lại phiên đã lưu)
+// Số đặt TRƯỚC icon; số phiếu dùng <VoteStat> (chạm đổi số ↔ %, đồng bộ toàn app).
+// Hàng đáp án: ✓ teal = đáp án đúng (Exam) · ✗ coral = bạn chọn sai · ✓ vàng = bạn chọn (Survey).
+function ResultSummary({ n = 0, isExam = false, avg10 = null, passCount = null, passing = 5, scores = [] }) {
+  const cell = (value, Icon, title, color = C.text) => (
+    <div title={title} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+      <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 20, color }}>{value}</span>
+      <Icon size={18} color={C.textMuted} />
+    </div>
+  );
+  return (
+    <div style={{ ...detailBlock, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        {cell(fmt(n), Users, "Người tham gia")}
+        {isExam && cell(avg10 ?? "—", BarChart3, "Điểm trung bình (thang 10)")}
+        {isExam && passCount != null && cell(fmt(passCount), CheckCircle2, `Số người đạt (≥ ${passing})`, C.teal)}
+      </div>
+      {isExam && scores.length > 0 && (
+        <div style={{ marginTop: 14 }} title="Phổ điểm 0–10">
+          <ScoreSpectrum scores={scores} passing={passing} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// q: { id, text, image, votingType, points, options:[{id,label,image,emoji,correct,count|votes}] }
+// tally (tuỳ chọn): { answered, counts:{optionId:n} } — số thật từ server; mine: id đáp án bạn chọn.
+function ResultQuestion({ q, qi, isExam = false, mine, tally, showCorrect = true, texts }) {
+  const mineIds = new Set(Array.isArray(mine) ? mine : mine != null && mine !== "" ? [mine] : []);
+  const opts = (q.options || []).map((o) => ({ ...o, count: tally?.counts?.[o.id] ?? o.count ?? o.votes ?? 0 }));
+  const answered = tally?.answered ?? q.answered ?? opts.reduce((s, o) => s + o.count, 0);
+  const top = Math.max(0, ...opts.map((o) => o.count));
+  const isText = q.votingType === "text";
+  return (
+    <div style={{ ...detailBlock, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.textFaint }}>
+        <span>Câu {qi + 1}{isExam && q.points ? ` · ${Math.round(q.points * 10) / 10}đ` : ""}</span>
+        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }} title="Số người trả lời câu này">{fmt(answered)} <Users size={12} /></span>
+      </div>
+      <QuestionPic src={q.image} />
+      <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{q.text}</div>
+      {isText ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(texts || []).slice(0, 20).map((t, i) => (
+            <div key={i} style={{ padding: "8px 12px", borderRadius: 10, background: C.surfaceRaised, fontFamily: bodyFont, fontSize: 14, color: C.text }}>{t}</div>
+          ))}
+          {mineIds.size > 0 && typeof mine === "string" && <div style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontSize: 14, color: C.text }}>{mine}</div>}
+          {!texts?.length && !(typeof mine === "string" && mine) && <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>{fmt(answered)} <MessageCircle size={14} /></div>}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {opts.map((o) => {
+            const isMine = mineIds.has(o.id);
+            const correct = isExam && showCorrect && !!o.correct;
+            const wrongPick = isExam && showCorrect && isMine && !o.correct;
+            const pct = answered > 0 ? (o.count / answered) * 100 : 0;
+            const fill = correct ? C.teal : wrongPick ? C.coral : isMine ? C.gold : o.count === top && top > 0 ? "color-mix(in srgb, var(--text) 55%, transparent)" : "color-mix(in srgb, var(--text) 28%, transparent)";
+            const badge = correct ? { bg: C.teal, Icon: Check } : wrongPick ? { bg: C.coral, Icon: X } : isMine ? { bg: C.gold, Icon: Check } : null;
+            return (
+              <div key={o.id}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: badge ? badge.bg : "transparent", border: badge ? "none" : `1.5px solid ${C.border}` }}>
+                    {badge && <badge.Icon size={11} strokeWidth={3} color="#fff" />}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 14, fontWeight: isMine || (o.count === top && top > 0) ? 600 : 400, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <OptLead o={o} />{o.label}
+                  </span>
+                  <VoteStat votes={o.count} total={answered} style={{ fontSize: 14, fontWeight: 600, color: C.text, flexShrink: 0 }} />
+                </div>
+                <div style={{ height: 6, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden", marginLeft: 26 }}>
+                  <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: fill, transition: "width .5s cubic-bezier(.22,1,.36,1)" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+// Gộp số đếm thật từ server (stats.questions) theo id câu.
+const tallyFor = (statsQuestions, qid) => {
+  const t = (statsQuestions || []).find((x) => x.id === qid);
+  return t ? { answered: t.answered, counts: Object.fromEntries((t.options || []).map((o) => [o.id, o.count])) } : null;
+};
+
 function DeckQuestion({ q, answer, onAnswer, showResults, graded }) {
   const total = q.options.reduce((s, o) => s + o.votes, 0) || 1;
 
@@ -8796,73 +8851,15 @@ function DeckResultsDashboard({ deck }) {
   const passCount = scores.filter((s) => s >= passing).length;
   const n = eff?.participants ?? 0;
 
+  const imgOf = (q) => (deck.questions || []).find((x) => x.id === q.id) || {};
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5 }}>KẾT QUẢ THỰC TẾ</div>
-        {real && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12, color: C.teal }}>
-            <span style={{ width: 6, height: 6, borderRadius: 99, background: C.teal, display: "inline-block" }} /> tự cập nhật
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", ...detailBlock, marginBottom: 12 }}>
-        <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.gold }}>{n}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã làm</div></div>
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>điểm TB</div></div></>}
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: "#4ADE80" }}>{passCount}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
-      </div>
-
-      {isExam && scores.length > 0 && (
-        <div style={{ ...detailBlock, marginBottom: 12 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phổ điểm (0–10)</div>
-          <ScoreSpectrum scores={scores} passing={passing} />
-        </div>
-      )}
-
-      {n === 0 ? (
-        <div style={{ ...detailBlock, textAlign: "center", padding: "20px 16px" }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>Chưa có ai làm bài.</div>
-          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>Chia sẻ bài hoặc mở phiên trình chiếu để thu kết quả.</div>
-        </div>
-      ) : (
-        <div style={{ ...detailBlock }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>Phân bố đáp án theo câu</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {(eff?.questions || []).map((q, qi) => (
-              <div key={q.id}>
-                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 8 }}>
-                  {qi + 1}. {q.text || "(câu hỏi)"}
-                  {isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points}đ)</span>}
-                </div>
-                {q.votingType === "text" ? (
-                  <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontStyle: "italic" }}>{q.answered} câu trả lời tự luận</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    {q.options.map((o) => {
-                      const pct = q.answered ? Math.round((o.count / q.answered) * 100) : 0;
-                      const barColor = o.correct ? C.teal : C.gold;
-                      return (
-                        <div key={o.id}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-                            <span style={{ fontFamily: bodyFont, fontSize: 14, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}<OptLead o={o} />{o.label}
-                            </span>
-                            <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{o.count} · {pct}%</span>
-                          </div>
-                          <div style={{ height: 7, borderRadius: 99, background: C.border, overflow: "hidden" }}>
-                            <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 99, transition: "width .4s ease" }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <ResultSummary n={n} isExam={isExam} avg10={eff?.avgScore ?? null} passCount={isExam ? passCount : null} passing={passing} scores={scores} />
+      {(eff?.questions || []).map((q, qi) => {
+        const full = imgOf(q);
+        return <ResultQuestion key={q.id} qi={qi} isExam={isExam}
+          q={{ ...q, image: full.image, options: (q.options || []).map((o) => ({ ...o, image: (full.options || []).find((x) => x.id === o.id)?.image })) }} />;
+      })}
     </div>
   );
 }
@@ -8913,60 +8910,12 @@ function DeckCardResultPreview({ deck }) {
   const questions = eff?.questions || [];
   const shownQ = questions.slice(0, 2);
   const moreQ = questions.length - shownQ.length;
-
   return (
-    <div style={{ ...detailBlock, marginBottom: 12 }}>
-      {/* Số liệu tổng hợp */}
-      <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", marginBottom: 12 }}>
-        <div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: C.gold }}>{fmt(n)}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đã làm</div></div>
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: C.text }}>{eff?.avgScore ?? "—"}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>điểm TB</div></div></>}
-        {isExam && <><div style={{ width: 1, background: C.border }} /><div><div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 20, color: "#4ADE80" }}>{fmt(passCount)}</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>đạt ≥{passing}</div></div></>}
-      </div>
-
-      {isExam && scores.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>Phổ điểm (0–10)</div>
-          <ScoreSpectrum scores={scores} passing={passing} />
-        </div>
-      )}
-
-      {/* Phân bố đáp án — chỉ vài câu đầu, còn lại gợi ý xem thêm */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {shownQ.map((q, qi) => (
-          <div key={q.id}>
-            <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 7 }}>
-              {qi + 1}. {q.text || "(câu hỏi)"}{isExam && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points}đ)</span>}
-            </div>
-            {q.votingType === "text" ? (
-              <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>{fmt(q.answered)} câu trả lời tự luận</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {q.options.map((o) => {
-                  const pct = q.answered ? Math.round((o.count / q.answered) * 100) : 0;
-                  return (
-                    <div key={o.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-                        <span style={{ fontFamily: bodyFont, fontSize: 12, color: o.correct ? C.teal : C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {o.correct && <Check size={12} style={{ marginRight: 3, verticalAlign: "-1px" }} />}<OptLead o={o} />{o.label}
-                        </span>
-                        <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.count)} · {pct}%</span>
-                      </div>
-                      <div style={{ height: 6, borderRadius: 99, background: C.border, overflow: "hidden" }}>
-                        <div style={{ width: `${pct}%`, height: "100%", background: o.correct ? C.teal : C.gold, borderRadius: 99 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
+    <div style={{ marginBottom: 12 }}>
+      <ResultSummary n={n} isExam={isExam} avg10={eff?.avgScore ?? null} passCount={isExam ? passCount : null} passing={passing} scores={scores} />
+      {shownQ.map((q, qi) => <ResultQuestion key={q.id} q={q} qi={qi} isExam={isExam} />)}
       {moreQ > 0 && (
-        <div style={{ marginTop: 10, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.gold }}>
-          + {moreQ} câu nữa · xem thêm →
-        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.gold }}>+{moreQ} <ChevronRight size={16} /></div>
       )}
     </div>
   );
@@ -9009,6 +8958,10 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
   // Dữ liệu THẬT từ backend cho deck API — thay grading local (client KHÔNG có cờ `correct`
   // do chống gian lận → luôn ra 0) và thay peer giả lập bằng thống kê thật.
   const sr = deck.deckMode === "exam" && serverResult && serverResult.score != null ? serverResult : null;
+  // Câu hỏi kèm cờ đúng/sai THẬT (server chỉ trả cho người đã nộp) — dùng để xem lại bài.
+  const reviewQs = sr?.correctOptionIds
+    ? deck.questions.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o, correct: (sr.correctOptionIds[q.id] || []).includes(o.id) })) }))
+    : deck.questions;
   const realParticipants = serverStats && serverStats.participants != null ? serverStats.participants : null;
   // Server trả điểm THÔ (vd 15/20) → dùng bản quy về thang 10 (score10/avgScore10). Trước đây
   // coi điểm thô là thang 10 nên bài có tổng điểm ≠ 10 hiện sai (vd "15/10").
@@ -9089,7 +9042,6 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
   const isOwner = deck.mine || deck.author?.id === "me";
   const [ownerPreview, setOwnerPreview] = useState(false);
-  const [ownerShowQuestions, setOwnerShowQuestions] = useState(false);
 
   // INTRO
   if (!started) {
@@ -9103,9 +9055,8 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-                        <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
-            <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
-            {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
+            <span title="Số câu hỏi" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{deck.questionCount ?? deck.questions?.length ?? 0} <ListChecks size={15} /></span>
+            {deck.deckMode === "exam" && deck.passingScore != null && <span title="Điểm đạt" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>≥{deck.passingScore} <CheckCircle2 size={15} /></span>}
           </div>
           {(deck.caption || deck.media) && (
             <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={240} bleed />
@@ -9113,43 +9064,6 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
           {/* Bảng kết quả thật (tự cập nhật ~5s) — thay cho giao diện làm bài của khách. */}
           <DeckResultsDashboard deck={deck} />
-
-          <button
-            onClick={() => setOwnerShowQuestions((v) => !v)}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer", marginBottom: ownerShowQuestions ? 10 : 16 }}
-          >
-            <BarChart3 size={15} />
-            <span style={{ flex: 1, textAlign: "left" }}>Xem trước câu hỏi{deck.deckMode === "exam" ? " & đáp án đúng" : ""}</span>
-            <ChevronDown size={15} style={{ transform: ownerShowQuestions ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-          </button>
-
-          {ownerShowQuestions && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-              {deck.questions.map((q, i) => (
-                <div key={q.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                  <QuestionPic src={q.image} />
-                  <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 8 }}>
-                    {i + 1}. {q.text}
-                    {deck.deckMode === "exam" && <span style={{ marginLeft: 6, color: C.textFaint, fontWeight: 400 }}>({q.points || 1}đ)</span>}
-                  </div>
-                  {q.votingType === "text" ? (
-                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, fontStyle: "italic" }}>
-                      Câu tự luận{q.answerKey ? ` · đáp án mẫu: ${q.answerKey}` : " · chưa có đáp án mẫu"}
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                      {q.options.map((o) => (
-                        <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, color: o.correct ? "#4ADE80" : C.textMuted }}>
-                          {o.correct ? <Check size={13} color="#4ADE80" /> : <span style={{ width: 13, display: "inline-block" }} />}
-                          {o.label}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {deck.deckMode !== "exam" && (
@@ -9200,9 +9114,8 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         {deck.author && <AuthorRow author={deck.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={deck} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{deck.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-                    <Pill tone="muted"><Users size={11} /> {fmt(deck.participants)}</Pill>
-          <Pill tone="muted">{deck.questionCount ?? deck.questions?.length ?? 0} câu</Pill>
-          {deck.deckMode === "exam" && deck.passingScore != null && <Pill tone="muted">Đạt ≥{deck.passingScore}</Pill>}
+          <span title="Số câu hỏi" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{deck.questionCount ?? deck.questions?.length ?? 0} <ListChecks size={15} /></span>
+          {deck.deckMode === "exam" && deck.passingScore != null && <span title="Điểm đạt" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>≥{deck.passingScore} <CheckCircle2 size={15} /></span>}
         </div>
         {(deck.caption || deck.media) && (
           <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={240} bleed />
@@ -9240,56 +9153,38 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                 <div style={{ animation: "popIn 0.4s ease", fontFamily: monoFont, fontWeight: 700, fontSize: 56, color: C.gold, lineHeight: 1 }}>
                   {score10}<span style={{ fontSize: 22, color: C.textFaint, fontWeight: 400 }}>/10</span>
                 </div>
-                {topPct != null ? (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
-                  </div>
-                ) : realParticipants != null ? (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "5px 14px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-                    <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>{fmt(realParticipants)} người đã làm</span>
-                  </div>
-                ) : null}
-                <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 10 }}>
-                  {beatPct != null ? (
-                    <>Bạn làm tốt hơn <strong style={{ color: C.text }}>{beatPct}%</strong> người tham gia</>
-                  ) : realParticipants != null && realParticipants > 1 && realAvg != null ? (
-                    <>{score10 === realAvg ? "Bạn đúng bằng mức trung bình cộng đồng" : score10 > realAvg ? "Bạn trên mức trung bình cộng đồng 🎉" : "Bạn dưới mức trung bình — thử lại nhé"}</>
-                  ) : (
-                    <>Hãy là một trong những người đầu tiên hoàn thành 🎯</>
+                {/* Chip gọn: TOP % · ĐẠT/CHƯA ĐẠT · số câu đúng — không câu chữ giải thích */}
+                <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                  {topPct != null && (
+                    <span title={beatPct != null ? `Hơn ${beatPct}% người tham gia` : undefined} style={{ padding: "5px 12px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
                   )}
+                  {deck.passingScore != null && (
+                    <span title={`Điểm đạt ≥ ${deck.passingScore}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 999, border: `1px solid ${score10 >= deck.passingScore ? C.teal : C.coral}`, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: score10 >= deck.passingScore ? C.teal : C.coral }}>
+                      {score10 >= deck.passingScore ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}{score10 >= deck.passingScore ? "ĐẠT" : "CHƯA ĐẠT"}
+                    </span>
+                  )}
+                  <span title="Số câu đúng" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 999, border: `1px solid ${C.border}`, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text }}>
+                    {correctCount}/{gradableCount} <CheckCircle2 size={14} color={C.teal} />
+                  </span>
                 </div>
-                {deck.passingScore != null && (
-                  <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: score10 >= deck.passingScore ? "#4ADE80" : C.coral, marginTop: 6 }}>
-                    {score10 >= deck.passingScore ? "✓ ĐẠT" : "CHƯA ĐẠT"} · {correctCount}/{gradableCount} câu đúng
-                  </div>
-                )}
               </div>
 
-              {/* SECTION 2 — So sánh cộng đồng: điểm TB + chênh lệch của bạn */}
-              <div style={{ ...detailBlock, marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left" }}>
-                <div>
-                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Điểm trung bình cộng đồng</div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: C.text, marginTop: 2 }}>{communityAvg}<span style={{ fontSize: 12, color: C.textFaint }}>/10</span></div>
+              {/* SECTION 2 — So sánh cộng đồng: một hàng số + icon (nghĩa ở tooltip) */}
+              <div style={{ ...detailBlock, marginTop: 16, display: "flex", alignItems: "center" }}>
+                <div title="Điểm trung bình cộng đồng (thang 10)" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 12, color: C.textFaint }}>TB</span>
+                  <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 20, color: C.text }}>{communityAvg}</span>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>Chênh lệch của bạn</div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 22, color: diffFromAvg >= 0 ? "#4ADE80" : C.coral, marginTop: 2 }}>
-                    {diffFromAvg >= 0 ? "+" : ""}{diffFromAvg}
-                  </div>
+                <div title="Chênh lệch so với trung bình" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 20, color: diffFromAvg >= 0 ? C.teal : C.coral }}>{diffFromAvg >= 0 ? "+" : ""}{diffFromAvg}</span>
+                  {diffFromAvg >= 0 ? <TrendingUp size={18} color={C.teal} /> : <TrendingDown size={18} color={C.coral} />}
                 </div>
-              </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8, textAlign: "center" }}>
-                {diffFromAvg === 0
-                  ? "Bạn bằng điểm trung bình cộng đồng"
-                  : diffFromAvg > 0
-                  ? `Bạn cao hơn trung bình ${Math.abs(diffFromAvg)} điểm 🎉`
-                  : `Bạn thấp hơn trung bình ${Math.abs(diffFromAvg)} điểm — thử lại để cải thiện nhé`}
               </div>
 
               {/* SECTION 3 — Histogram phân bố điểm + vị trí của bạn (thay xếp loại A–F) */}
               <div style={{ ...detailBlock, marginTop: 16, textAlign: "left" }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.textMuted, marginBottom: 14 }}>
-                  Phân bố điểm · {fmt(allScores.length)} người đã thi
+                <div title="Phân bố điểm 0–10" style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted, marginBottom: 14 }}>
+                  <BarChart3 size={16} /> <span style={{ marginLeft: "auto" }}>{fmt(allScores.length)}</span> <Users size={14} />
                 </div>
                 {(() => {
                   const maxCount = Math.max(...scoreDistribution.map((b) => b.count), 1);
@@ -9359,11 +9254,17 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
 
                 {showAnalysis && (() => {
                   const seed = sdHash(deck.id || deck.title || "exam");
-                  const stats = deck.questions.map((q) => ({ q, s: examQuestionStats(q, seed) }));
+                  // Tỉ lệ làm đúng THẬT từ phân bố đáp án của server; bài mẫu mới dùng số minh hoạ.
+                  const stats = reviewQs.map((q) => {
+                    const t = tallyFor(serverStats?.questions, q.id);
+                    if (!t) return { q, s: isUuid(deck.id) ? null : examQuestionStats(q, seed) };
+                    const cIds = q.options.filter((o) => o.correct).map((o) => o.id);
+                    if (!cIds.length || !t.answered || q.votingType === "text") return { q, s: null };
+                    return { q, s: { correctRate: Math.round((cIds.reduce((a, id) => a + (t.counts[id] || 0), 0) / t.answered) * 100) } };
+                  });
                   const graded = stats.filter((x) => x.s);
                   const hardest = graded.length ? graded.reduce((a, b) => (b.s.correctRate < a.s.correctRate ? b : a)) : null;
                   const easiest = graded.length ? graded.reduce((a, b) => (b.s.correctRate > a.s.correctRate ? b : a)) : null;
-                  const optLetter = (i) => String.fromCharCode(65 + i);
                   return (
                     <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
                       {/* Thống kê đề */}
@@ -9390,51 +9291,6 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                         </div>
                       )}
 
-                      {/* Phân tích từng câu */}
-                      {stats.map(({ q, s }, qi) => {
-                        if (!s) return null;
-                        const myA = answers[q.id];
-                        const myIdx = q.options.findIndex((o) => (Array.isArray(myA) ? myA.includes(o.id) : myA === o.id));
-                        const correct = myIdx === s.correctIdx;
-                        const rare = myIdx >= 0 && s.dist[myIdx] < 15;
-                        return (
-                          <div key={q.id} style={{ ...cardSurface, border: `1px solid ${correct ? "color-mix(in srgb, var(--teal) 33%, transparent)" : "color-mix(in srgb, var(--coral) 33%, transparent)"}` }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                              <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint }}>Câu {qi + 1}</span>
-                              <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: correct ? C.teal : C.coral }}>{correct ? "✓ Đúng" : "✗ Sai"} · {s.correctRate}% làm đúng</span>
-                            </div>
-                            <QuestionPic src={q.image} />
-                            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, marginBottom: 10, lineHeight: 1.3 }}>{q.text}</div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              {q.options.map((o, oi) => {
-                                const isCorrect = oi === s.correctIdx;
-                                const isMine = oi === myIdx;
-                                return (
-                                  <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: isCorrect ? C.teal : isMine ? C.coral : C.textFaint, width: 14 }}>{optLetter(oi)}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 12, marginBottom: 2 }}>
-                                        <span style={{ color: isCorrect ? C.teal : isMine ? C.coral : C.textMuted, fontWeight: isCorrect || isMine ? 700 : 400 }}>
-                                          {o.label}{isCorrect ? " ✓" : ""}{isMine && !isCorrect ? " · bạn chọn" : ""}
-                                        </span>
-                                        <span style={{ fontFamily: monoFont, color: C.textFaint }}>{s.dist[oi]}%</span>
-                                      </div>
-                                      <div style={{ height: 5, borderRadius: 3, background: C.surfaceRaised, overflow: "hidden" }}>
-                                        <div style={{ height: "100%", width: `${s.dist[oi]}%`, background: isCorrect ? C.teal : isMine ? C.coral : C.border, borderRadius: 3 }} />
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {rare && (
-                              <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 12, color: C.gold, background: C.goldSoft, borderRadius: 8, padding: "6px 10px" }}>
-                                💡 Chỉ {s.dist[myIdx]}% người tham gia chọn giống bạn — một lựa chọn hiếm gặp!
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
                     </div>
                   );
                 })()}
@@ -9450,72 +9306,19 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           ) : null}
         </div>
 
-        {deck.deckMode !== "exam" && (() => {
-          const palette = [C.teal, C.gold, C.coral, "#8B7FD1", "#6B4E43"];
-          const totalResponses = deck.questions.reduce((sum, q) => {
-            const myA = answers[q.id];
-            const isMine = (id) => (Array.isArray(myA) ? myA.includes(id) : myA === id);
-            return sum + q.options.reduce((a, o) => a + o.votes + (isMine(o.id) ? 1 : 0), 0);
-          }, 0);
-          return (
-            <>
-              {/* Tổng quan — kiểu màn kết quả phiên trình chiếu */}
-              <div style={{ ...detailBlock, marginBottom: 16, display: "flex", justifyContent: "space-around", textAlign: "center" }}>
-                <div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.gold }}>{fmt(deck.participants + 1)}</div>
-                  <div style={{ ...captionText, marginTop: 3 }}>người tham gia</div>
-                </div>
-                <div style={{ width: 1, background: C.border }} />
-                <div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.teal }}>{fmt(totalResponses)}</div>
-                  <div style={{ ...captionText, marginTop: 3 }}>lượt trả lời</div>
-                </div>
-                <div style={{ width: 1, background: C.border }} />
-                <div>
-                  <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 26, color: C.text }}>{deck.questions.length}</div>
-                  <div style={{ ...captionText, marginTop: 3 }}>câu hỏi</div>
-                </div>
-              </div>
-
-              {deck.questions.map((q, qi) => {
-                const myA = answers[q.id];
-                const isMine = (id) => (Array.isArray(myA) ? myA.includes(id) : myA === id);
-                // Cộng lượt chọn của CHÍNH BẠN vào phân bố để số liệu phản ánh cả bạn.
-                const augOpts = q.options.map((o) => ({ ...o, votes: o.votes + (isMine(o.id) ? 1 : 0) }));
-                const qTotal = augOpts.reduce((s, o) => s + o.votes, 0) || 1;
-                const sortedQ = [...augOpts].sort((a, b) => b.votes - a.votes);
-                return (
-                  <div key={q.id} style={{ ...detailBlock, marginBottom: 12 }}>
-                    <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
-                      Câu {qi + 1} · {q.votingType === "multiple" ? "Chọn nhiều" : q.votingType === "rating" ? "Đánh giá" : "Chọn một"}
-                    </div>
-                    <QuestionPic src={q.image} />
-                    <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>{q.text}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                      {sortedQ.map((o) => {
-                        const pct = Math.round((o.votes / qTotal) * 1000) / 10;
-                        const mine = isMine(o.id);
-                        return (
-                          <div key={o.id}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5, fontFamily: bodyFont, fontSize: 14 }}>
-                              <span style={{ color: mine ? C.gold : C.text, fontWeight: mine ? 700 : 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                <OptLead o={o} />{o.label}{mine ? " · bạn chọn" : ""}
-                              </span>
-                              <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: C.textMuted, flexShrink: 0 }}>{fmt(o.votes)} · {pct}%</span>
-                            </div>
-                            <div style={{ height: 8, borderRadius: 99, background: C.border, overflow: "hidden" }}>
-                              <div style={{ height: "100%", width: `${pct}%`, background: mine ? C.gold : C.teal, borderRadius: 99, transition: "width 0.6s cubic-bezier(.22,1,.36,1)" }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          );
-        })()}
+        {deck.deckMode !== "exam" && (
+          <>
+            <ResultSummary n={realParticipants ?? (deck.participants || 0) + 1} />
+            {deck.questions.map((q, qi) => {
+              const mine = answers[q.id];
+              const t = tallyFor(serverStats?.questions, q.id);
+              const isMine = (id) => (Array.isArray(mine) ? mine.includes(id) : mine === id);
+              // Bài mẫu (chưa có số thật): cộng lượt chọn của bạn vào số phiếu mẫu.
+              const qq = t ? q : { ...q, options: q.options.map((o) => ({ ...o, votes: (o.votes || 0) + (isMine(o.id) ? 1 : 0) })) };
+              return <ResultQuestion key={q.id} q={qq} qi={qi} mine={mine} tally={t} />;
+            })}
+          </>
+        )}
 
         {deck.deckMode === "exam" && (
         <>
@@ -9529,25 +9332,9 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         </button>
         {showQuestionDetail && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 16 }}>
-            {deck.questions.map((q, i) => {
-              const { correct, earned, max } = scoreQuestion(q);
-              return (
-                <div key={q.id} style={{ background: C.surface, border: `1px solid ${deck.deckMode === "exam" ? (correct ? "color-mix(in srgb, var(--teal) 33%, transparent)" : "color-mix(in srgb, var(--coral) 33%, transparent)") : C.border}`, borderRadius: 14, padding: 14 }}>
-                  <QuestionPic src={q.image} />
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, flex: 1 }}>
-                      {i + 1}. {q.text}
-                    </div>
-                    {deck.deckMode === "exam" && (
-                      <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: correct ? C.teal : C.coral, flexShrink: 0 }}>
-                        {earned}/{max}đ
-                      </span>
-                    )}
-                  </div>
-                  <DeckQuestion q={q} answer={answers[q.id]} onAnswer={() => {}} showResults graded={deck.deckMode === "exam"} />
-                </div>
-              );
-            })}
+            {reviewQs.map((q, i) => (
+              <ResultQuestion key={q.id} q={q} qi={i} isExam mine={answers[q.id]} tally={tallyFor(serverStats?.questions, q.id)} />
+            ))}
           </div>
         )}
         </>
