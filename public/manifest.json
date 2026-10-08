@@ -4,7 +4,7 @@
   "description": "Rank Everything",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0D0A04",
+  "background_color": "#F4F1E8",
   "theme_color": "#D4A94A",
   "orientation": "portrait",
   "icons": [
