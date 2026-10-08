@@ -8610,27 +8610,34 @@ function ResultSummary({ n = 0, isExam = false, avg10 = null, passCount = null, 
 
 // q: { id, text, image, votingType, points, options:[{id,label,image,emoji,correct,count|votes}] }
 // tally (tuỳ chọn): { answered, counts:{optionId:n} } — số thật từ server; mine: id đáp án bạn chọn.
-function ResultQuestion({ q, qi, isExam = false, mine, tally, showCorrect = true, texts }) {
+// bare: chỉ các hàng đáp án (màn chiếu đã tự vẽ đầu câu hỏi) · hideCounts: không có số liệu (bài làm của bạn)
+// big: chữ lớn cho màn trình chiếu.
+function ResultQuestion({ q, qi, isExam = false, mine, tally, showCorrect = true, texts, bare = false, hideCounts = false, big = false }) {
   const mineIds = new Set(Array.isArray(mine) ? mine : mine != null && mine !== "" ? [mine] : []);
   const opts = (q.options || []).map((o) => ({ ...o, count: tally?.counts?.[o.id] ?? o.count ?? o.votes ?? 0 }));
   const answered = tally?.answered ?? q.answered ?? opts.reduce((s, o) => s + o.count, 0);
   const top = Math.max(0, ...opts.map((o) => o.count));
   const isText = q.votingType === "text";
+  const fs = big ? 16 : 14;
   return (
-    <div style={{ ...detailBlock, marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.textFaint }}>
-        <span>Câu {qi + 1}{isExam && q.points ? ` · ${Math.round(q.points * 10) / 10}đ` : ""}</span>
-        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }} title="Số người trả lời câu này">{fmt(answered)} <Users size={12} /></span>
-      </div>
-      <QuestionPic src={q.image} />
-      <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{q.text}</div>
+    <div style={bare ? undefined : { ...detailBlock, marginBottom: 12 }}>
+      {!bare && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.textFaint }}>
+            <span>Câu {qi + 1}{isExam && q.points ? ` · ${Math.round(q.points * 10) / 10}đ` : ""}</span>
+            {!hideCounts && <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }} title="Số người trả lời câu này">{fmt(answered)} <Users size={12} /></span>}
+          </div>
+          <QuestionPic src={q.image} />
+          <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{q.text}</div>
+        </>
+      )}
       {isText ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {(texts || []).slice(0, 20).map((t, i) => (
             <div key={i} style={{ padding: "8px 12px", borderRadius: 10, background: C.surfaceRaised, fontFamily: bodyFont, fontSize: 14, color: C.text }}>{t}</div>
           ))}
           {mineIds.size > 0 && typeof mine === "string" && <div style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontSize: 14, color: C.text }}>{mine}</div>}
-          {!texts?.length && !(typeof mine === "string" && mine) && <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>{fmt(answered)} <MessageCircle size={14} /></div>}
+          {!hideCounts && !texts?.length && !(typeof mine === "string" && mine) && <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>{fmt(answered)} <MessageCircle size={14} /></div>}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -8647,14 +8654,16 @@ function ResultQuestion({ q, qi, isExam = false, mine, tally, showCorrect = true
                   <span style={{ width: 18, height: 18, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: badge ? badge.bg : "transparent", border: badge ? "none" : `1.5px solid ${C.border}` }}>
                     {badge && <badge.Icon size={11} strokeWidth={3} color="#fff" />}
                   </span>
-                  <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 14, fontWeight: isMine || (o.count === top && top > 0) ? 600 : 400, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: fs, fontWeight: isMine || (!hideCounts && o.count === top && top > 0) ? 600 : 400, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     <OptLead o={o} />{o.label}
                   </span>
-                  <VoteStat votes={o.count} total={answered} style={{ fontSize: 14, fontWeight: 600, color: C.text, flexShrink: 0 }} />
+                  {!hideCounts && <VoteStat votes={o.count} total={answered} style={{ fontSize: fs, fontWeight: 600, color: C.text, flexShrink: 0 }} />}
                 </div>
-                <div style={{ height: 6, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden", marginLeft: 26 }}>
-                  <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: fill, transition: "width .5s cubic-bezier(.22,1,.36,1)" }} />
-                </div>
+                {!hideCounts && (
+                  <div style={{ height: big ? 10 : 6, borderRadius: 99, background: C.surfaceRaised, overflow: "hidden", marginLeft: 26 }}>
+                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: fill, transition: "width .5s cubic-bezier(.22,1,.36,1)" }} />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -9301,7 +9310,6 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
               <div style={{ animation: "popIn 0.4s ease", width: 56, height: 56, borderRadius: 99, background: C.goldSoft, border: `1px solid ${C.gold}`, display: "grid", placeItems: "center", margin: "0 auto 10px" }}>
                 <Check size={26} color={C.gold} />
               </div>
-              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted }}>Cảm ơn bạn đã tham gia khảo sát.</div>
             </div>
           ) : null}
         </div>
@@ -9681,38 +9689,9 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
   const isExam = session?.post?.deckMode === "exam";
   const renderReviewQuestion = (q, qi, reveal) => {
     const myAns = (result?.answers && result.answers[q.id] != null) ? result.answers[q.id] : answers[q.id];
-    const myArr = Array.isArray(myAns) ? myAns : myAns != null ? [myAns] : [];
     const correctIds = reveal && result?.correctByQuestion ? (result.correctByQuestion[q.id] || []) : null;
-    return (
-      <div key={q.id} style={box}>
-        <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 4 }}>Câu {qi + 1}</div>
-        <QuestionPic src={q.image} />
-        <div style={{ fontFamily: bodyFont, fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 12 }}>{q.text}</div>
-        {q.votingType === "text" ? (
-          <div style={{ ...input, marginTop: 0, minHeight: 44, whiteSpace: "pre-wrap", color: myArr[0] ? C.text : C.textFaint }}>{myArr[0] || "(bỏ trống)"}</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {(q.options || []).map((o) => {
-              const picked = myArr.includes(o.id);
-              const isCorrect = correctIds ? correctIds.includes(o.id) : false;
-              let border = C.border, bg = C.surfaceRaised, mark = null;
-              if (reveal) {
-                if (isCorrect) { border = C.teal; bg = `color-mix(in srgb, var(--teal) 9%, transparent)`; mark = <span style={{ color: C.teal, fontSize: 12, fontWeight: 700 }}>đúng</span>; }
-                if (picked && !isCorrect) { border = C.coral; bg = `color-mix(in srgb, var(--coral) 9%, transparent)`; mark = <span style={{ color: C.coral, fontSize: 12, fontWeight: 700 }}>bạn chọn</span>; }
-                else if (picked && isCorrect) { mark = <span style={{ color: C.teal, fontSize: 12, fontWeight: 700 }}>✓ bạn chọn</span>; }
-              } else if (picked) { border = C.gold; bg = C.goldSoft; }
-              return (
-                <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, border: `1.5px solid ${border}`, background: bg, color: C.text, fontFamily: bodyFont, fontSize: 14 }}>
-                  <span style={{ width: 18, height: 18, borderRadius: q.votingType === "multiple" ? 5 : 99, border: `2px solid ${picked ? (reveal ? border : C.gold) : C.border}`, background: picked ? (reveal ? border : C.gold) : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>{picked && <Check size={11} color="#1A1305" strokeWidth={3} />}</span>
-                  <span style={{ flex: 1 }}><OptLead o={o} />{o.label}</span>
-                  {mark}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+    const qq = { ...q, options: (q.options || []).map((o) => ({ ...o, correct: correctIds ? correctIds.includes(o.id) : false })) };
+    return <ResultQuestion key={q.id} q={qq} qi={qi} isExam={isExam} showCorrect={!!correctIds} mine={myAns} hideCounts />;
   };
 
   const wrap = { minHeight: "100vh", background: C.frame, display: "flex", justifyContent: "center" };
@@ -10506,29 +10485,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
                                 {isCorrect ? `+${pts}` : "0"}/{pts}đ
                               </span>
                             </div>
-                            {/* Show chosen vs correct with clear check/cross icons — standard quiz review convention */}
-                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                              {q.options.map((o) => {
-                                const chosen = ansArr.includes(o.id);
-                                const correct = o.correct;
-                                if (!chosen && !correct) return null;
-                                const wrongPick = chosen && !correct;
-                                const pillColor = wrongPick ? C.coral : C.teal;
-                                return (
-                                  <div key={o.id} style={{
-                                    display: "flex", alignItems: "center", gap: 8,
-                                    fontFamily: bodyFont, fontSize: 12, color: pillColor,
-                                    padding: "5px 10px", borderRadius: 8,
-                                    background: `${pillColor}14`, border: `1px solid ${pillColor}40`,
-                                  }}>
-                                    <span style={{ width: 16, height: 16, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: pillColor }}>
-                                      {wrongPick ? <X size={10} strokeWidth={3} color="#fff" /> : <Check size={10} strokeWidth={3} color="#fff" />}
-                                    </span>
-                                    <span>{o.label}{correct && !chosen ? " — đáp án đúng" : wrongPick ? " — bạn đã chọn" : ""}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                            <ResultQuestion bare hideCounts isExam q={q} qi={qi} mine={ansArr} />
                           </div>
                         );
                       })}
@@ -10735,42 +10692,9 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             </div>
           </div>
 
-          {/* Per-question results */}
-          {deck.questions.map((question, qi) => {
-            const qTotal = Object.values(counts[qi]).reduce((s, v) => s + v, 0) || 1;
-            const sortedQ = [...question.options].sort((a, b) => (counts[qi][b.id] || 0) - (counts[qi][a.id] || 0));
-            return (
-              <div key={question.id} style={{ ...cardSurface, marginBottom: 12 }}>
-                <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textFaint, marginBottom: 6 }}>
-                  Câu {qi + 1} · {question.votingType === "multiple" ? "Chọn nhiều" : question.votingType === "rating" ? "Đánh giá" : "Chọn một"}
-                </div>
-                <QuestionPic src={question.image} />
-                <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 14, lineHeight: 1.3 }}>
-                  {question.text}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {sortedQ.map((o, i) => {
-                    const v = counts[qi][o.id] || 0;
-                    const pct = Math.round((v / qTotal) * 1000) / 10;
-                    const isTop = i === 0;
-                    return (
-                      <div key={o.id}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontFamily: bodyFont, fontSize: 14 }}>
-                          <span style={{ color: isTop ? C.text : C.textMuted, fontWeight: isTop ? 700 : 500 }}>
-                            {isTop && "🥇 "}{o.label}
-                          </span>
-                          <span style={{ color: COLORS[i % 5], fontFamily: monoFont, fontWeight: 700 }}>{pct}% <span style={{ color: C.textFaint, fontWeight: 400, fontSize: 12 }}>({fmt(v)})</span></span>
-                        </div>
-                        <div style={{ height: 22, borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: COLORS[i % 5], borderRadius: 8, transition: "width 0.6s cubic-bezier(.22,1,.36,1)" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {deck.questions.map((question, qi) => (
+            <ResultQuestion key={question.id} q={question} qi={qi} tally={{ answered: Object.values(counts[qi]).reduce((t, v) => t + v, 0), counts: counts[qi] }} />
+          ))}
         </div>
 
         {/* Action panel — styled like Rankie session-end */}
@@ -10879,22 +10803,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
         {/* Results bars */}
         <div style={{ flex: 1 }}>
           {revealed ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {sortedOpts.map((o, i) => {
-                const pct = Math.round((qCounts[o.id] / total) * 1000) / 10;
-                return (
-                  <div key={o.id}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: bodyFont, fontSize: 16, marginBottom: 5 }}>
-                      <span style={{ color: C.text, fontWeight: 700 }}>{i === 0 ? "🥇 " : `#${i + 1} `}{o.label}</span>
-                      <span style={{ color: COLORS[i % 5], fontFamily: monoFont, fontWeight: 700 }}>{pct}%</span>
-                    </div>
-                    <div style={{ height: 26, borderRadius: 8, background: C.surfaceRaised, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${pct}%`, background: COLORS[i % 5], transition: "width 0.5s ease", borderRadius: 8 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <ResultQuestion bare big q={q} qi={qIdx} tally={{ answered: Object.values(qCounts).reduce((t, v) => t + v, 0), counts: qCounts }} />
           ) : (
             <div style={{ textAlign: "center", padding: "36px 20px", color: C.textMuted, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.6 }}>
               🙈 Kết quả đang ẩn.<br />Người tham gia đang trả lời qua QR.<br />Bấm "Hiện kết quả" khi sẵn sàng.
