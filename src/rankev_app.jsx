@@ -166,6 +166,9 @@ const FONT_IMPORT = (
     /* Màn giữ sẵn (KeepAlive) đang ẩn: content-visibility giữ nguyên layout đã tính → hiện lại ~3ms
        thay vì ~40ms dàn trang lại cả feed. Trình duyệt cũ không hỗ trợ → display:none như trước. */
     .rk-ka-off { display: none; }
+    @keyframes rkFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes rkSwIn { from { transform: scale(var(--k)); border-radius: 0; } to { transform: none; } }
+    .rk-mt-scroll::-webkit-scrollbar { display: none; }
     /* Thẻ feed ngoài màn hình: bỏ qua layout/paint → quay lại Bảng tin ~2× nhanh hơn. Menu nổi trong
        thẻ PHẢI dùng portal (createPortal) vì containment làm position:fixed bám theo thẻ. */
     .rk-feedlist > * { content-visibility: auto; contain-intrinsic-size: auto 560px; }
@@ -4119,31 +4122,11 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
 }
 
 // Reusable share button with "copied" feedback. Copies a link to the clipboard.
-function ShareButton({ link, label = "Chia sẻ" }) {
-  const [copied, setCopied] = useState(false);
-  const doShare = async () => {
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch {
-      // Clipboard may be blocked in sandboxed previews; the UI feedback still confirms intent.
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button
-      onClick={doShare}
-      style={{ background: "none", border: "none", color: copied ? C.teal : C.gold, cursor: "pointer", display: "flex", gap: 6, alignItems: "center", fontFamily: bodyFont, fontSize: 12, fontWeight: 600 }}
-    >
-      {copied ? <Check size={16} /> : <FbShareIcon size={16} color={C.gold} />} {copied ? "Đã sao chép!" : label}
-    </button>
-  );
-}
 
 // Nút hành động trên thanh tiêu đề của trang chi tiết Path/Survey/Exam — bố cục giống
 // hệt Rankie: "Trình chiếu" (teal) + "Chia sẻ" (gold) mở share sheet đầy đủ.
-function DetailHeaderActions({ item, onPresent, isOwner = false, participated = false, allowGuestPresent = false, onShareToProfile, contacts = [], onShared }) {
-  const [shareOpen, setShareOpen] = useState(false);
+// Thanh tiêu đề màn chi tiết: CHỈ nút trình chiếu. Chia sẻ nằm ở thanh tương tác (✈) như mọi nơi.
+function DetailHeaderActions({ onPresent, isOwner = false, participated = false, allowGuestPresent = false }) {
   const [lockMsg, setLockMsg] = useState(false);
   useEffect(() => {
     if (!lockMsg) return;
@@ -4171,16 +4154,10 @@ function DetailHeaderActions({ item, onPresent, isOwner = false, participated = 
           {locked ? <MonitorOff size={20} color={C.coral} /> : <Monitor size={20} color={C.teal} />}
         </button>
       )}
-      <button onClick={() => setShareOpen(true)} title="Chia sẻ" style={iconBtn}>
-        <FbShareIcon size={19} color={C.gold} />
-      </button>
       {lockMsg && (
         <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: C.surfaceRaised, border: `1px solid ${C.coral}`, borderRadius: 10, padding: "8px 12px", fontFamily: bodyFont, fontSize: 12, color: C.text, whiteSpace: "nowrap", boxShadow: "0 6px 20px rgba(0,0,0,0.4)", zIndex: 20 }}>
           {lockMsg}
         </div>
-      )}
-      {shareOpen && (
-        <ShareModal item={item} onClose={() => setShareOpen(false)} onShareToProfile={onShareToProfile} contacts={contacts} onShared={onShared} />
       )}
     </div>
   );
@@ -5374,10 +5351,24 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
       const w = e.clientWidth || 1;
       const j = Math.round(e.scrollLeft / w);
       if (Math.abs(e.scrollLeft - j * w) > 2) e.scrollTo({ left: j * w, behavior: "smooth" });
-      else setHIdx(j);
+      else { setHIdx(j); restoreH(j); }
     }, 140);
   };
-  const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
+  // Chạm vào carousel (TRƯỚC khi trượt) → nới khung ngay bằng slide cao nhất trong 3 slide kề
+  // (trước · hiện tại · sau). Trước đây khung giữ chiều cao slide cũ suốt lúc vuốt rồi mới giãn
+  // → thẻ trận bị cắt ngang ~0,4s, trông như "đang tải". Vuốt xong (settle) mới thu về đúng slide.
+  // Thu khung về đúng chiều cao slide đang đứng (sau khi vuốt xong / chạm mà không vuốt).
+  const restoreH = (j) => { const el = ref.current; const h = slideRefs.current[j]?.offsetHeight; if (el && h) { el.style.transition = "height .25s ease"; setBoxH(h); } };
+  const expandForSwipe = () => {
+    const hs = [idx - 1, idx, idx + 1].map((k) => slideRefs.current[k]?.offsetHeight || 0);
+    const h = Math.max(...hs);
+    if (h && ref.current && h > (ref.current.offsetHeight || 0)) { ref.current.style.transition = "none"; setBoxH(h); }
+    // chỉ chạm (không cuộn) → không có sự kiện scroll để thu lại → tự thu sau 700ms
+    clearTimeout(settleT.current);
+    settleT.current = setTimeout(() => { const e = ref.current; if (!e) return; const w = e.clientWidth || 1; const j = Math.round(e.scrollLeft / w); if (Math.abs(e.scrollLeft - j * w) <= 2) restoreH(j); }, 700);
+  };
+  useEffect(() => { if (ref.current) ref.current.style.transition = "height .25s ease"; }, [hIdx]);
+  const goto = (i) => { const el = ref.current; if (!el) return; const hs = [i, idx].map((k) => slideRefs.current[k]?.offsetHeight || 0); el.style.transition = "none"; setBoxH(Math.max(...hs)); el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
   const dot = (a) => ({ width: a ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: a ? C.gold : C.border, transition: "width .2s, background .2s" });
   const slideWrap = { flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" };
 
@@ -5422,7 +5413,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
     // Loại bài "Giải đấu" nằm trong dòng thông tin dưới tên (bỏ viên nhãn phía trên). Vạch ngăn
     // nằm dưới cả carousel (các slide bên trong bỏ vạch riêng — .rk-carousel).
     <div ref={wrapRef} className="rk-carousel" style={{ position: "relative", borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
-      <div ref={ref} onScroll={onScroll} style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none", height: boxH || "auto", transition: "height .25s ease" }}>
+      <div ref={ref} onScroll={onScroll} onTouchStart={expandForSwipe} onPointerDown={expandForSwipe} style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none", height: boxH || "auto" }}>
         <div ref={(el) => { slideRefs.current[0] = el; }} style={slideWrap}>{bracketSlide}</div>
         {shown.map((m, i) => <div key={`${m.round}-${m.position}`} ref={(el) => { slideRefs.current[i + 1] = el; }} style={slideWrap}>{matchSlide(m)}</div>)}
       </div>
@@ -6436,77 +6427,6 @@ function useChapterNav({ post, allSeries }) {
   return { series, chapterIdx };
 }
 
-// Bộ chuyển chapter kiểu "đa nhiệm" điện thoại — overlay toàn màn hình, thẻ preview
-// cuộn ngang scroll-snap giống app switcher iOS. Chỉ để LƯỚT XEM + NHẢY THẲNG; đổi
-// tên/xoá/sắp xếp lại vẫn nằm ở SeriesView (mở qua nút quản lý góc phải).
-function ChapterSwitcher({ series, currentIdx, participatedKeys, resultData, onSelect, onManage, onClose }) {
-  const { liveOptions, votedMap, participationByKey } = resultData || {};
-  const scrollRef = useRef(null);
-  useEffect(() => {
-    const el = scrollRef.current;
-    const card = el?.children?.[currentIdx];
-    card?.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
-  }, [currentIdx]);
-
-  // Mọi chapter render card feed thật (đầy đủ thông tin: tác giả, tiêu đề, mô tả,
-  // ảnh, engagement...). Chapter chưa tham gia chỉ ẩn phần KẾT QUẢ để tránh lộ:
-  // Deck/Path tự ẩn khi joined=false; Rankie dùng hideResults (vốn luôn phô biểu đồ).
-  const isJoined = (p) => {
-    if (p.type === "rankie") return votedIdsFor(votedMap?.[p.id]).length > 0;
-    const key = p.type === "path" ? `path:${p.id}` : `deck:${p.id}`;
-    return !!participatedKeys?.has(key);
-  };
-  const renderCard = (p) => {
-    const joined = isJoined(p);
-    if (p.type === "rankie") {
-      const rankie = liveOptions?.[p.id] ? { ...p, options: liveOptions[p.id] } : p;
-      return <RankieCard rankie={rankie} onOpen={() => onSelect(p)} hideCategory hideResults={!joined} myVoteIds={votedIdsFor(votedMap?.[p.id])} />;
-    }
-    if (p.type === "path") return <PathCard path={p} onOpen={() => onSelect(p)} hideCategory joined={joined} myResult={joined ? participationByKey?.[`path:${p.id}`] : undefined} />;
-    return <DeckCard deck={p} onOpen={() => onSelect(p)} hideCategory joined={joined} myResult={joined ? participationByKey?.[`deck:${p.id}`] : undefined} />;
-  };
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(8,6,3,0.96)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 12px 8px" }}>
-          <button onClick={onClose} style={{ ...iconButton, color: C.text }}><X size={20} /></button>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: "#fff" }}>{series._tournamentId ? <Trophy size={16} color={C.gold} /> : <Layers size={16} color={C.gold} />}{series.name}</div>
-          </div>
-          <button onClick={onManage} title="Quản lý chapter" style={{ ...iconButton, color: C.textFaint }}><Edit3 size={17} /></button>
-        </div>
-
-        <div
-          ref={scrollRef}
-          style={{ flex: 1, display: "flex", alignItems: "stretch", gap: 10, overflowX: "auto", scrollSnapType: "x mandatory", padding: "4px 3vw 16px", WebkitOverflowScrolling: "touch" }}
-        >
-          {series.posts.map((p, idx) => {
-            const isCurrent = idx === currentIdx;
-            return (
-              <div
-                key={p.id}
-                style={{
-                  scrollSnapAlign: "center", flexShrink: 0, width: "94vw", maxWidth: 420,
-                  display: "flex", flexDirection: "column",
-                }}
-              >
-                <div style={{ padding: "2px 4px 8px", display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: "#fff", minWidth: 0 }}>
-                  <span style={{ minWidth: 20, height: 20, padding: "0 5px", borderRadius: 99, display: "inline-grid", placeItems: "center", background: isCurrent ? C.gold : "rgba(255,255,255,.18)", color: isCurrent ? "#1A1305" : "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{idx + 1}</span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</span>
-                </div>
-                <div className="chSwitchCard rk-carousel" style={{ flex: 1, overflowY: "auto", paddingBottom: 6, borderRadius: 18, background: C.surface, border: `1px solid ${C.border}`, boxShadow: isCurrent ? `0 0 0 2px ${C.gold}, 0 10px 32px color-mix(in srgb, var(--gold) 18%, transparent)` : "none", transition: "box-shadow 0.15s" }}>
-                  {renderCard(p)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ===== Chuyển chapter trong series (màn chi tiết) =====
 // (A) DẢI SỐ CHAPTER gắn ngay dưới thanh tiêu đề (dính theo khi cuộn) — 1 chạm tới bất kỳ chapter;
 //     chapter đang xem tô vàng, chapter đã tham gia có ✓; nút cuối mở bảng xem trước + quản lý.
@@ -6575,65 +6495,139 @@ function useTournamentChapters(tournamentId) {
   }, [data, tournamentId]);
 }
 
-// Thẻ xem trước một chapter trong bộ đa nhiệm (dùng thẻ feed thật, chỉ để nhìn — không bấm được).
-function chapterPreviewCard(p, { isJoined, resultData }) {
-  const { liveOptions, votedMap, participationByKey } = resultData || {};
-  const joined = isJoined(p);
-  if (p.type === "rankie") {
-    const rankie = liveOptions?.[p.id] ? { ...p, options: liveOptions[p.id] } : p;
-    return <RankieCard rankie={rankie} onOpen={() => {}} hideCategory hideResults={!joined} myVoteIds={votedIdsFor(votedMap?.[p.id])} />;
-  }
-  if (p.type === "path") return <PathCard path={p} onOpen={() => {}} hideCategory joined={joined} myResult={joined ? participationByKey?.[`path:${p.id}`] : undefined} />;
-  return <DeckCard deck={p} onOpen={() => {}} hideCategory joined={joined} myResult={joined ? participationByKey?.[`deck:${p.id}`] : undefined} />;
+// ===== ĐA NHIỆM CHAPTER kiểu iOS =====
+// Vuốt ngang ở màn chi tiết (hoặc bấm ≡ cạnh dải số) → MỞ chế độ đa nhiệm và GIỮ NGUYÊN (không
+// phải giữ tay). Các thẻ xếp chồng như iOS (thẻ bên phải đè thẻ bên trái), cuộn bằng cuộn GỐC của
+// trình duyệt (quán tính + hít) → không render lại React theo từng khung hình. Trên mỗi thẻ:
+// icon + "số · tiêu đề". Chạm thẻ → mở; chạm nền → đóng. KHÔNG lộ nội dung: chapter chưa xem chỉ
+// hiện bìa (tác giả · tiêu đề · ảnh), chapter đã xem trong phiên hiện ảnh chụp lần cuối.
+const chapterSnapCache = new Map(); // postId → { node, top } — ảnh chụp DOM tĩnh, tối đa 12
+function takeSnapshot(el) {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const node = el.cloneNode(true);
+  node.querySelectorAll("*").forEach((n) => {
+    if (n.style && n.style.position === "sticky") { n.style.position = "relative"; if (r.top < 0) n.style.transform = `translateY(${-r.top}px)`; n.style.zIndex = 5; }
+  });
+  node.querySelectorAll("video").forEach((v) => { v.removeAttribute("autoplay"); v.removeAttribute("src"); });
+  return { node, top: r.top };
+}
+function rememberSnapshot(id, el) {
+  const snap = takeSnapshot(el);
+  if (!snap || !id) return snap;
+  chapterSnapCache.delete(id);
+  chapterSnapCache.set(id, snap);
+  while (chapterSnapCache.size > 12) chapterSnapCache.delete(chapterSnapCache.keys().next().value);
+  return snap;
 }
 
-// VUỐT = ĐA NHIỆM kiểu iOS: kéo ngang → trang thu nhỏ thành thẻ, chapter trước/sau hiện hai bên,
-// trên mỗi thẻ là "số chapter · tiêu đề", tên series ở đỉnh. Thả quá ngưỡng → thẻ bên cạnh phóng to
-// thành trang. Ở chapter 1 kéo sang phải → thẻ màn trước (Bảng tin) → thả là quay về.
-function ChapterSwipeDeck({ series, idx, sw, frame, exit, preview, snap }) {
-  const n = series.posts.length;
-  const { Wv, L, vh } = frame;
-  const W = Wv * 0.8, H = vh * 0.8, gap = 16;
-  const p = sw.settle ? 0 : Math.min(1, Math.abs(sw.mx) / 46);
-  const k = 1 + (Wv / W - 1) * (1 - p); // p=0: thẻ phủ kín màn; p=1: thẻ thu nhỏ
-  const hasPrev = idx > 0 || !!exit, hasNext = idx < n - 1;
-  const mx = sw.settle ? sw.mx : (sw.mx > 0 && !hasPrev) || (sw.mx < 0 && !hasNext) ? sw.mx * 0.25 : sw.mx;
-  const cx = L + Wv / 2, cy = vh / 2 + 14 * p;
-  const tr = sw.anim ? "transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s ease" : "none";
-  const fade = sw.anim ? "opacity .3s ease" : "none";
-  const label = (r) => {
-    if (idx + r < 0) return <><Home size={14} /> <span>{exit.label}</span></>;
-    const post = series.posts[idx + r];
-    return <><span style={{ minWidth: 20, height: 20, padding: "0 5px", borderRadius: 99, display: "inline-grid", placeItems: "center", background: r === 0 ? C.gold : "rgba(255,255,255,.18)", color: r === 0 ? "#1A1305" : "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{idx + r + 1}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.title}</span></>;
-  };
-  const cards = [-1, 0, 1].filter((r) => (r === -1 ? idx > 0 || !!exit : r === 1 ? idx < n - 1 : true));
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 180, pointerEvents: "none", opacity: sw.settle ? 1 : Math.min(1, Math.abs(sw.mx) / 14) }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(6,9,7,.92)", opacity: p, transition: fade }} />
-      <div style={{ position: "absolute", top: 14, left: L, width: Wv, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, opacity: p, transition: fade }}>
-        {series._tournamentId ? <Trophy size={15} color={C.gold} /> : <Layers size={15} color={C.gold} />}
-        <span style={{ maxWidth: "75%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{series.name}</span>
+// Bìa chapter (không kết quả, không đáp án) — cho chapter chưa xem trong phiên.
+function ChapterCover({ p }) {
+  const M = POST_TYPE_META[postTypeKey(p)] || POST_TYPE_META.rankie;
+  const a = p.author || {};
+  const optImgs = (p.options || []).filter((o) => o.image).slice(0, 2);
+  const img = p.media?.url || p.coverImage || p.questions?.[0]?.image || null;
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 10px" }}>
+        <span style={{ width: 36, height: 36, borderRadius: 99, overflow: "hidden", display: "grid", placeItems: "center", background: a.avatarColor || C.surfaceRaised, fontSize: 18, flexShrink: 0 }}>
+          {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || initialOf(a.name))}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textFaint }}><M.icon size={13} /></div>
+        </div>
       </div>
-      {cards.map((r) => {
-        const x = cx + r * (W + gap) * k + mx - W / 2;
-        return (
-          <div key={r} style={{ position: "absolute", left: 0, top: cy - H / 2, width: W, height: H, transform: `translateX(${x}px) scale(${k})`, transformOrigin: "50% 50%", transition: tr }}>
-            <div style={{ position: "absolute", left: 4, right: 4, top: -30, display: "flex", alignItems: "center", gap: 6, color: "#fff", fontFamily: bodyFont, fontWeight: 600, fontSize: 14, opacity: p, transition: fade }}>{label(r)}</div>
-            <div style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 18 * p, background: C.bg, boxShadow: p ? "0 14px 40px rgba(0,0,0,.45)" : "none" }}>
-              {idx + r < 0
-                ? (frame.exitSnap ? <div style={{ width: Wv, transform: `scale(${W / Wv})`, transformOrigin: "0 0" }}>
-                      <div ref={(el) => { if (el && !el.firstChild) el.appendChild(frame.exitSnap.node); }} style={{ transform: `translateY(${frame.exitSnap.top}px)` }} />
-                    </div> : <div style={{ height: "100%", display: "grid", placeItems: "center", color: C.textMuted }}><Home size={44} /></div>)
-                : r === 0 && snap
-                  ? <div style={{ width: Wv, transform: `scale(${W / Wv})`, transformOrigin: "0 0" }}>
-                      <div ref={(el) => { if (el && !el.firstChild) el.appendChild(snap.node); }} style={{ transform: `translateY(${snap.top}px)` }} />
-                    </div>
-                  : <div style={{ paddingTop: 8 }}>{preview(series.posts[idx + r])}</div>}
+      <div style={{ padding: "0 16px 10px", fontFamily: bodyFont, fontWeight: 700, fontSize: 20, color: C.text, lineHeight: 1.25 }}>{p.title}</div>
+      {p.caption && <div style={{ padding: "0 16px 12px", fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.caption}</div>}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden", background: C.surfaceRaised, display: "flex" }}>
+        {img ? <Pic src={img} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          : optImgs.length === 2 ? optImgs.map((o) => <Pic key={o.id} src={o.image} style={{ flex: 1, minWidth: 0, height: "100%", objectFit: "cover" }} />)
+          : <div style={{ flex: 1, display: "grid", placeItems: "center", color: C.textFaint }}><M.icon size={52} /></div>}
+      </div>
+    </div>
+  );
+}
+
+function ChapterMultitask({ series, idx, exit, nudge = 0, onPick, onExit, onClose, onManage }) {
+  const items = [...(exit ? [{ kind: "exit" }] : []), ...series.posts.map((p, i) => ({ kind: "ch", p, i }))];
+  const curPos = (exit ? 1 : 0) + idx;
+  const vw = Math.min(window.innerWidth || 375, 480), vh = window.innerHeight || 700;
+  const W = Math.round(vw * 0.74), H = Math.round((W * vh) / vw), step = Math.round(W * 0.6);
+  const k = vw / W;
+  const pad = Math.round((vw - W) / 2);
+  const scRef = useRef(null);
+  const [leaving, setLeaving] = useState(null); // { pos, tf } — thẻ đang phóng to để mở
+  const exitSnap = useMemo(() => (exit?.snapshot?.() || null), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const el = scRef.current; if (!el) return;
+    el.scrollLeft = curPos * step;
+    // vuốt để mở → sau khi thu nhỏ xong, trượt sẵn sang thẻ kề theo hướng vuốt
+    const target = curPos + nudge;
+    if (nudge && target >= 0 && target < items.length) {
+      const t = setTimeout(() => el.scrollTo({ left: target * step, behavior: "smooth" }), 240);
+      return () => clearTimeout(t);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const open = (pos, e) => {
+    e.stopPropagation();
+    if (leaving) return;
+    const card = e.currentTarget.getBoundingClientRect();
+    const dx = vw / 2 - (card.left + card.width / 2), dy = vh / 2 - (card.top + card.height / 2);
+    setLeaving({ pos, tf: `translate(${dx}px, ${dy}px) scale(${k})` });
+    setTimeout(() => {
+      const it = items[pos];
+      if (it.kind === "exit") onExit();
+      else if (pos !== curPos) onPick(it.p);
+      onClose();
+    }, 210);
+  };
+  const close = () => {
+    if (leaving) return;
+    const el = scRef.current;
+    if (el) el.scrollTo({ left: curPos * step, behavior: "smooth" });
+    setLeaving({ pos: curPos, tf: `scale(${k})` });
+    setTimeout(onClose, 210);
+  };
+  const snapView = (snap) => (
+    <div style={{ position: "absolute", top: 0, left: 0, width: vw, transform: `scale(${W / vw})`, transformOrigin: "0 0", pointerEvents: "none" }}>
+      <div ref={(el) => { if (el && el.firstChild !== snap.node) { el.textContent = ""; el.appendChild(snap.node); } }} style={{ transform: `translateY(${snap.top}px)` }} />
+    </div>
+  );
+  const label = (it, pos) => {
+    if (it.kind === "exit") return <><span style={{ width: 22, height: 22, borderRadius: 7, background: "rgba(255,255,255,.16)", display: "grid", placeItems: "center", flexShrink: 0 }}><Home size={13} /></span><span>{exit.label}</span></>;
+    const M = POST_TYPE_META[postTypeKey(it.p)] || POST_TYPE_META.rankie;
+    return <>
+      <span style={{ minWidth: 22, height: 22, padding: "0 5px", borderRadius: 7, background: pos === curPos ? C.gold : "rgba(255,255,255,.16)", color: pos === curPos ? "#1A1305" : "#fff", display: "inline-grid", placeItems: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{it.i + 1}</span>
+      <M.icon size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.p.title}</span>
+    </>;
+  };
+  return createPortal(
+    <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 190, background: "rgba(8,10,9,.985)", animation: leaving ? "none" : "rkFadeIn .2s ease", opacity: leaving ? 0.999 : 1 }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "max(14px, env(safe-area-inset-top)) 56px 0", color: "#fff", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, zIndex: 2, opacity: leaving ? 0 : 1, transition: "opacity .15s" }}>
+        {series._tournamentId ? <Trophy size={15} color={C.gold} /> : <Layers size={15} color={C.gold} />}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{series.name}</span>
+        {onManage && <button onClick={(e) => { e.stopPropagation(); onManage(); }} aria-label="Quản lý" title={series._tournamentId ? "Mở giải đấu" : "Quản lý series"} style={{ position: "absolute", right: 12, top: "max(8px, env(safe-area-inset-top))", width: 36, height: 36, borderRadius: 99, border: "none", background: "rgba(255,255,255,.12)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer" }}>{series._tournamentId ? <Trophy size={16} /> : <Edit3 size={16} />}</button>}
+      </div>
+      <div ref={scRef} className="rk-mt-scroll" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", scrollbarWidth: "none", padding: `0 ${pad}px`, boxSizing: "border-box" }}>
+        {items.map((it, pos) => {
+          const isLeaving = leaving && leaving.pos === pos;
+          const snap = it.kind === "exit" ? exitSnap : (pos === curPos || chapterSnapCache.has(it.p.id)) ? chapterSnapCache.get(it.p.id) : null;
+          return (
+            <div key={it.kind === "exit" ? "exit" : it.p.id} onClick={(e) => open(pos, e)}
+              style={{ position: "relative", flex: `0 0 ${W}px`, width: W, minWidth: 0, height: H, marginLeft: pos ? -(W - step) : 0, zIndex: isLeaving ? 50 : pos + 1, scrollSnapAlign: "center", cursor: "pointer",
+                transform: isLeaving ? leaving.tf : "none", transition: leaving ? "transform .21s cubic-bezier(.2,.8,.2,1)" : "none",
+                animation: !leaving && pos === curPos ? "rkSwIn .26s cubic-bezier(.2,.8,.2,1)" : "none", "--k": k }}>
+              <div style={{ position: "absolute", left: 2, top: -32, width: step - 8, display: "flex", alignItems: "center", gap: 6, color: "#fff", fontFamily: bodyFont, fontWeight: 600, fontSize: 14, opacity: leaving ? 0 : 1, transition: "opacity .12s" }}>{label(it, pos)}</div>
+              <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: isLeaving ? 0 : 20, background: C.bg, boxShadow: "-10px 0 30px rgba(0,0,0,.45)", transition: "border-radius .21s" }}>
+                {snap ? snapView(snap) : it.kind === "exit" ? <div style={{ height: "100%", display: "grid", placeItems: "center", color: C.textMuted }}><Home size={44} /></div> : <ChapterCover p={it.p} />}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>,
     document.body,
   );
@@ -6645,36 +6639,39 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
   const rkSave = useRankieSave();
   const series = realNav.series || tourSeries;
   const chapterIdx = realNav.series ? realNav.chapterIdx : tourSeries ? tourSeries.posts.findIndex((p) => p.id === post?.id) : -1;
-  const [switcherOpen, setSwitcherOpen] = useState(false);
   const { votedMap } = resultData || {};
   const isJoined = (p) => {
     if (p._joined) return true;
     if (p.type === "rankie") return votedIdsFor(votedMap?.[p.id]).length > 0 || !!participatedKeys?.has(`rankie:${p.id}`);
     return !!participatedKeys?.has(p.type === "path" ? `path:${p.id}` : `deck:${p.id}`);
   };
-  // Hiệu ứng lật trang khi đổi chapter (vuốt hoặc bấm số).
-  const [dx, setDx] = useState(0);
-  const [anim, setAnim] = useState(null); // null | "out" | "in"
-  const enterFrom = useRef(0);
+  const wrapRef = useRef(null);
+  const [mt, setMt] = useState(null); // { nudge } khi đang mở đa nhiệm
+
+  // Đổi chapter (dải số / chọn thẻ): chuyển NGAY, hiệu ứng trượt nhẹ bằng Web Animations
+  // (không setState theo khung hình, không chờ 170ms như trước).
+  const enterDir = useRef(0);
   const go = (i, dir = i > chapterIdx ? 1 : -1) => {
     const target = series?.posts?.[i];
     if (!target || i === chapterIdx) return;
-    setSwitcherOpen(false);
-    setAnim("out"); setDx(-dir * (window.innerWidth || 400));
-    setTimeout(() => {
-      enterFrom.current = dir * Math.round((window.innerWidth || 400) * 0.35);
-      navigateChapter?.(target);
-      setAnim("in"); setDx(enterFrom.current);
-      requestAnimationFrame(() => requestAnimationFrame(() => setDx(0)));
-      setTimeout(() => setAnim(null), 260);
-    }, 170);
+    rememberSnapshot(post?.id, wrapRef.current);
+    enterDir.current = dir;
+    navigateChapter?.(target);
+  };
+  useLayoutEffect(() => {
+    const d = enterDir.current; enterDir.current = 0;
+    if (!d || !wrapRef.current?.animate) return;
+    wrapRef.current.animate([{ transform: `translateX(${d * 28}px)`, opacity: 0.4 }, { transform: "none", opacity: 1 }], { duration: 200, easing: "cubic-bezier(.2,.8,.2,1)" });
+  }, [post?.id]);
+
+  const openMultitask = (nudge = 0) => {
+    if (!series || mt) return;
+    rememberSnapshot(post?.id, wrapRef.current);
+    setMt({ nudge });
   };
 
-  // --- vuốt ngang (bộ đa nhiệm) ---
-  const wrapRef = useRef(null);
+  // --- vuốt ngang: chỉ để MỞ đa nhiệm (không kéo theo tay từng khung hình) ---
   const touch = useRef(null);
-  const [sw, setSw] = useState(null); // { mx, settle, anim } khi đang kéo / đang thả
-  const frameRef = useRef(null);
   const blocked = (el) => {
     for (let n = el; n && n !== wrapRef.current; n = n.parentElement) {
       if (n.matches?.('input, textarea, select, [contenteditable="true"], [data-noswipe]')) return true;
@@ -6684,11 +6681,11 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     return false;
   };
   const onTouchStart = (e) => {
-    if (!series || (series.posts.length < 2 && !exit) || e.touches.length !== 1 || sw) { touch.current = null; return; }
-    if (!wrapRef.current?.contains(e.target)) { touch.current = null; return; } // sheet/portal: bỏ qua
+    if (!series || (series.posts.length < 2 && !exit) || e.touches.length !== 1 || mt) { touch.current = null; return; }
+    if (!wrapRef.current?.contains(e.target)) { touch.current = null; return; }
     const t = e.touches[0];
     if (t.clientX < 28 || blocked(e.target)) { touch.current = null; return; } // mép trái = quay lại
-    touch.current = { x: t.clientX, y: t.clientY, t: Date.now(), dir: null };
+    touch.current = { x: t.clientX, y: t.clientY, dir: null };
   };
   const onTouchMove = (e) => {
     const s = touch.current; if (!s) return;
@@ -6698,63 +6695,21 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
       if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
       s.dir = Math.abs(mx) > Math.abs(my) * 1.4 ? "h" : "v";
     }
-    if (s.dir !== "h") return;
-    if (!frameRef.current) {
-      const r = wrapRef.current.getBoundingClientRect();
-      // Ảnh chụp trang đang xem (bản sao DOM tĩnh) làm thẻ giữa — như ảnh màn hình trong đa nhiệm iOS.
-      const node = wrapRef.current.cloneNode(true);
-      // thanh tiêu đề dính (sticky) → ghim ở đỉnh ảnh chụp như đang thấy trên màn hình
-      node.querySelectorAll("*").forEach((n) => { if (n.style && n.style.position === "sticky") { n.style.position = "relative"; if (r.top < 0) n.style.transform = `translateY(${-r.top}px)`; n.style.zIndex = 5; } });
-      frameRef.current = { Wv: r.width, L: r.left, vh: window.innerHeight, snap: { node, top: r.top }, exitSnap: chapterIdx === 0 ? exit?.snapshot?.() || null : null };
-    }
-    setSw({ mx, settle: false, anim: false });
+    if (s.dir === "h" && Math.abs(mx) > 28) { touch.current = null; openMultitask(mx < 0 ? 1 : -1); }
   };
-  const onTouchEnd = (e) => {
-    const s = touch.current; touch.current = null;
-    if (!s || s.dir !== "h") return;
-    const t = e.changedTouches[0];
-    const mx = t.clientX - s.x;
-    const fr = frameRef.current;
-    if (!fr) { setSw(null); return; }
-    const fast = Date.now() - s.t < 350 && Math.abs(mx) > 40;
-    const next = mx < 0 ? chapterIdx + 1 : chapterIdx - 1;
-    const toExit = next < 0 && !!exit;
-    const W = fr.Wv * 0.8, kFull = fr.Wv / W;
-    const done = () => { setSw(null); frameRef.current = null; };
-    if ((Math.abs(mx) > fr.Wv * 0.22 || fast) && (series.posts[next] || toExit)) {
-      const dir = mx < 0 ? 1 : -1;
-      setSw({ mx: -dir * (W + 16) * kFull, settle: true, anim: true }); // thẻ bên cạnh trượt vào giữa + phóng to
-      setTimeout(() => {
-        if (toExit) exit.onExit(); else navigateChapter?.(series.posts[next]);
-        setTimeout(done, 90); // chờ trang mới vẽ xong dưới lớp phủ rồi mới gỡ
-      }, 300);
-    } else {
-      setSw({ mx: 0, settle: true, anim: true }); // bật về
-      setTimeout(done, 300);
-    }
-  };
+  const onTouchEnd = () => { touch.current = null; };
 
-  const ctx = series && chapterIdx >= 0 ? { series, idx: chapterIdx, isJoined, go, openSwitcher: () => setSwitcherOpen(true) } : null;
-  const moving = dx !== 0 || anim;
+  const ctx = series && chapterIdx >= 0 ? { series, idx: chapterIdx, isJoined, go, openSwitcher: () => openMultitask(0) } : null;
   return (
     <ChapterNavCtx.Provider value={ctx}>
-      {sw && series && frameRef.current && (
-        <ChapterSwipeDeck series={series} idx={chapterIdx} sw={sw} frame={frameRef.current} exit={chapterIdx === 0 ? exit : null}
-          snap={frameRef.current.snap} preview={(p) => chapterPreviewCard(p, { isJoined, resultData })} />
+      {mt && series && chapterIdx >= 0 && (
+        <ChapterMultitask series={series} idx={chapterIdx} exit={chapterIdx === 0 ? exit : null} nudge={mt.nudge}
+          onPick={(p) => { const i = series.posts.findIndex((x) => x.id === p.id); enterDir.current = 0; if (i >= 0) navigateChapter?.(series.posts[i]); }}
+          onExit={() => exit?.onExit()}
+          onClose={() => setMt(null)}
+          onManage={() => { setMt(null); if (series._tournamentId) rkSave?.openTournament?.(series._tournamentId); else onOpenSeries?.(series.id); }} />
       )}
-      {switcherOpen && series && (
-        <ChapterSwitcher
-          series={series}
-          currentIdx={chapterIdx}
-          participatedKeys={participatedKeys}
-          resultData={resultData}
-          onSelect={(p) => go(series.posts.findIndex((x) => x.id === p.id))}
-          onManage={() => { setSwitcherOpen(false); if (series._tournamentId) rkSave?.openTournament?.(series._tournamentId); else onOpenSeries?.(series.id); }}
-          onClose={() => setSwitcherOpen(false)}
-        />
-      )}
-      <div ref={wrapRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
-        style={moving ? { transform: `translateX(${dx}px)`, opacity: anim === "out" ? 0.2 : 1, transition: anim ? "transform .2s ease, opacity .2s ease" : "none", touchAction: "pan-y" } : { touchAction: "pan-y" }}>
+      <div ref={wrapRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} style={{ touchAction: "pan-y" }}>
         {children}
       </div>
     </ChapterNavCtx.Provider>
@@ -7958,9 +7913,8 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-                        <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
-            <Pill tone="muted">{path.questions.length} câu</Pill>
-            <Pill tone="muted">{resultEntries.length} kết quả</Pill>
+            <span title="Số câu hỏi" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{path.questions.length} <ListChecks size={15} /></span>
+            <span title="Số kết cục" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{resultEntries.length} <Flag size={15} /></span>
           </div>
           {(path.caption || path.media) && (
             <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={240} bleed />
@@ -8006,8 +7960,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         {path.author && <AuthorRow author={path.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={path} />} />}
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>{path.title}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-                    <Pill tone="muted"><Users size={11} /> {fmt(path.participants)}</Pill>
-          <Pill tone="muted">{path.questions.length} câu</Pill>
+          <span title="Số câu hỏi" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{path.questions.length} <ListChecks size={15} /></span>
         </div>
         {(path.caption || path.media) && (
           <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={240} bleed />
@@ -8033,6 +7986,10 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         >
           Bắt đầu
         </button>
+        <div style={{ marginTop: 14 }}>
+          <EngagementBar type="path" participants={path.participants} comments={path.comments} shares={path.shares || 0} onJoinClick={() => setStep(first.id)} onShareClick={() => setShareSheet(true)} />
+        </div>
+        {shareSheet && <ShareModal item={path} onClose={() => setShareSheet(false)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={onShared} />}
         {!isOwner && <LockedCommentsNotice />}
       </div>
     );
@@ -9135,6 +9092,11 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         >
           Bắt đầu
         </button>
+        <div style={{ marginTop: 14 }}>
+          <EngagementBar type={deck.deckMode === "exam" ? "exam" : "survey"} participants={deck.participants} comments={typeof deck.comments === "number" ? deck.comments : (deck.comments?.length || 0)} shares={deck.shares || 0}
+            bookmarked={bookmarked} onBookmarkClick={() => onToggleBookmark?.(deck)} onJoinClick={() => setStarted(true)} onShareClick={() => setOwnerShareOpen(true)} />
+        </div>
+        {ownerShareOpen && <ShareModal item={deck} onClose={() => setOwnerShareOpen(false)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={onShared} />}
         {!isOwner && <LockedCommentsNotice />}
       </div>
     );
@@ -9358,7 +9320,9 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         </button>
 
         <div style={{ marginTop: 24 }}>
-          <EngagementBar type="deck" joined participants={deck.participants} comments={deck.comments} shares={deck.shares || 0} />
+          <EngagementBar type={deck.deckMode === "exam" ? "exam" : "survey"} joined participants={deck.participants} comments={typeof deck.comments === "number" ? deck.comments : (deck.comments?.length || 0)} shares={deck.shares || 0}
+            bookmarked={bookmarked} onBookmarkClick={() => onToggleBookmark?.(deck)} onShareClick={() => setOwnerShareOpen(true)} />
+          {ownerShareOpen && <ShareModal item={deck} onClose={() => setOwnerShareOpen(false)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={onShared} />}
         </div>
 
         {/* Comments — same component as Rankie/Path, but tags reference question number instead of an answer option */}
