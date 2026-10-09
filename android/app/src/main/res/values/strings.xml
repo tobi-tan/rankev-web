@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Rankev</string>
+    <string name="title_activity_main">Rankev</string>
+    <string name="package_name">com.rankev.app</string>
+    <string name="custom_url_scheme">com.rankev.app</string>
+</resources>

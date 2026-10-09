@@ -1,0 +1,69 @@
+# Build APP ĐIỆN THOẠI trên cloud (không cần Android Studio / máy Mac).
+# - Android: mỗi lần push main → file APK (tab Actions → lần chạy → Artifacts → rankev-android).
+#   Tải về điện thoại Android → mở file để cài (cho phép "cài ứng dụng không rõ nguồn" nếu được hỏi).
+# - iOS: chạy tay (Actions → "App điện thoại" → Run workflow) → kiểm tra app biên dịch được.
+#   Cài lên iPhone thật / TestFlight cần tài khoản Apple Developer để ký (bước sau).
+name: App điện thoại
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: "Build cả iOS (máy Mac — tốn phút gấp 10 lần)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rankev-android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  ios:
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync ios
+      - name: Build iOS (Simulator, chưa ký)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tail -40

@@ -15,6 +15,8 @@ import {
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
+import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE } from "./native.js";
+const SHARE_HOST = SHARE_BASE.replace(/^https?:\/\//, ""); // hiển thị gọn: rankev-web.vercel.app
 
 // ---------- DESIGN TOKENS ----------
 // Màu qua CSS variable → đổi light/dark tức thì bằng data-theme, không cần re-render.
@@ -166,6 +168,15 @@ const FONT_IMPORT = (
     /* Màn giữ sẵn (KeepAlive) đang ẩn: content-visibility giữ nguyên layout đã tính → hiện lại ~3ms
        thay vì ~40ms dàn trang lại cả feed. Trình duyệt cũ không hỗ trợ → display:none như trước. */
     .rk-ka-off { display: none; }
+    /* APP ĐIỆN THOẠI + web có tai thỏ: chừa vùng an toàn (env = 0 trên máy không tai thỏ → không đổi gì) */
+    body { padding-top: env(safe-area-inset-top); }
+    [style*="position: sticky"][style*="top: 0px"] { top: env(safe-area-inset-top) !important; }
+    [style*="position: sticky"][style*="bottom: 0px"] { padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
+    .rk-statusbar-shield { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 60; pointer-events: none; }
+    * { -webkit-tap-highlight-color: transparent; }
+    /* cảm giác app gốc: không bôi đen/menu nhấn giữ (trừ ô nhập), không nảy khi kéo quá đầu/cuối */
+    html.rk-native body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior-y: none; }
+    html.rk-native input, html.rk-native textarea, html.rk-native [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
     .rk-logo-light { display: none; }
     [data-theme="light"] .rk-logo-light { display: block; }
     [data-theme="light"] .rk-logo-dark { display: none; }
@@ -1963,7 +1974,15 @@ const REPORT_REASONS_VI = [
   ["other", "Lý do khác"],
 ];
 
+// Ngăn xếp bảng đang mở — nút Back Android đóng bảng trên cùng trước (như Facebook).
+const sheetStack = [];
+if (typeof window !== "undefined") {
+  window.addEventListener("rk-native-back", (e) => { const top = sheetStack[sheetStack.length - 1]; if (top) { e.preventDefault(); top.current?.(); } });
+}
 function BottomSheet({ onClose, children }) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => { sheetStack.push(closeRef); return () => { const i = sheetStack.indexOf(closeRef); if (i >= 0) sheetStack.splice(i, 1); }; }, []);
   // Portal ra body: thẻ bài có thể mang transform (hiệu ứng/carousel) làm position:fixed lệch.
   return createPortal(
     <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 90, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -2366,7 +2385,7 @@ function SessionResultCard({ session }) {
               <Download size={13} /> Xuất CSV
             </button>
             <button
-              onClick={() => { const link = `https://rankev.app/vote/${session.rankieId}`; navigator.clipboard?.writeText(link).catch(() => {}); }}
+              onClick={() => { const link = `${SHARE_BASE}/vote/${session.rankieId}`; navigator.clipboard?.writeText(link).catch(() => {}); }}
               style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
               <Link2 size={13} /> Chia sẻ
@@ -4212,7 +4231,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }
     return () => clearTimeout(h);
   }, [q]);
 
-  const link = isTournament ? `https://rankev.app/tournament/${item.id}` : `https://rankev.app/vote/${item.id}`;
+  const link = isTournament ? `${SHARE_BASE}/tournament/${item.id}` : `${SHARE_BASE}/vote/${item.id}`;
   const list = q.trim().length >= 2 ? people : contacts;
   const isPicked = (c) => picked.some((p) => p.id === c.id);
   const togglePick = (c) => setPicked((ps) => (isPicked(c) ? ps.filter((p) => p.id !== c.id) : [...ps, c]));
@@ -4223,7 +4242,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }
     try { await navigator.clipboard.writeText(link); } catch { /* ignore */ }
     setCopied(true); setTimeout(() => setCopied(false), 1600);
   };
-  const nativeShare = () => { try { navigator.share?.({ title: item.title, url: link }); } catch { /* huỷ */ } };
+  const nativeShare = () => { systemShare({ title: item.title, url: link }); };
   const send = async () => {
     if (!picked.length || busy) return;
     setBusy(true); setErr(null);
@@ -4311,7 +4330,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }
             {!isTournament && roundBtn(User, "Hồ sơ", () => setPanel(panel === "profile" ? null : "profile"), panel === "profile")}
             {roundBtn(copied ? Check : Link2, copied ? "Đã chép" : "Sao chép", copyLink, copied)}
             {roundBtn(QrCode, "QR", () => setPanel(panel === "qr" ? null : "qr"), panel === "qr")}
-            {typeof navigator !== "undefined" && navigator.share && roundBtn(Share2, "Khác", nativeShare)}
+            {canSystemShare() && roundBtn(Share2, "Khác", nativeShare)}
           </div>
 
           {panel === "profile" && (
@@ -7141,6 +7160,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   const clickableChart = inlineChart && rankie.votingType !== "multiple" && rankie.votingType !== "rating" && !notYetOpen && !isClosed;
 
   const castVote = (optId, e) => {
+    haptic();
     if (isClosed || notYetOpen) return;
     if (voted === optId) {
       // Tapping the option you already picked again undoes the vote.
@@ -7882,7 +7902,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
   ];
 
   const shareResult = async (resultName) => {
-    const link = `https://rankev.app/path/${path.id}?result=${encodeURIComponent(resultName)}`;
+    const link = `${SHARE_BASE}/path/${path.id}?result=${encodeURIComponent(resultName)}`;
     try {
       await navigator.clipboard.writeText(link);
     } catch {
@@ -8461,7 +8481,7 @@ function PathPresenterView({ path, onBack, onSessionEnd }) {
             <QrCode size={140} color="#111" />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Quét mã hoặc bấm link để bắt đầu</div>
-          <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700, marginBottom: 28 }}>rankev.app/path/{path.id}</div>
+          <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700, marginBottom: 28 }}>{SHARE_HOST}/path/{path.id}</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 28px", marginBottom: 28 }}>
             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1 }}>{fmt(participantCount)}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>người đã vào phòng chờ</div>
@@ -10183,7 +10203,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             </div>
             <div>
               <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 }}>Quét để vào phòng thi</div>
-              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>rankev.app/exam/{deck.id}</div>
+              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>{SHARE_HOST}/exam/{deck.id}</div>
             </div>
           </div>
 
@@ -10266,7 +10286,7 @@ function ExamPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             </div>
             <div style={{ textAlign: "left" }}>
               <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text }}>Vào muộn? Vẫn quét được</div>
-              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal }}>rankev.app/exam/{deck.id}</div>
+              <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal }}>{SHARE_HOST}/exam/{deck.id}</div>
             </div>
           </div>
         </div>
@@ -10623,7 +10643,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
             <QrCode size={140} color="#111" />
           </div>
           <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Quét mã hoặc bấm link để vào phòng chờ</div>
-          <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700, marginBottom: 28 }}>rankev.app/deck/{deck.id}</div>
+          <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700, marginBottom: 28 }}>{SHARE_HOST}/deck/{deck.id}</div>
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 28px", marginBottom: 28 }}>
             <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1 }}>{fmt(participantCount)}</div>
             <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>người đã vào phòng chờ</div>
@@ -10795,7 +10815,7 @@ function DeckPresenterView({ deck, onBack, onShareToProfile, contacts, onSession
           </div>
           <div>
             <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>Quét để trả lời</div>
-            <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>rankev.app/deck/{deck.id}</div>
+            <div style={{ fontFamily: monoFont, fontSize: 12, color: C.teal, fontWeight: 700 }}>{SHARE_HOST}/deck/{deck.id}</div>
           </div>
         </div>
       </div>
@@ -10900,7 +10920,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
   };
 
   const handleCopyLink = () => {
-    const link = `https://rankev.app/vote/${rankie.id}`;
+    const link = `${SHARE_BASE}/vote/${rankie.id}`;
     navigator.clipboard?.writeText(link).catch(() => {});
   };
 
@@ -11083,7 +11103,7 @@ function PresenterView({ rankie, initialOptions, onBack, onSessionEnd }) {
           <div>
             <div style={{ fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>Quét để bình chọn</div>
             <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 6 }}>Không cần cài app hay đăng nhập.</div>
-            <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700 }}>rankev.app/vote/{rankie.id}</div>
+            <div style={{ fontFamily: monoFont, fontSize: 14, color: C.teal, fontWeight: 700 }}>{SHARE_HOST}/vote/{rankie.id}</div>
           </div>
         </div>
       </div>
@@ -17058,6 +17078,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
 }
 
 export default function RankevApp() {
+  const pendingLinkRef = useRef(typeof window !== "undefined" && /\/(vote|post|path|deck|exam|tournament)\//.test(window.location.pathname) ? window.location.href : null);
   // Giao diện sáng/tối (dark mặc định). Áp bằng data-theme trên <html> → CSS variables tự đổi.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("rankev.theme") === "light" ? "light" : "dark"; } catch { return "dark"; } }); // chỉ còn Sáng/Tối (giao diện "game" đã gỡ)
   useEffect(() => {
@@ -17487,6 +17508,7 @@ export default function RankevApp() {
   // chữ ký (trước đây event bị hiểu nhầm là "phiếu hiện tại" → bấm lại để huỷ không ăn).
   const voteOnFeed = (rankie, optId) => voteOnFeedWith(rankie, optId, undefined);
   const voteOnFeedWith = (rankie, optId, curOverride) => {
+    haptic();
     if (isRankieClosed(rankie)) return;
     // Thẻ feed dựng từ bản TÓM TẮT: option id là "opt0/opt1…" chứ chưa phải UUID thật → vote
     // gửi đi bị 400 "Validation failed" và phiếu KHÔNG được lưu. Nạp bản đầy đủ, ghép đúng
@@ -18735,6 +18757,30 @@ export default function RankevApp() {
     node.querySelectorAll("*").forEach((n) => { if (n.style && n.style.position === "sticky") { n.style.position = "relative"; n.style.transform = `translateY(${feedScrollTopRef.current || 0}px)`; n.style.zIndex = 5; } });
     return { node, top: -(feedScrollTopRef.current || 0) };
   };
+  // Mở bài từ LINK chia sẻ: …/vote|post|path|deck|exam/<id> · …/tournament/<id>.
+  const openByLinkRef = useRef(null);
+  openByLinkRef.current = async (url) => {
+    const m = String(url || "").match(/\/(vote|post|path|deck|exam|tournament)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    if (!m) return false;
+    const [, kind, id] = m;
+    if (kind === "tournament") { openTournament(id); return true; }
+    try {
+      const p = await api.posts.get(id);
+      if (p?.type === "path") openPathFromProfile(id);
+      else if (p?.type === "deck") openDeckFromProfile(id);
+      else openRankie(id);
+    } catch { showToast("Không mở được bài này"); }
+    return true;
+  };
+  // App điện thoại: khởi động cầu nối native 1 lần; link mở app (kể cả trước khi đăng nhập) → chờ rồi mở.
+  const [linkTick, setLinkTick] = useState(0);
+  useEffect(() => { initNative({ onOpenUrl: (u) => { pendingLinkRef.current = u; setLinkTick((t) => t + 1); } }); }, []);
+  useEffect(() => {
+    if (!authed || !pendingLinkRef.current) return;
+    const u = pendingLinkRef.current; pendingLinkRef.current = null;
+    if (!isNative) { try { window.history.replaceState({}, "", "/"); } catch { /* ignore */ } }
+    openByLinkRef.current?.(u);
+  }, [authed, linkTick]);
   const goBack = (fallback = "feed") => {
     const st = navStackRef.current;
     const target = st[st.length - 2];
@@ -18806,6 +18852,7 @@ export default function RankevApp() {
     <ModerationCtx.Provider value={moderation}>
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
+      <div className="rk-statusbar-shield" />
       <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} basketHidden={basketHidden} setBasketHidden={setBasketHidden} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
       {notifOpen && <NotificationsPanel items={notifItems} onClose={() => setNotifOpen(false)} onOpenItem={onNotifClick} onOpenHandle={openAuthorByHandle} />}
       {seriesPickerPost && <SeriesPickerModal post={seriesPickerPost} mySeries={mySeries} onClose={() => setSeriesPickerPost(null)} onAdd={(sid, newName) => addPostToSeries(seriesPickerPost, sid, newName)} />}
