@@ -5267,6 +5267,37 @@ function TournamentFeedHero({ t, data, roundName }) {
         )}
       </>
     );
+  } else if (roundReal.length >= 2) {
+    // 2–4 · Vòng đang đấu (vd tứ kết) → HIỆN CÙNG LÚC mọi cặp của vòng, lưới 2 cột. Mỗi ô tự
+    // báo trạng thái (live viền xanh · thắng vàng / thua xám · chưa đấu thường) → không cần chấm tiến độ.
+    const n = roundReal.length;
+    const show = roundReal.slice(0, 8);
+    const small = n > 4; // vòng 16 trở lên: ô nhỏ, bỏ tên
+    const sz = small ? 20 : 40;
+    const anyLive = roundReal.some(isLive);
+    const next = !anyLive ? roundReal.filter((m) => !m.winnerRef && ts(m.opensAt) > now).sort((a, b) => ts(a.opensAt) - ts(b.opensAt))[0] : null;
+    const cellName = (ref, v) => (
+      <div style={{ width: "100%", marginTop: 3, textAlign: "center", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: v === "win" ? C.gold : v === "lose" ? "rgba(255,255,255,0.5)" : "#fff", textShadow: "0 1px 4px rgba(0,0,0,.85)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ref?.name || "?"}</div>
+    );
+    body = (
+      <>
+        {label(roundName(cur), anyLive ? livePill : next ? <CountdownChip toTs={ts(next.opensAt)} /> : null)}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: small ? 4 : 6, width: "100%", maxWidth: 340 }}>
+          {show.map((m) => {
+            const lv = isLive(m);
+            const va = slotV(m, m.aRef), vb = slotV(m, m.bRef);
+            return (
+              <div key={`${m.round}-${m.position}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: small ? 5 : 2, background: "rgba(0,0,0,0.38)", borderRadius: small ? 999 : 12, padding: small ? "3px 8px" : "5px 2px", boxShadow: lv ? `inset 0 0 0 1.5px ${C.teal}` : "none" }}>
+                <div style={{ flex: small ? "0 0 auto" : 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>{tile(m.aRef, sz, va)}{!small && cellName(m.aRef, va)}</div>
+                <div style={{ height: sz, display: "grid", placeItems: "center", fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: small ? 10 : 12, color: C.gold }}>VS</div>
+                <div style={{ flex: small ? "0 0 auto" : 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>{tile(m.bRef, sz, vb)}{!small && cellName(m.bRef, vb)}</div>
+              </div>
+            );
+          })}
+        </div>
+        {n > 8 && <div style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>+{n - 8}</div>}
+      </>
+    );
   } else if (live.length === 1) {
     // 2 · Vòng đầu, 1 trận live → phóng to cặp đang đấu
     const m = live[0];
