@@ -166,6 +166,9 @@ const FONT_IMPORT = (
     /* Màn giữ sẵn (KeepAlive) đang ẩn: content-visibility giữ nguyên layout đã tính → hiện lại ~3ms
        thay vì ~40ms dàn trang lại cả feed. Trình duyệt cũ không hỗ trợ → display:none như trước. */
     .rk-ka-off { display: none; }
+    .rk-logo-light { display: none; }
+    [data-theme="light"] .rk-logo-light { display: block; }
+    [data-theme="light"] .rk-logo-dark { display: none; }
     @keyframes rkFadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes rkSwIn { from { transform: scale(var(--k)); border-radius: 0; } to { transform: none; } }
     .rk-mt-scroll::-webkit-scrollbar { display: none; }
@@ -3530,6 +3533,16 @@ function OptLead({ o }) {
   return o?.emoji ? o.emoji + " " : null;
 }
 
+// Logo Rankev (cột teal → vàng → san hô). Bản màu sáng cho nền tối, bản màu đậm cho nền sáng.
+function BrandLogo({ height = 40, style }) {
+  return (
+    <span role="img" aria-label="Rankev" style={{ display: "inline-flex", lineHeight: 0, ...style }}>
+      <img className="rk-logo-dark" src="/logo-on-dark.png" alt="" draggable={false} style={{ height, width: "auto" }} />
+      <img className="rk-logo-light" src="/logo-on-light.png" alt="" draggable={false} style={{ height, width: "auto" }} />
+    </span>
+  );
+}
+
 function Pic({ src, alt = "", style, onError, ...rest }) {
   if (isVideoUrl(src)) {
     return <video src={src} autoPlay muted loop playsInline preload="metadata" style={style} onError={onError} {...rest} />;
@@ -5528,13 +5541,8 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
       <div style={{ padding: "20px 16px 4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <button onClick={onRefresh} title="Làm mới bảng tin" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontFamily: logoFont, fontStyle: "italic", fontSize: 30, color: C.text, lineHeight: 1 }}>
-              Rankev
-            </div>
-            <RefreshCw size={16} color={C.textFaint} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
-          </div>
-          <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginTop: 4, letterSpacing: 0.4 }}>
-            RANK EVERYTHING
+            <BrandLogo height={44} />
+            {refreshing && <RefreshCw size={16} color={C.textFaint} style={{ animation: "spin 0.8s linear infinite" }} />}
           </div>
         </button>
 
@@ -16113,7 +16121,7 @@ function AuthGate({ onAuthed }) {
       {FONT_IMPORT}
       <div style={{ width: "100%", maxWidth: 400, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", justifyContent: "center", padding: "28px 24px", boxSizing: "border-box" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 46, color: C.gold, lineHeight: 1 }}>Rankev</div>
+          <BrandLogo height={110} />
           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>
             {mode === "login" ? "Đăng nhập để bình chọn & xếp hạng mọi thứ" : "Tạo tài khoản Rankev"}
           </div>
@@ -18704,7 +18712,7 @@ export default function RankevApp() {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", background: C.bg, minHeight: "100vh", fontFamily: bodyFont, color: C.textMuted }}>
         {FONT_IMPORT}
-        <div style={{ fontFamily: displayFont, fontSize: 28, color: C.gold }}>Rankev…</div>
+        <BrandLogo height={96} style={{ animation: "pulseGlow 1.6s ease-in-out infinite", borderRadius: 16 }} />
       </div>
     );
   }
