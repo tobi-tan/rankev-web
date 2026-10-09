@@ -3992,7 +3992,6 @@ function TopBar({ title, onBack, right }) {
       </div>
       <div>{right}</div>
     </div>
-    {chapterNav && <ChapterStrip />}
     </div>
   );
 }
@@ -6449,42 +6448,78 @@ function useChapterNav({ post, allSeries }) {
 }
 
 // ===== Chuyển chapter trong series (màn chi tiết) =====
-// (A) DẢI SỐ CHAPTER gắn ngay dưới thanh tiêu đề (dính theo khi cuộn) — 1 chạm tới bất kỳ chapter;
-//     chapter đang xem tô vàng, chapter đã tham gia có ✓; nút cuối mở bảng xem trước + quản lý.
-// (B) VUỐT NGANG cả trang để sang chapter trước / sau — chừa mép trái (cử chỉ quay lại), bỏ qua
-//     khi ngón tay đặt trên ô nhập hoặc vùng cuộn ngang; mỗi chapter mở ra từ đầu trang.
-// TopBar tự vẽ dải này khi nằm trong ChapterNavShell (qua context) → không phải sửa từng màn.
+// (A) ĐẢO CHAPTER nổi ở đáy (ChapterIsland): chấm chapter (chạm / giữ-trượt để tua) + nút đa nhiệm.
+// (B) VUỐT NGANG cả trang như carousel feed (trang bám ngón tay, chapter kề lộ bìa) — chừa mép trái
+//     (cử chỉ quay lại), bỏ qua ô nhập / vùng cuộn ngang; mỗi chapter mở ra từ đầu trang.
+// TopBar lấy tên series qua context → không phải sửa từng màn.
 const ChapterNavCtx = React.createContext(null);
 
-function ChapterStrip() {
-  const nav = React.useContext(ChapterNavCtx);
-  const rowRef = useRef(null);
-  useEffect(() => {
-    const el = rowRef.current?.querySelector('[data-current="1"]');
-    el?.scrollIntoView?.({ inline: "center", block: "nearest" });
-  }, [nav?.idx]);
-  if (!nav || !nav.series) return null;
+// "ĐẢO" CHAPTER nổi ở đáy màn chi tiết (kiểu Dynamic Island): viên mờ trong suốt, bo tròn.
+//  · trái: icon + "vị trí/tổng" → chạm mở ĐA NHIỆM
+//  · phải: chấm chapter (vàng kéo dài = đang xem · teal = đã tham gia) → chạm 1 chấm để nhảy,
+//    hoặc GIỮ & TRƯỢT ngón tay dọc dải chấm (tua) — bong bóng phía trên báo chapter sẽ mở, thả tay để vào.
+//  Tự ẩn khi đang gõ phím (ô nhập có focus) để không đè bàn phím.
+function ChapterIsland({ nav, hidden }) {
   const { series, idx, isJoined, go, openSwitcher } = nav;
-  const nameOf = (p, i) => (p._bracket ? "Bảng nhánh" : `${series._tournamentId ? "Trận" : "Chapter"} ${series._tournamentId ? i : i + 1}`);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 6px 6px 14px", marginTop: -6 }}>
-      <div ref={rowRef} style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", overflowX: "auto", scrollbarWidth: "none" }}>
-        {series.posts.map((p, i) => {
-          const cur = i === idx;
-          const done = isJoined(p);
-          return (
-            <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} title={`${nameOf(p, i)} · ${p.title}`} aria-label={`${nameOf(p, i)}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
-              style={{ flexShrink: 0, height: 24, padding: "0 3px", display: "grid", placeItems: "center", background: "none", border: "none", cursor: cur ? "default" : "pointer" }}>
-              <span style={{ display: "block", width: cur ? 18 : 6, height: 6, borderRadius: 999, background: cur ? C.gold : done ? C.teal : C.border, transition: "width .2s, background .2s" }} />
-            </button>
-          );
-        })}
+  const dotsRef = useRef(null);
+  const [scrub, setScrub] = useState(null); // index đang tua tới
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const isField = (el) => !!el?.matches?.('input, textarea, select, [contenteditable="true"]');
+    const onIn = (e) => setTyping(isField(e.target));
+    const onOut = () => setTyping(false);
+    document.addEventListener("focusin", onIn);
+    document.addEventListener("focusout", onOut);
+    return () => { document.removeEventListener("focusin", onIn); document.removeEventListener("focusout", onOut); };
+  }, []);
+  useEffect(() => {
+    const el = dotsRef.current?.querySelector('[data-current="1"]');
+    el?.scrollIntoView?.({ inline: "center", block: "nearest" });
+  }, [idx]);
+  const n = series.posts.length;
+  const tour = !!series._tournamentId;
+  const nameOf = (p, i) => (p._bracket ? "Bảng nhánh" : tour ? `Trận ${i}` : `Chapter ${i + 1}`);
+  const small = n > 14;
+  const indexAt = (x) => {
+    const kids = [...(dotsRef.current?.children || [])];
+    let best = idx, bd = Infinity;
+    kids.forEach((k, i) => { const r = k.getBoundingClientRect(); const d = Math.abs(r.left + r.width / 2 - x); if (d < bd) { bd = d; best = i; } });
+    return best;
+  };
+  const onDown = (e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } setScrub(indexAt(e.clientX)); };
+  const onMove = (e) => { if (scrub == null) return; const i = indexAt(e.clientX); if (i !== scrub) { setScrub(i); haptic("light"); } };
+  const onUp = () => { const i = scrub; setScrub(null); if (i != null && i !== idx) go(i); };
+  const shownI = scrub ?? idx;
+  const Icon = tour ? Trophy : Layers;
+  return createPortal(
+    <div data-noswipe style={{ position: "fixed", left: "50%", bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)", zIndex: 30, maxWidth: "calc(100vw - 32px)",
+      transform: `translateX(-50%) translateY(${hidden || typing ? "160%" : "0"})`, opacity: hidden || typing ? 0 : 1, transition: "transform .22s cubic-bezier(.2,.8,.2,1), opacity .18s", pointerEvents: hidden || typing ? "none" : "auto" }}>
+      {scrub != null && (
+        <div style={{ position: "absolute", left: "50%", bottom: "calc(100% + 8px)", transform: "translateX(-50%)", maxWidth: "min(280px, calc(100vw - 32px))", padding: "6px 12px", borderRadius: 12, background: "rgba(16,20,18,.82)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", color: "#fff", fontFamily: bodyFont, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", pointerEvents: "none" }}>
+          <span style={{ color: C.gold }}>{nameOf(series.posts[shownI], shownI)}</span> · {series.posts[shownI]?.title}
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: 4, borderRadius: 999, background: "rgba(16,20,18,.62)", backdropFilter: "blur(14px) saturate(1.4)", WebkitBackdropFilter: "blur(14px) saturate(1.4)", border: "1px solid rgba(255,255,255,.14)", boxShadow: "0 8px 28px rgba(0,0,0,.28)", color: "#fff" }}>
+        <button onClick={openSwitcher} title={`${series.name} — đa nhiệm`} aria-label="Mở đa nhiệm chapter"
+          style={{ flexShrink: 0, height: 30, display: "flex", alignItems: "center", gap: 6, padding: "0 10px", borderRadius: 999, border: "none", background: "rgba(255,255,255,.1)", color: "#fff", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", cursor: "pointer" }}>
+          <Icon size={14} color={C.gold} />{shownI + 1}/{n}
+        </button>
+        <div ref={dotsRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => setScrub(null)}
+          style={{ minWidth: 0, display: "flex", alignItems: "center", overflowX: "auto", scrollbarWidth: "none", padding: "0 6px", touchAction: "none", cursor: "pointer" }}>
+          {series.posts.map((p, i) => {
+            const cur = i === shownI;
+            const done = isJoined(p);
+            return (
+              <span key={p.id} data-current={i === idx ? "1" : "0"} title={`${nameOf(p, i)} · ${p.title}`} aria-label={`${nameOf(p, i)}${done ? " (đã tham gia)" : ""}`} role="button" aria-current={i === idx ? "page" : undefined}
+                style={{ flexShrink: 0, height: 30, padding: small ? "0 2px" : "0 3px", display: "grid", placeItems: "center" }}>
+                <span style={{ display: "block", width: cur ? 16 : small ? 5 : 6, height: small ? 5 : 6, borderRadius: 999, background: cur ? C.gold : done ? C.teal : "rgba(255,255,255,.38)", transition: "width .18s, background .18s" }} />
+              </span>
+            );
+          })}
+        </div>
       </div>
-      <button onClick={openSwitcher} title={`${series.name} — đa nhiệm`} aria-label="Mở đa nhiệm chapter"
-        style={{ flexShrink: 0, width: 32, height: 28, borderRadius: 8, display: "grid", placeItems: "center", background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}>
-        <Layers size={17} />
-      </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -6526,6 +6561,7 @@ function takeSnapshot(el) {
   if (!el) return null;
   const r = el.getBoundingClientRect();
   const node = el.cloneNode(true);
+  node.style.transform = ""; node.style.transition = ""; // bỏ trạng thái đang kéo ngang
   node.querySelectorAll("*").forEach((n) => {
     if (n.style && n.style.position === "sticky") { n.style.position = "relative"; if (r.top < 0) n.style.transform = `translateY(${-r.top}px)`; n.style.zIndex = 5; }
   });
@@ -6687,10 +6723,12 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     return !!participatedKeys?.has(p.type === "path" ? `path:${p.id}` : `deck:${p.id}`);
   };
   const wrapRef = useRef(null);
+  const peekRef = useRef(null);
+  const peekDir = useRef(0); // hướng tấm peek (1 = chapter sau, nằm bên phải)
   const [mt, setMt] = useState(null); // { nudge } khi đang mở đa nhiệm
+  const [peek, setPeek] = useState(null); // { i, dir } — chapter kề đang lộ ra khi kéo ngang
 
-  // Đổi chapter (dải số / chọn thẻ): chuyển NGAY, hiệu ứng trượt nhẹ bằng Web Animations
-  // (không setState theo khung hình, không chờ 170ms như trước).
+  // Đổi chapter qua chấm / đa nhiệm: chuyển NGAY, trượt nhẹ bằng Web Animations.
   const enterDir = useRef(0);
   const go = (i, dir = i > chapterIdx ? 1 : -1) => {
     const target = series?.posts?.[i];
@@ -6700,9 +6738,13 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     navigateChapter?.(target);
   };
   useLayoutEffect(() => {
+    // chapter mới đã vẽ → bỏ trạng thái kéo (trang mới nằm đúng chỗ tấm "peek" vừa trượt vào)
+    const w = wrapRef.current;
+    if (w) { w.style.transition = ""; w.style.transform = ""; }
+    setPeek(null);
     const d = enterDir.current; enterDir.current = 0;
-    if (!d || !wrapRef.current?.animate) return;
-    wrapRef.current.animate([{ transform: `translateX(${d * 28}px)`, opacity: 0.4 }, { transform: "none", opacity: 1 }], { duration: 200, easing: "cubic-bezier(.2,.8,.2,1)" });
+    if (!d || !w?.animate) return;
+    w.animate([{ transform: `translateX(${d * 28}px)`, opacity: 0.4 }, { transform: "none", opacity: 1 }], { duration: 200, easing: "cubic-bezier(.2,.8,.2,1)" });
   }, [post?.id]);
 
   const openMultitask = (nudge = 0) => {
@@ -6711,7 +6753,9 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     setMt({ nudge });
   };
 
-  // --- vuốt ngang: chỉ để MỞ đa nhiệm (không kéo theo tay từng khung hình) ---
+  // --- VUỐT NGANG như carousel feed: trang bám theo ngón tay, chapter kề lộ ra bên cạnh;
+  //     thả quá ~22% bề ngang (hoặc hất nhanh) → sang chapter đó, chưa đủ → bật về.
+  //     Đầu/cuối series: kéo "dính" (cao su). Ra Bảng tin = nút quay lại ở góc trên.
   const touch = useRef(null);
   const blocked = (el) => {
     for (let n = el; n && n !== wrapRef.current; n = n.parentElement) {
@@ -6721,12 +6765,19 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     }
     return false;
   };
+  const vw = () => window.innerWidth || 375;
+  const setX = (x, anim) => {
+    const w = wrapRef.current, pk = peekRef.current;
+    const tr = anim ? "transform .22s cubic-bezier(.2,.8,.2,1)" : "none";
+    if (w) { w.style.transition = tr; w.style.transform = x ? `translate3d(${x}px,0,0)` : ""; }
+    if (pk && peekDir.current) { pk.style.transition = tr; pk.style.transform = `translate3d(${peekDir.current * vw() + x}px,0,0)`; }
+  };
   const onTouchStart = (e) => {
     if (!series || series.posts.length < 2 || e.touches.length !== 1 || mt) { touch.current = null; return; }
     if (!wrapRef.current?.contains(e.target)) { touch.current = null; return; }
     const t = e.touches[0];
-    if (t.clientX < 28 || blocked(e.target)) { touch.current = null; return; } // mép trái = quay lại
-    touch.current = { x: t.clientX, y: t.clientY, dir: null };
+    if (t.clientX < 24 || blocked(e.target)) { touch.current = null; return; } // mép trái = cử chỉ quay lại
+    touch.current = { x: t.clientX, y: t.clientY, dir: null, mx: 0, v: 0, lx: t.clientX, lt: e.timeStamp, pdir: 0 };
   };
   const onTouchMove = (e) => {
     const s = touch.current; if (!s) return;
@@ -6734,13 +6785,41 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     const mx = t.clientX - s.x, my = t.clientY - s.y;
     if (!s.dir) {
       if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
-      s.dir = Math.abs(mx) > Math.abs(my) * 1.4 ? "h" : "v";
+      s.dir = Math.abs(mx) > Math.abs(my) * 1.3 ? "h" : "v";
     }
-    if (s.dir === "h" && Math.abs(mx) > 28) { touch.current = null; openMultitask(mx < 0 ? (chapterIdx < series.posts.length - 1 ? 1 : 0) : (chapterIdx > 0 ? -1 : 0)); }
+    if (s.dir !== "h") return;
+    const dt = Math.max(1, e.timeStamp - s.lt);
+    s.v = (t.clientX - s.lx) / dt; s.lx = t.clientX; s.lt = e.timeStamp;
+    const pdir = mx < 0 ? 1 : -1;
+    const ni = chapterIdx + pdir;
+    const has = ni >= 0 && ni < series.posts.length;
+    s.mx = has ? mx : mx * 0.25;
+    s.has = has; s.pdir = has ? pdir : 0; s.ni = ni; peekDir.current = s.pdir;
+    if (has && (!peek || peek.i !== ni)) setPeek({ i: ni, dir: pdir });
+    setX(s.mx, false);
   };
-  const onTouchEnd = () => { touch.current = null; };
+  const onTouchEnd = () => {
+    const s = touch.current; touch.current = null;
+    if (!s || s.dir !== "h") return;
+    const W = vw();
+    const commit = s.has && (Math.abs(s.mx) > W * 0.22 || (Math.abs(s.v) > 0.45 && Math.sign(s.v) === Math.sign(s.mx)));
+    if (commit) {
+      haptic("light");
+      rememberSnapshot(post?.id, wrapRef.current);
+      setX(-s.pdir * W, true);
+      const target = series.posts[s.ni];
+      setTimeout(() => {
+        enterDir.current = 0;
+        navigateChapter?.(target);
+      }, 220);
+    } else {
+      setX(0, true);
+      setTimeout(() => setPeek(null), 230);
+    }
+  };
 
   const ctx = series && chapterIdx >= 0 ? { series, idx: chapterIdx, isJoined, go, openSwitcher: () => openMultitask(0) } : null;
+  const peekPost = peek ? series?.posts?.[peek.i] : null;
   return (
     <ChapterNavCtx.Provider value={ctx}>
       {mt && series && chapterIdx >= 0 && (
@@ -6750,9 +6829,25 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
           onClose={() => setMt(null)}
           onManage={() => { setMt(null); if (series._tournamentId) rkSave?.openTournament?.(series._tournamentId); else onOpenSeries?.(series.id); }} />
       )}
-      <div ref={wrapRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} style={{ touchAction: "pan-y" }}>
-        {children}
+      {peekPost && createPortal(
+        // Chapter kề lộ ra cạnh trang khi kéo — chỉ BÌA (không lộ kết quả / đáp án)
+        <div ref={peekRef} aria-hidden style={{ position: "fixed", inset: 0, zIndex: 25, background: C.bg, pointerEvents: "none", overflow: "hidden", transform: `translate3d(${peek.dir * vw()}px,0,0)`, boxShadow: "0 0 30px rgba(0,0,0,.25)" }}>
+          <div style={{ paddingTop: "env(safe-area-inset-top)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px 14px 52px", borderBottom: `1px solid ${C.border}`, fontFamily: displayFont, fontWeight: 600, fontSize: 16, color: C.text }}>
+              {series._tournamentId ? <Trophy size={15} color={C.gold} /> : <Layers size={15} color={C.gold} />}
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{series.name}</span>
+            </div>
+            <ChapterCover p={peekPost} />
+          </div>
+        </div>,
+        document.body,
+      )}
+      <div style={{ overflowX: "clip" }}>
+        <div ref={wrapRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} style={{ touchAction: "pan-y", paddingBottom: ctx ? 64 : 0, willChange: peek ? "transform" : "auto" }}>
+          {children}
+        </div>
       </div>
+      {ctx && <ChapterIsland nav={ctx} hidden={!!mt} />}
     </ChapterNavCtx.Provider>
   );
 }
@@ -7309,15 +7404,6 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
       />
 
       <div style={{ padding: 16 }}>
-        {rankie.tournamentId && onOpenTournament && (
-          <button onClick={() => onOpenTournament(rankie.tournamentId)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}`, cursor: "pointer", textAlign: "left" }}>
-            <Trophy size={16} color={C.gold} />
-            <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 14, color: C.text }}>
-              Trận trong giải <b style={{ color: C.gold }}>{rankie.tournamentTitle}</b>
-            </span>
-            <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.gold, fontWeight: 700, flexShrink: 0 }}>Xem bảng đấu →</span>
-          </button>
-        )}
         {rankie.author && (
           // Cùng ngôn ngữ thẻ feed: loại bài + trạng thái nằm trong dòng thông tin dưới tên.
           <AuthorRow author={rankie.author} size={36} onOpenAuthor={undefined} meta={<PostMeta item={rankie} status={[
