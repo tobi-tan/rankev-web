@@ -168,6 +168,10 @@ const FONT_IMPORT = (
     /* Màn giữ sẵn (KeepAlive) đang ẩn: content-visibility giữ nguyên layout đã tính → hiện lại ~3ms
        thay vì ~40ms dàn trang lại cả feed. Trình duyệt cũ không hỗ trợ → display:none như trước. */
     .rk-ka-off { display: none; }
+    /* Carousel trên feed: mọi slide cao BẰNG NHAU (= slide cao nhất), thanh tương tác ở ĐÁY */
+    .rk-slide { display: flex; flex-direction: column; }
+    .rk-slide > .rk-post { flex: 1 1 auto; display: flex; flex-direction: column; }
+    .rk-slide > .rk-post > .rk-engage { margin-top: auto !important; }
     /* APP ĐIỆN THOẠI + web có tai thỏ: chừa vùng an toàn (env = 0 trên máy không tai thỏ → không đổi gì) */
     body { padding-top: env(safe-area-inset-top); }
     [style*="position: sticky"][style*="top: 0px"] { top: env(safe-area-inset-top) !important; }
@@ -4056,7 +4060,7 @@ function EngagementBar({ type = "rankie", joined = false, participants = 0, comm
   const visibleSessions = sessionList.slice(0, 3);
 
   return (
-    <div style={{ marginTop: 4 }}>
+    <div className="rk-engage" style={{ marginTop: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0 2px" }}>
         <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
           <button
@@ -5316,25 +5320,8 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const [bm, setBm] = useState(!!t.bookmarked);
   useEffect(() => { setBm(!!t.bookmarked); }, [t.bookmarked]);
   const ref = useRef(null);
-  // Chiều cao carousel BÁM THEO slide đang xem (slide ngắn không bị kéo dài bằng slide cao nhất
-  // → không còn khoảng trống, thanh tương tác nằm sát ngay dưới).
-  // CHỈ đổi chiều cao khi vuốt đã DỪNG (hIdx) — đổi kích thước/ghi vị trí cuộn giữa lúc đang
-  // trượt quán tính làm iOS huỷ hiệu ứng hít (snap) → carousel dừng lệch giữa 2 slide.
-  const slideRefs = useRef([]);
-  const [boxH, setBoxH] = useState(null);
-  const [hIdx, setHIdx] = useState(0);
-  const settleT = useRef(null);
-  useEffect(() => () => clearTimeout(settleT.current), []);
-  useEffect(() => {
-    const el = slideRefs.current[hIdx];
-    if (!el) return;
-    if (ref.current && ref.current.scrollTop) ref.current.scrollTop = 0; // khung chỉ cuộn NGANG (an toàn: đã dừng cuộn)
-    const measure = () => setBoxH(el.offsetHeight || null);
-    measure();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    return () => ro?.disconnect();
-  }, [hIdx, data]);
+  // Khung CỐ ĐỊNH = slide cao nhất (mọi slide kéo bằng nhau, thanh tương tác nằm ở đáy) → vuốt
+  // không còn nhảy chiều cao / chờ đo — trước đây khung bám theo từng slide nên giật và trễ.
   // Tải LƯỜI: chỉ gọi getTournament khi thẻ sắp vào màn hình (trước đây mọi giải trên feed/hồ sơ
   // cùng bắn request lúc mở app → chậm, nhất là khi Render vừa "thức dậy").
   const wrapRef = useRef(null);
@@ -5343,7 +5330,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
     const el = wrapRef.current;
     if (!el || near) return;
     if (typeof IntersectionObserver === "undefined") { setNear(true); return; }
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setNear(true); io.disconnect(); } }, { rootMargin: "600px 0px" });
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setNear(true); io.disconnect(); } }, { rootMargin: "1600px 0px" });
     io.observe(el);
     return () => io.disconnect();
   }, [near]);
@@ -5375,32 +5362,9 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const onScroll = () => {
     const el = ref.current; if (!el) return;
     const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
-    setIdx((p) => (i !== p ? i : p)); // chấm trang cập nhật ngay
-    // Vuốt dừng ~140ms → nếu còn lệch thì tự hít về slide gần nhất, rồi mới đổi chiều cao.
-    clearTimeout(settleT.current);
-    settleT.current = setTimeout(() => {
-      const e = ref.current; if (!e) return;
-      const w = e.clientWidth || 1;
-      const j = Math.round(e.scrollLeft / w);
-      if (Math.abs(e.scrollLeft - j * w) > 2) e.scrollTo({ left: j * w, behavior: "smooth" });
-      else { setHIdx(j); restoreH(j); }
-    }, 140);
+    setIdx((p) => (i !== p ? i : p)); // chấm trang cập nhật ngay; hít (snap) do trình duyệt lo
   };
-  // Chạm vào carousel (TRƯỚC khi trượt) → nới khung ngay bằng slide cao nhất trong 3 slide kề
-  // (trước · hiện tại · sau). Trước đây khung giữ chiều cao slide cũ suốt lúc vuốt rồi mới giãn
-  // → thẻ trận bị cắt ngang ~0,4s, trông như "đang tải". Vuốt xong (settle) mới thu về đúng slide.
-  // Thu khung về đúng chiều cao slide đang đứng (sau khi vuốt xong / chạm mà không vuốt).
-  const restoreH = (j) => { const el = ref.current; const h = slideRefs.current[j]?.offsetHeight; if (el && h) { el.style.transition = "height .25s ease"; setBoxH(h); } };
-  const expandForSwipe = () => {
-    const hs = [idx - 1, idx, idx + 1].map((k) => slideRefs.current[k]?.offsetHeight || 0);
-    const h = Math.max(...hs);
-    if (h && ref.current && h > (ref.current.offsetHeight || 0)) { ref.current.style.transition = "none"; setBoxH(h); }
-    // chỉ chạm (không cuộn) → không có sự kiện scroll để thu lại → tự thu sau 700ms
-    clearTimeout(settleT.current);
-    settleT.current = setTimeout(() => { const e = ref.current; if (!e) return; const w = e.clientWidth || 1; const j = Math.round(e.scrollLeft / w); if (Math.abs(e.scrollLeft - j * w) <= 2) restoreH(j); }, 700);
-  };
-  useEffect(() => { if (ref.current) ref.current.style.transition = "height .25s ease"; }, [hIdx]);
-  const goto = (i) => { const el = ref.current; if (!el) return; const hs = [i, idx].map((k) => slideRefs.current[k]?.offsetHeight || 0); el.style.transition = "none"; setBoxH(Math.max(...hs)); el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
+  const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
   const dot = (a) => ({ width: a ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: a ? C.gold : C.border, transition: "width .2s, background .2s" });
   const slideWrap = { flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" };
 
@@ -5409,7 +5373,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
   const commentCount = data?.commentCount ?? t.commentCount ?? 0;
   const joined = !!data?.matches?.some((m) => m.myPick);
   const liveCount = shown.filter((m) => mState(m) === 1).length;
-  const tourMeta = <PostMeta item={{ type: "tournament", createdAt: t.createdAt, _sponsored: t._sponsored }} status={[champ ? <span key="ch" style={{ color: C.gold, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>🏆 {champ.name}</span> : liveCount ? liveMeta : null]} />;
+  const tourMeta = <PostMeta item={{ type: "tournament", createdAt: t.createdAt, _sponsored: t._sponsored }} status={[!champ && liveCount ? liveMeta : null]} />;
 
   // Slide BẢNG NHÁNH: ảnh feed tự đổi theo tiến độ giải (TournamentFeedHero) + thanh tương tác.
   const bracketSlide = (
@@ -5418,7 +5382,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
       {/* Ảnh bảng đấu tràn viền như ảnh các bài khác */}
       <div className="rk-bleed" style={postBleed}><TournamentFeedHero t={t} data={data} roundName={roundName} /></div>
-      <div style={{ marginTop: 10 }}>
+      <div className="rk-engage" style={{ marginTop: 10 }}>
         <EngagementBar
           type="tournament"
           joined={joined}
@@ -5445,9 +5409,9 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
     // Loại bài "Giải đấu" nằm trong dòng thông tin dưới tên (bỏ viên nhãn phía trên). Vạch ngăn
     // nằm dưới cả carousel (các slide bên trong bỏ vạch riêng — .rk-carousel).
     <div ref={wrapRef} className="rk-carousel" style={{ position: "relative", borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
-      <div ref={ref} onScroll={onScroll} onTouchStart={expandForSwipe} onPointerDown={expandForSwipe} style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none", height: boxH || "auto" }}>
-        <div ref={(el) => { slideRefs.current[0] = el; }} style={slideWrap}>{bracketSlide}</div>
-        {shown.map((m, i) => <div key={`${m.round}-${m.position}`} ref={(el) => { slideRefs.current[i + 1] = el; }} style={slideWrap}>{matchSlide(m)}</div>)}
+      <div ref={ref} onScroll={onScroll} style={{ display: "flex", alignItems: "stretch", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        <div className="rk-slide" style={slideWrap}>{bracketSlide}</div>
+        {shown.map((m) => <div key={`${m.round}-${m.position}`} className="rk-slide" style={slideWrap}>{matchSlide(m)}</div>)}
       </div>
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 8 }}>
         <button onClick={() => goto(0)} aria-label="Bảng đấu" style={dot(idx === 0)} />
@@ -5465,7 +5429,7 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
   const [idx, setIdx] = useState(0);
   // Lazy-mount: chỉ dựng slide đang xem ± 1 (còn lại là khung rỗng nhẹ) → feed không phải
   // render sẵn mọi chapter, tránh nặng. Slide đã ghé thì giữ luôn (khỏi dựng lại).
-  const [live, setLive] = useState(() => new Set([0, 1]));
+  const live = { has: () => true }; // dựng sẵn mọi chapter → chiều cao khung cố định, không nhảy
   const ref = useRef(null);
   const slides = chapters.slice(0, maxInline);
   const hasMore = chapters.length > maxInline;
@@ -5474,7 +5438,6 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
     const el = ref.current; if (!el) return;
     const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
     setIdx((prev) => (i !== prev ? i : prev));
-    setLive((prev) => (prev.has(i - 1) && prev.has(i) && prev.has(i + 1) ? prev : new Set([...prev, i - 1, i, i + 1])));
   };
   const goto = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" }); };
   const dot = (active) => ({ width: active ? 18 : 6, height: 6, borderRadius: 999, border: "none", padding: 0, cursor: "pointer", background: active ? C.gold : C.border, transition: "width .2s, background .2s" });
@@ -5487,7 +5450,7 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
         style={{ display: "flex", overflowX: "auto", overflowY: "hidden", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {slides.map((ch, i) => (
-          <div key={ch.id} style={{ flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
+          <div key={ch.id} className="rk-slide" style={{ flex: "0 0 100%", width: "100%", boxSizing: "border-box", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
             {live.has(i) ? renderCard(ch) : (
               <div style={{ minHeight: 300, display: "grid", placeItems: "center" }}>
                 <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint }}>Chapter {i + 1}…</span>
@@ -6471,28 +6434,24 @@ function ChapterStrip() {
   }, [nav?.idx]);
   if (!nav || !nav.series) return null;
   const { series, idx, isJoined, go, openSwitcher } = nav;
+  const nameOf = (p, i) => (p._bracket ? "Bảng nhánh" : `${series._tournamentId ? "Trận" : "Chapter"} ${series._tournamentId ? i : i + 1}`);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 10px 8px 14px", marginTop: -4 }}>
-      <div ref={rowRef} style={{ flex: 1, minWidth: 0, display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", padding: "2px 2px" }} title={series.name}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 6px 6px 14px", marginTop: -6 }}>
+      <div ref={rowRef} style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", overflowX: "auto", scrollbarWidth: "none" }}>
         {series.posts.map((p, i) => {
           const cur = i === idx;
           const done = isJoined(p);
           return (
-            <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} title={p._roundLabel ? `${p._roundLabel} · ${p.title}` : p.title} aria-label={`${series._tournamentId ? "Trận" : "Chapter"} ${i + 1}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
-              style={{ position: "relative", flexShrink: 0, minWidth: 34, height: 34, padding: "0 8px", borderRadius: 999, cursor: cur ? "default" : "pointer", fontFamily: bodyFont, fontWeight: 700, fontSize: 14, fontVariantNumeric: "tabular-nums", border: `1.5px solid ${cur ? C.gold : C.border}`, background: cur ? C.gold : C.surfaceRaised, color: cur ? "#1A1305" : C.text }}>
-              {i + 1}
-              {done && !cur && (
-                <span style={{ position: "absolute", right: -3, top: -3, width: 15, height: 15, borderRadius: 99, background: C.teal, border: `2px solid ${C.bg}`, display: "grid", placeItems: "center" }}>
-                  <Check size={8} color="#fff" strokeWidth={4} />
-                </span>
-              )}
+            <button key={p.id} data-current={cur ? "1" : "0"} onClick={() => !cur && go(i)} title={`${nameOf(p, i)} · ${p.title}`} aria-label={`${nameOf(p, i)}${done ? " (đã tham gia)" : ""}`} aria-current={cur ? "page" : undefined}
+              style={{ flexShrink: 0, height: 24, padding: "0 3px", display: "grid", placeItems: "center", background: "none", border: "none", cursor: cur ? "default" : "pointer" }}>
+              <span style={{ display: "block", width: cur ? 18 : 6, height: 6, borderRadius: 999, background: cur ? C.gold : done ? C.teal : C.border, transition: "width .2s, background .2s" }} />
             </button>
           );
         })}
       </div>
-      <button onClick={openSwitcher} title={`${series.name} — xem trước ${series._tournamentId ? "các trận" : "các chapter"}`} aria-label={series._tournamentId ? "Xem trước các trận" : "Xem trước các chapter"}
-        style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}>
-        <Layers size={18} />
+      <button onClick={openSwitcher} title={`${series.name} — đa nhiệm`} aria-label="Mở đa nhiệm chapter"
+        style={{ flexShrink: 0, width: 32, height: 28, borderRadius: 8, display: "grid", placeItems: "center", background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}>
+        <Layers size={17} />
       </button>
     </div>
   );
@@ -6513,11 +6472,14 @@ function useTournamentChapters(tournamentId) {
   return useMemo(() => {
     if (!data || !tournamentId) return null;
     const author = data.author ? apiAuthorToProto(data.author) : null;
-    const posts = (data.matches || [])
+    const matches = (data.matches || [])
       .filter((m) => m.rankiePostId)
       .sort((a, b) => a.round - b.round || a.position - b.position)
       .map((m) => ({ ...matchToRankieProto(m, author), tournamentId, tournamentTitle: data.title, _joined: !!m.myPick, _roundLabel: `Vòng ${m.round + 1}` }));
-    if (posts.length < 2) return null;
+    if (!matches.length) return null;
+    // Chapter 1 = BẢNG NHÁNH của giải (vào đa nhiệm được ngay từ trang giải, không phải ra feed chọn trận).
+    const bracket = { id: "tour:" + tournamentId, type: "tournament", title: data.title, tournamentId, _bracket: true, author, media: data.media || null, coverImage: data.media?.url || null };
+    const posts = [bracket, ...matches];
     return { id: "tour:" + tournamentId, name: data.title, posts, _tournamentId: tournamentId };
   }, [data, tournamentId]);
 }
@@ -6552,7 +6514,8 @@ function rememberSnapshot(id, el) {
 function ChapterCover({ p }) {
   const M = POST_TYPE_META[postTypeKey(p)] || POST_TYPE_META.rankie;
   const a = p.author || {};
-  const optImgs = (p.options || []).filter((o) => o.image).slice(0, 2);
+  // Đối đầu (2 lựa chọn có ảnh hoặc emoji) → 2 ô vuông + VS
+  const optImgs = (p.options || []).length === 2 && p.options.every((o) => o.image || o.emoji) ? p.options : [];
   const img = p.media?.url || p.coverImage || p.questions?.[0]?.image || null;
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg }}>
@@ -6581,7 +6544,7 @@ function ChapterCover({ p }) {
               {i === 1 && <span style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 18, color: C.gold, flexShrink: 0 }}>VS</span>}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: C.surfaceRaised }}>
-                  <Pic src={o.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {o.image ? <Pic src={o.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontSize: 44 }}>{o.emoji}</div>}
                 </div>
                 <div style={{ marginTop: 6, textAlign: "center", fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</div>
               </div>
@@ -6645,7 +6608,7 @@ function ChapterMultitask({ series, idx, exit, nudge = 0, onPick, onExit, onClos
     if (it.kind === "exit") return <><span style={{ width: 22, height: 22, borderRadius: 7, background: "rgba(255,255,255,.16)", display: "grid", placeItems: "center", flexShrink: 0 }}><Home size={13} /></span><span>{exit.label}</span></>;
     const M = POST_TYPE_META[postTypeKey(it.p)] || POST_TYPE_META.rankie;
     return <>
-      <span style={{ minWidth: 22, height: 22, padding: "0 5px", borderRadius: 7, background: pos === curPos ? C.gold : "rgba(255,255,255,.16)", color: pos === curPos ? "#1A1305" : "#fff", display: "inline-grid", placeItems: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{it.i + 1}</span>
+      <span style={{ minWidth: 22, height: 22, padding: "0 5px", borderRadius: 7, background: pos === curPos ? C.gold : "rgba(255,255,255,.16)", color: pos === curPos ? "#1A1305" : "#fff", display: "inline-grid", placeItems: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{it.p._bracket ? <Trophy size={12} /> : series._tournamentId ? it.i : it.i + 1}</span>
       <M.icon size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.p.title}</span>
     </>;
@@ -6688,6 +6651,7 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
   const { votedMap } = resultData || {};
   const isJoined = (p) => {
     if (p._joined) return true;
+    if (p._bracket) return false;
     if (p.type === "rankie") return votedIdsFor(votedMap?.[p.id]).length > 0 || !!participatedKeys?.has(`rankie:${p.id}`);
     return !!participatedKeys?.has(p.type === "path" ? `path:${p.id}` : `deck:${p.id}`);
   };
@@ -17954,7 +17918,8 @@ export default function RankevApp() {
   const replaceNavRef = useRef(false);
   const navigateChapter = (post) => {
     replaceNavRef.current = true; // đổi chapter = thay màn hiện tại (back không lùi qua từng chapter)
-    if (post.type === "rankie") { const keep = prevAfterDetail; openRankie(post.id, post); setPrevAfterDetail(keep); }
+    if (post._bracket || post.type === "tournament") { openTournament(post.tournamentId); }
+    else if (post.type === "rankie") { const keep = prevAfterDetail; openRankie(post.id, post); setPrevAfterDetail(keep); }
     else if (post.type === "path") { setSelectedPath(withCachedPath(post)); setView("pathDetail"); }
     else { setSelectedDeck(post); setView("deckDetail"); }
   };
@@ -19274,6 +19239,7 @@ export default function RankevApp() {
             />
           )}
           {view === "tournament" && selectedTournamentId && (
+            <ChapterNavShell post={{ id: "tour:" + selectedTournamentId, tournamentId: selectedTournamentId, type: "tournament" }} allSeries={allSeries} navigateChapter={navigateChapter} participatedKeys={participatedKeys} resultData={chapterResultData} onOpenSeries={openSeriesDetail}>
             <TournamentView
               tournamentId={selectedTournamentId}
               currentUserId={currentUser.apiId}
@@ -19283,6 +19249,7 @@ export default function RankevApp() {
               contacts={contacts}
               onShareToProfile={shareToProfile}
             />
+            </ChapterNavShell>
           )}
           {view === "createTournament" && (
             <CreateTournamentView
