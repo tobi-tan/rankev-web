@@ -16022,9 +16022,66 @@ function BrandIcon({ provider, size = 18 }) {
 }
 
 // Màn Đăng nhập / Đăng ký kiểu Facebook/Instagram: nút MXH nổi bật + form email.
+// Quên mật khẩu (2 bước): email → mã 6 số gửi qua email + mật khẩu mới.
+function ForgotPasswordSheet({ initialEmail = "", onDone, onClose }) {
+  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [pw, setPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const inp = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 16, outline: "none", marginBottom: 10 };
+  const send = async () => {
+    setErr(null);
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr("Email không hợp lệ.");
+    setBusy(true);
+    try { await auth.forgot(email.trim()); setStep(2); } catch (e) { setErr(e?.message || "Không gửi được mã, thử lại sau."); }
+    finally { setBusy(false); }
+  };
+  const reset = async () => {
+    setErr(null);
+    if (!/^\d{6}$/.test(code)) return setErr("Mã gồm 6 chữ số.");
+    if (pw.length < 8) return setErr("Mật khẩu mới cần ít nhất 8 ký tự.");
+    setBusy(true);
+    try { await auth.reset(email.trim(), code, pw); onDone(email.trim()); } catch (e) { setErr(e?.message || "Mã không đúng hoặc đã hết hạn."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ padding: "4px 18px 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text, marginBottom: 14 }}>
+          <Lock size={18} /> Đặt lại mật khẩu
+        </div>
+        {step === 1 ? (
+          <>
+            <input style={inp} type="email" inputMode="email" autoCapitalize="none" placeholder="Email đăng ký" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} autoFocus />
+            {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 14, marginBottom: 10 }}>{err}</div>}
+            <button onClick={send} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1 }}>{busy ? "Đang gửi…" : "Gửi mã"}</button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 12 }}><Send size={14} /> {email.trim()}</div>
+            <input style={{ ...inp, fontFamily: clockFont, fontSize: 24, letterSpacing: 8, textAlign: "center" }} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} autoFocus />
+            <div style={{ position: "relative" }}>
+              <input style={{ ...inp, paddingRight: 46 }} type={showPw ? "text" : "password"} autoComplete="new-password" placeholder="Mật khẩu mới (≥ 8 ký tự)" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") reset(); }} />
+              <button onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Ẩn mật khẩu" : "Hiện mật khẩu"} style={{ position: "absolute", right: 6, top: 6, width: 36, height: 36, border: "none", background: "none", color: C.textFaint, cursor: "pointer", display: "grid", placeItems: "center" }}>{showPw ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+            </div>
+            {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 14, marginBottom: 10 }}>{err}</div>}
+            <button onClick={reset} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1 }}>{busy ? "Đang lưu…" : "Đổi mật khẩu"}</button>
+            <button onClick={send} disabled={busy} style={{ width: "100%", marginTop: 10, background: "none", border: "none", color: C.textMuted, fontFamily: bodyFont, fontSize: 14, cursor: "pointer" }}>Gửi lại mã</button>
+          </>
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
 function AuthGate({ onAuthed }) {
   const [mode, setMode] = useState("login"); // login | register
   const [legalDoc, setLegalDoc] = useState(null); // xem Điều khoản / Quyền riêng tư
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [notice, setNotice] = useState(null); // thông báo xanh (vd đã đổi mật khẩu)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [handle, setHandle] = useState("");
@@ -16155,6 +16212,12 @@ function AuthGate({ onAuthed }) {
         )}
         <input style={inputStyle} type="email" placeholder="Email" value={email} autoCapitalize="none" onChange={(e) => setEmail(e.target.value)} />
         <input style={inputStyle} type="password" placeholder="Mật khẩu" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        {mode === "login" && (
+          <button onClick={() => { setErr(null); setForgotOpen(true); }} style={{ alignSelf: "flex-end", background: "none", border: "none", padding: "0 2px 10px", color: C.gold, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Quên mật khẩu?</button>
+        )}
+        {notice && <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.teal, fontFamily: bodyFont, fontSize: 14, margin: "2px 0 10px" }}><Check size={16} /> {notice}</div>}
+        {forgotOpen && <ForgotPasswordSheet initialEmail={email} onClose={() => setForgotOpen(false)}
+          onDone={(em) => { setForgotOpen(false); setEmail(em); setPassword(""); setMode("login"); setNotice("Đã đổi mật khẩu — đăng nhập bằng mật khẩu mới."); }} />}
         {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 14, margin: "2px 0 10px", lineHeight: 1.4 }}>{err}</div>}
         <button onClick={submit} disabled={busy} style={{ ...primaryButton, width: "100%", opacity: busy ? 0.6 : 1, marginTop: 2 }}>
           {busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Đăng ký"}

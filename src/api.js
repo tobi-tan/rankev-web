@@ -152,6 +152,9 @@ export const auth = {
     try { await apiFetch('/auth/logout', { auth: false, method: 'DELETE', body: { refreshToken } }); } catch { /* ignore */ }
     clearTokens();
   },
+  // Quên mật khẩu: gửi mã 6 số qua email · đổi mật khẩu bằng mã
+  forgot(email) { return apiFetch('/auth/forgot', { auth: false, method: 'POST', body: { email } }); },
+  reset(email, code, password) { return apiFetch('/auth/reset', { auth: false, method: 'POST', body: { email, code, password } }); },
   me() { return apiFetch('/users/me'); }, // → { user, rankUps }
   updateProfile(patch) { return apiFetch('/users/me', { method: 'PATCH', body: patch }); },
   // Xoá tài khoản vĩnh viễn (App Store 5.1.1(v)) → bỏ token cục bộ.
