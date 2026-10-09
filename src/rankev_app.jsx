@@ -6556,22 +6556,41 @@ function ChapterCover({ p }) {
   const img = p.media?.url || p.coverImage || p.questions?.[0]?.image || null;
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 10px" }}>
-        <span style={{ width: 36, height: 36, borderRadius: 99, overflow: "hidden", display: "grid", placeItems: "center", background: a.avatarColor || C.surfaceRaised, fontSize: 18, flexShrink: 0 }}>
-          {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || initialOf(a.name))}
-        </span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textFaint }}><M.icon size={13} /></div>
+      {a.name ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 10px" }}>
+          <span style={{ width: 36, height: 36, borderRadius: 99, overflow: "hidden", display: "grid", placeItems: "center", background: a.avatarColor || C.surfaceRaised, fontSize: 18, flexShrink: 0 }}>
+            {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || initialOf(a.name))}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.textFaint }}><M.icon size={13} /></div>
+          </div>
         </div>
-      </div>
+      ) : <div style={{ height: 16 }} />}
       <div style={{ padding: "0 16px 10px", fontFamily: bodyFont, fontWeight: 700, fontSize: 20, color: C.text, lineHeight: 1.25 }}>{p.title}</div>
       {p.caption && <div style={{ padding: "0 16px 12px", fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.caption}</div>}
-      <div style={{ flex: 1, position: "relative", overflow: "hidden", background: C.surfaceRaised, display: "flex" }}>
-        {img ? <Pic src={img} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-          : optImgs.length === 2 ? optImgs.map((o) => <Pic key={o.id} src={o.image} style={{ flex: 1, minWidth: 0, height: "100%", objectFit: "cover" }} />)
-          : <div style={{ flex: 1, display: "grid", placeItems: "center", color: C.textFaint }}><M.icon size={52} /></div>}
-      </div>
+      {img ? (
+        <div style={{ position: "relative", width: "100%", aspectRatio: "4 / 3", overflow: "hidden", background: C.surfaceRaised }}>
+          <Pic src={img} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        </div>
+      ) : optImgs.length === 2 ? (
+        // Đối đầu: 2 ảnh VUÔNG cạnh nhau + VS (không kéo giãn lên cả thẻ)
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 16px" }}>
+          {optImgs.map((o, i) => (
+            <React.Fragment key={o.id}>
+              {i === 1 && <span style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 18, color: C.gold, flexShrink: 0 }}>VS</span>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: C.surfaceRaised }}>
+                  <Pic src={o.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+                <div style={{ marginTop: 6, textAlign: "center", fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</div>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      ) : (
+        <div style={{ width: "100%", aspectRatio: "4 / 3", display: "grid", placeItems: "center", color: C.textFaint, background: C.surfaceRaised }}><M.icon size={52} /></div>
+      )}
     </div>
   );
 }
@@ -6708,7 +6727,7 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
     return false;
   };
   const onTouchStart = (e) => {
-    if (!series || (series.posts.length < 2 && !exit) || e.touches.length !== 1 || mt) { touch.current = null; return; }
+    if (!series || series.posts.length < 2 || e.touches.length !== 1 || mt) { touch.current = null; return; }
     if (!wrapRef.current?.contains(e.target)) { touch.current = null; return; }
     const t = e.touches[0];
     if (t.clientX < 28 || blocked(e.target)) { touch.current = null; return; } // mép trái = quay lại
@@ -6722,7 +6741,7 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
       if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
       s.dir = Math.abs(mx) > Math.abs(my) * 1.4 ? "h" : "v";
     }
-    if (s.dir === "h" && Math.abs(mx) > 28) { touch.current = null; openMultitask(mx < 0 ? 1 : -1); }
+    if (s.dir === "h" && Math.abs(mx) > 28) { touch.current = null; openMultitask(mx < 0 ? (chapterIdx < series.posts.length - 1 ? 1 : 0) : (chapterIdx > 0 ? -1 : 0)); }
   };
   const onTouchEnd = () => { touch.current = null; };
 
@@ -6730,7 +6749,7 @@ function ChapterNavShell({ post, allSeries, navigateChapter, participatedKeys, r
   return (
     <ChapterNavCtx.Provider value={ctx}>
       {mt && series && chapterIdx >= 0 && (
-        <ChapterMultitask series={series} idx={chapterIdx} exit={chapterIdx === 0 ? exit : null} nudge={mt.nudge}
+        <ChapterMultitask series={series} idx={chapterIdx} exit={null} nudge={mt.nudge}
           onPick={(p) => { const i = series.posts.findIndex((x) => x.id === p.id); enterDir.current = 0; if (i >= 0) navigateChapter?.(series.posts[i]); }}
           onExit={() => exit?.onExit()}
           onClose={() => setMt(null)}
@@ -14561,7 +14580,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
 
 // Biểu đồ thống kê hồ sơ kiểu "chỉ số game": 4 góc = rankie/path/exam/survey (diện
 // tích radar theo số bài mỗi loại), huy hiệu trung tâm = tổng bài đăng + lượt.
-function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
+function ProfileStatRadar({ rankie, path, exam, survey, posts, views, tiers = [] }) {
   // Chạm biểu đồ để bật/tắt nhãn chữ (Rankie, Path…).
   const [showLabels, setShowLabels] = useState(false);
   const cx = 150, cy = 102, R = 60;
@@ -14597,7 +14616,20 @@ function ProfileStatRadar({ rankie, path, exam, survey, posts, views }) {
   return (
     <div style={{ cursor: "pointer" }} onClick={() => setShowLabels((v) => !v)}>
 
-      <svg viewBox="0 0 300 200" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
+      {/* Hàng RankUp (3 tầng) — dùng CHUNG nút bật/tắt nhãn với biểu đồ */}
+      {tiers.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-around", padding: "4px 8px 6px" }}>
+          {tiers.map((t) => (
+            <div key={t.level} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums" }}>
+                {fmtCompact(t.count)}<RankCircleChevrons level={t.level} color={t.color} size={20} />
+              </div>
+              {showLabels && <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.textFaint }}>{t.label}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      <svg viewBox="0 0 300 224" width="100%" style={{ maxWidth: 320, display: "block", margin: "0 auto" }}>
         {[0.34, 0.67, 1].map((f) => (
           <polygon key={f} points={ringPts(f)} fill="none" stroke={C.border} strokeWidth="1" />
         ))}
@@ -15216,15 +15248,8 @@ function ProfileView({
         )}
         {showStatsDetail && (
           <BottomSheet onClose={() => setShowStatsDetail(false)}>
-            <div style={{ display: "flex", justifyContent: "space-around", padding: "8px 18px 4px" }}>
-              {[1, 2, 3].map((t) => (
-                <div key={t} title={RANK_TIERS[t].label} style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums" }}>
-                  {fmtCompact(rankCounts[`tier${t}`] || 0)}<RankCircleChevrons level={t} color={RANK_TIERS[t].color} size={20} />
-                </div>
-              ))}
-            </div>
             <div style={{ padding: "4px 10px 6px" }}>
-              <ProfileStatRadar rankie={theirRankies.length} path={theirPaths.length} exam={theirExams.length} survey={theirDecks.length} posts={theirPostsAll.filter((p) => !p.deletedAt).length} views={totalReach} />
+              <ProfileStatRadar tiers={[1, 2, 3].map((t) => ({ level: t, label: RANK_TIERS[t].label, color: RANK_TIERS[t].color, count: rankCounts[`tier${t}`] || 0 }))} rankie={theirRankies.length} path={theirPaths.length} exam={theirExams.length} survey={theirDecks.length} posts={theirPostsAll.filter((p) => !p.deletedAt).length} views={totalReach} />
             </div>
           </BottomSheet>
         )}
