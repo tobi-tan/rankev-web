@@ -12,7 +12,7 @@ import {
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
   MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText,
-  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown,
+  ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
 
@@ -4161,10 +4161,10 @@ function DetailHeaderActions({ onPresent, isOwner = false, participated = false,
       {onPresent && (
         <button
           onClick={locked ? () => setLockMsg(lockReason) : onPresent}
-          title={lockReason || "Trình chiếu"}
+          title={lockReason || "Bắt đầu trình chiếu"}
           style={iconBtn}
         >
-          {locked ? <MonitorOff size={20} color={C.coral} /> : <Monitor size={20} color={C.teal} />}
+          {locked ? <MonitorOff size={20} color={C.coral} /> : <MonitorPlay size={20} color={C.teal} />}
         </button>
       )}
       {lockMsg && (
@@ -7258,10 +7258,10 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               return (
                 <button
                   onClick={locked ? () => setPresentLockMsg(lockReason) : onPresent}
-                  title={lockReason || "Trình chiếu"}
+                  title={lockReason || "Bắt đầu trình chiếu"}
                   style={{ background: "none", border: "none", cursor: "pointer", display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 10, padding: 0 }}
                 >
-                  {locked ? <MonitorOff size={20} color={C.coral} /> : <Monitor size={20} color={C.teal} />}
+                  {locked ? <MonitorOff size={20} color={C.coral} /> : <MonitorPlay size={20} color={C.teal} />}
                 </button>
               );
             })()}
@@ -9134,7 +9134,12 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
                 </div>
                 {/* Chip gọn: TOP % · ĐẠT/CHƯA ĐẠT · số câu đúng — không câu chữ giải thích */}
                 <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                  {topPct != null && (
+                  {sr?.practice && (
+                    <span title="Làm lại = luyện tập. Điểm chính thức là lần làm đầu tiên." style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 999, background: C.surfaceRaised, border: `1px dashed ${C.border}`, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.textMuted }}>
+                      <ArchiveRestore size={14} /> Luyện tập · chính thức {sr.official?.score10 ?? "—"}/10
+                    </span>
+                  )}
+                  {topPct != null && !sr?.practice && (
                     <span title={beatPct != null ? `Hơn ${beatPct}% người tham gia` : undefined} style={{ padding: "5px 12px", borderRadius: 999, background: C.goldSoft, border: `1px solid ${C.gold}`, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.gold }}>TOP {topPct}%</span>
                   )}
                   {deck.passingScore != null && (
