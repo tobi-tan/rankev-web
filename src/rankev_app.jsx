@@ -16479,8 +16479,9 @@ function AuthGate({ onAuthed }) {
           </button>
         </div>
         <div style={{ textAlign: "center", marginTop: 16, fontFamily: bodyFont, fontSize: 12, color: C.textFaint, lineHeight: 1.5 }}>
-          Bằng việc tiếp tục, bạn đồng ý với{" "}
-          <button onClick={() => setLegalDoc("terms")} style={{ background: "none", border: "none", padding: 0, color: C.gold, font: "inherit", cursor: "pointer", textDecoration: "underline" }}>Điều khoản</button>{" & "}
+          Bằng việc tiếp tục, bạn xác nhận đã đủ 13 tuổi và đồng ý với{" "}
+          <button onClick={() => setLegalDoc("terms")} style={{ background: "none", border: "none", padding: 0, color: C.gold, font: "inherit", cursor: "pointer", textDecoration: "underline" }}>Điều khoản</button>,{" "}
+          <button onClick={() => setLegalDoc("community")} style={{ background: "none", border: "none", padding: 0, color: C.gold, font: "inherit", cursor: "pointer", textDecoration: "underline" }}>Tiêu chuẩn cộng đồng</button>{" & "}
           <button onClick={() => setLegalDoc("privacy")} style={{ background: "none", border: "none", padding: 0, color: C.gold, font: "inherit", cursor: "pointer", textDecoration: "underline" }}>Quyền riêng tư</button>.
           {legalDoc && <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />}
         </div>
@@ -17069,8 +17070,8 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
         <div key={s} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", animation: "popIn 0.25s ease" }}>
           {s === "intro" && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
-              <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 40, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><BrandLogo height={96} /></div>
+              <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
               <div style={{ fontFamily: bodyFont, fontSize: 16, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Mỗi lựa chọn của bạn là một lá phiếu — chọn xong sẽ thấy ngay cả cộng đồng đang nghĩ gì.</div>
               <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 26, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Bắt đầu <ChevronRight size={18} /></button>
             </div>
