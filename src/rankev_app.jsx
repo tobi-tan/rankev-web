@@ -196,6 +196,9 @@ const FONT_IMPORT = (
     .rk-legal ul { padding-left: 20px; margin: 6px 0; } .rk-legal li { margin: 4px 0; }
     .rk-legal a { color: var(--gold); } .rk-legal .muted { color: var(--textFaint); font-size: 12px; }
     .rk-legal .box { border: 1px solid var(--border); border-radius: 12px; padding: 8px 14px; margin: 12px 0; background: var(--surfaceRaised); }
+    .rk-legal ol { padding-left: 20px; margin: 6px 0; }
+    .rk-legal .doclist a { display: block; padding: 12px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); font-weight: 600; }
+    .rk-legal .doclist small { display: block; color: var(--textFaint); font-weight: 400; font-size: 13px; margin-top: 2px; }
     @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
     @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
     @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
@@ -326,15 +329,17 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
                     onClick={(e) => { e.stopPropagation(); if (a.handle) onOpenHandle?.(a.handle); }}
                     style={{ width: 42, height: 42, borderRadius: 99, flexShrink: 0, background: a.avatarColor || C.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden", fontSize: 20 }}
                   >
-                    {a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || <AtSign size={18} color={C.gold} />)}
+                    {n.type === "report_resolved" ? <ShieldCheck size={20} color={C.gold} /> : a.avatarUrl ? <img src={a.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (a.avatarEmoji || <AtSign size={18} color={C.gold} />)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.text, lineHeight: 1.4 }}>
-                      {n.type === "new_post"
+                      {n.type === "report_resolved"
+                        ? <><b style={{ fontWeight: 700 }}>Rankev</b> đã xử lý báo cáo của bạn.</>
+                        : n.type === "new_post"
                         ? <><b style={{ fontWeight: 700 }}>{name}</b> vừa đăng{n.targetType === "tournament" ? " giải đấu" : ""}{n.targetTitle ? <> <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " bài mới"}.</>
                         : <><b style={{ fontWeight: 700 }}>{name}</b> đã nhắc bạn{n.targetTitle ? <> trong <b style={{ fontWeight: 600 }}>“{n.targetTitle}”</b></> : " trong một bình luận"}.</>}
                     </div>
-                    {n.text && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 3, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}><MentionText text={n.text} /></div>}
+                    {n.text && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 3, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: n.type === "report_resolved" ? 4 : 2, WebkitBoxOrient: "vertical" }}>{n.type === "report_resolved" ? n.text : <MentionText text={n.text} />}</div>}
                     <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>{timeAgoShort(n.createdAt)}</div>
                   </div>
                   {!n.read && <span style={{ width: 8, height: 8, borderRadius: 99, background: C.gold, flexShrink: 0, marginTop: 6 }} />}
@@ -1974,7 +1979,13 @@ const REPORT_REASONS_VI = [
   ["hate", "Ngôn từ thù ghét"],
   ["violence", "Bạo lực, nguy hiểm"],
   ["sexual", "Nội dung tình dục"],
+  ["child_safety", "An toàn trẻ em"],
+  ["self_harm", "Tự tử, tự gây hại"],
+  ["scam", "Lừa đảo"],
   ["misinformation", "Thông tin sai lệch"],
+  ["privacy", "Lộ thông tin cá nhân"],
+  ["impersonation", "Mạo danh"],
+  ["ip", "Vi phạm bản quyền"],
   ["other", "Lý do khác"],
 ];
 
@@ -1999,48 +2010,144 @@ function BottomSheet({ onClose, children }) {
   );
 }
 
-// Điều khoản & cam kết / Quyền riêng tư — nội dung lấy từ backend (/legal/*, nguồn duy nhất,
-// cũng là URL khai báo với App Store). Lấy phần <body> (HTML tĩnh do chính backend sinh, không
-// có script) rồi vẽ bằng màu/chữ của app (.rk-legal) — sáng/tối tự theo.
+// TRUNG TÂM CHÍNH SÁCH — nội dung lấy từ backend (/legal, /legal/<slug>: nguồn duy nhất, cũng
+// là URL khai báo với App Store / Google Play). Lấy phần <body> (HTML tĩnh do chính backend sinh,
+// không script), bỏ thanh điều hướng của bản web, vẽ bằng màu/chữ của app (.rk-legal).
+// doc = "hub" (mục lục) | "terms" | "privacy" | "community" | "copyright" | "child-safety" | "cookies" | "delete-account".
 const legalCache = {};
-function LegalSheet({ doc = "terms", onClose }) {
-  const [tab, setTab] = useState(doc);
+function LegalSheet({ doc = "hub", onClose }) {
+  const [slug, setSlug] = useState(doc);
   const [html, setHtml] = useState(legalCache[doc] || null);
   const [failed, setFailed] = useState(false);
+  const bodyRef = useRef(null);
+  const path = slug === "hub" ? "/legal" : `/legal/${slug}`;
   useEffect(() => {
-    if (legalCache[tab]) { setHtml(legalCache[tab]); return; }
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    if (legalCache[slug]) { setHtml(legalCache[slug]); setFailed(false); return; }
     setHtml(null); setFailed(false);
     let alive = true;
-    fetch(`${BASE_URL}/legal/${tab}`).then((r) => r.text()).then((t) => {
+    fetch(`${BASE_URL}${path}`).then((r) => r.text()).then((t) => {
       const m = t.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-      const body = (m ? m[1] : "").replace(/<script[\s\S]*?<\/script>/gi, "");
+      const body = (m ? m[1] : "").replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<nav class="legal-nav">[\s\S]*?<\/nav>/i, "");
       if (!body) throw new Error("empty");
-      legalCache[tab] = body; if (alive) setHtml(body);
+      legalCache[slug] = body; if (alive) setHtml(body);
     }).catch(() => alive && setFailed(true));
     return () => { alive = false; };
-  }, [tab]);
-  const tabBtn = (id, Icon, label) => (
-    <button onClick={() => setTab(id)} title={label} aria-label={label} aria-pressed={tab === id}
-      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", background: "none", border: "none", borderBottom: `2px solid ${tab === id ? C.text : "transparent"}`, color: tab === id ? C.text : C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
-      <Icon size={18} />{label}
-    </button>
-  );
+  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  const title = slug === "hub" ? "Chính sách & cam kết" : ((html || "").match(/<h1>([\s\S]*?)<\/h1>/i)?.[1] || "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&");
   return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 95, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "88vh", background: C.surface, borderRadius: "18px 18px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", animation: "slideUp .2s ease" }}>
-        <div style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${C.border}` }}>
-          {tabBtn("terms", FileText, "Điều khoản")}
-          {tabBtn("privacy", ShieldCheck, "Quyền riêng tư")}
-          <button onClick={onClose} aria-label="Đóng" style={{ width: 44, background: "none", border: "none", color: C.textMuted, cursor: "pointer", display: "grid", placeItems: "center" }}><X size={20} /></button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 4px", borderBottom: `1px solid ${C.border}` }}>
+          {slug !== "hub"
+            ? <button onClick={() => setSlug("hub")} aria-label="Mục lục chính sách" title="Mục lục" style={{ ...iconButton, color: C.text }}><ChevronLeft size={20} /></button>
+            : <span style={{ width: 40, display: "grid", placeItems: "center" }}><ShieldCheck size={18} color={C.gold} /></span>}
+          <div style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontWeight: 700, fontSize: 15, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+          <button onClick={onClose} aria-label="Đóng" style={{ ...iconButton, color: C.textMuted }}><X size={20} /></button>
         </div>
         {html
-          ? <div className="rk-legal" dangerouslySetInnerHTML={{ __html: html }}
-              onClick={(e) => { const a = e.target.closest && e.target.closest("a"); if (!a) return; const h = a.getAttribute("href") || "";
-                if (h.endsWith("/legal/privacy")) { e.preventDefault(); setTab("privacy"); } else if (h.endsWith("/legal/terms")) { e.preventDefault(); setTab("terms"); } else if (!h.startsWith("mailto:")) { e.preventDefault(); window.open(h, "_blank", "noopener"); } }}
+          ? <div ref={bodyRef} className="rk-legal" dangerouslySetInnerHTML={{ __html: html }}
+              onClick={(e) => { const el = e.target.closest && e.target.closest("a"); if (!el) return; const h = el.getAttribute("href") || "";
+                const m = h.match(/\/legal(?:\/([a-z-]+))?\/?$/);
+                if (m) { e.preventDefault(); setSlug(m[1] || "hub"); } else if (!h.startsWith("mailto:") && !h.startsWith("tel:")) { e.preventDefault(); window.open(h, "_blank", "noopener"); } }}
               style={{ flex: 1, overflowY: "auto", padding: "4px 18px 32px", fontFamily: bodyFont, fontSize: 14, lineHeight: 1.6, color: C.text }} />
           : <div style={{ flex: 1, display: "grid", placeItems: "center", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
-              {failed ? <a href={`${BASE_URL}/legal/${tab}`} target="_blank" rel="noreferrer" style={{ color: C.gold }}>Mở trong trình duyệt</a> : <div style={{ width: 22, height: 22, borderRadius: 99, border: `2px solid ${C.border}`, borderTopColor: C.text, animation: "spin .8s linear infinite" }} />}
+              {failed ? <a href={`${BASE_URL}${path}`} target="_blank" rel="noreferrer" style={{ color: C.gold }}>Mở trong trình duyệt</a> : <div style={{ width: 22, height: 22, borderRadius: 99, border: `2px solid ${C.border}`, borderTopColor: C.text, animation: "spin .8s linear infinite" }} />}
             </div>}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// BÀN KIỂM DUYỆT (chỉ quản trị viên — email trong ADMIN_EMAILS của backend). Báo cáo GỘP theo
+// nội dung, cũ nhất trước (cam kết xử lý trong 24 giờ). Xử lý: Bỏ qua · Gỡ · Gỡ + khoá · Khoá.
+const REPORT_REASON_LABEL = Object.fromEntries(REPORT_REASONS_VI);
+function AdminReportsSheet({ onClose }) {
+  const rkSave = useRankieSave();
+  const [tab, setTab] = useState("open");
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [err, setErr] = useState("");
+  const load = (t = tab) => { setData(null); setErr(""); api.admin.reports(t).then(setData).catch((e) => setErr(e?.message || "Không tải được")); };
+  useEffect(() => { load(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (g, action, label) => {
+    if (!window.confirm(`${label}?`)) return;
+    setBusy(g.targetId);
+    try { await api.admin.resolve(g.targetType, g.targetId, action); setData((d) => d && { ...d, items: d.items.filter((x) => x.targetId !== g.targetId), stats: { ...d.stats, open: Math.max(0, (d.stats?.open || 1) - 1) } }); }
+    catch (e) { window.alert(e?.message || "Chưa xử lý được"); }
+    finally { setBusy(null); }
+  };
+  const TypeIcon = { post: Grid3x3, comment: MessageCircle, user: User };
+  const RES_LABEL = { dismiss: "Đã bỏ qua", remove: "Đã gỡ", suspend: "Đã khoá", remove_suspend: "Đã gỡ + khoá" };
+  const btn = (bg, fg) => ({ height: 32, padding: "0 12px", borderRadius: 99, border: bg === "transparent" ? `1px solid ${C.border}` : "none", background: bg, color: fg, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" });
+  return createPortal(
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 95, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, height: "90vh", background: C.surface, borderRadius: "18px 18px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", animation: "slideUp .2s ease" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 6px 6px 16px" }}>
+          <Flag size={18} color={C.gold} />
+          <div style={{ flex: 1, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Kiểm duyệt</div>
+          {data?.stats?.overdue > 0 && <span title="Báo cáo chờ quá 24 giờ" style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.coral, display: "flex", alignItems: "center", gap: 4 }}>{data.stats.overdue}<Clock size={13} /></span>}
+          <button onClick={() => load()} aria-label="Làm mới" title="Làm mới" style={{ ...iconButton, color: C.textMuted }}><RefreshCw size={17} /></button>
+          <button onClick={onClose} aria-label="Đóng" style={{ ...iconButton, color: C.textMuted }}><X size={20} /></button>
+        </div>
+        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
+          {[["open", "Chờ xử lý", data && tab === "open" ? data.stats?.open : null], ["done", "Đã xử lý", null]].map(([k, label, n]) => (
+            <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k} style={{ flex: 1, padding: "10px 0", background: "none", border: "none", borderBottom: `2px solid ${tab === k ? C.text : "transparent"}`, color: tab === k ? C.text : C.textFaint, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+              {n ? `${n} · ` : ""}{label}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 14px 24px" }}>
+          {err && <div style={{ padding: 20, textAlign: "center", color: C.coral, fontFamily: bodyFont, fontSize: 14 }}>{err}</div>}
+          {!data && !err && <div style={{ display: "grid", placeItems: "center", padding: 40 }}><div style={{ width: 22, height: 22, borderRadius: 99, border: `2px solid ${C.border}`, borderTopColor: C.text, animation: "spin .8s linear infinite" }} /></div>}
+          {data && !data.items.length && (
+            <div style={{ textAlign: "center", padding: "48px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
+              <CheckCircle2 size={36} color={C.teal} style={{ opacity: 0.8 }} />
+              <div style={{ marginTop: 10 }}>{tab === "open" ? "Không có báo cáo nào đang chờ." : "Chưa xử lý báo cáo nào."}</div>
+            </div>
+          )}
+          {data?.items.map((g) => {
+            const Ico = TypeIcon[g.targetType] || Flag;
+            const t = g.target || {};
+            const overdue = tab === "open" && Date.now() - Date.parse(g.firstAt) > 24 * 3600e3;
+            const openTarget = () => {
+              if (g.targetType === "user") rkSave?.openRef?.({ refType: "user", refId: g.targetId });
+              else if (t.postId && !t.removed) rkSave?.openRef?.({ refType: "post", refId: t.postId, preview: { postType: t.postType || "rankie" } });
+            };
+            return (
+              <div key={g.targetType + g.targetId} style={{ border: `1px solid ${overdue ? C.coral : C.border}`, borderRadius: 14, padding: "10px 12px", marginTop: 10, opacity: busy === g.targetId ? 0.5 : 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Ico size={16} color={C.textMuted} />
+                  <div onClick={openTarget} style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>
+                    {!t.exists ? "(nội dung đã bị xoá)" : g.targetType === "comment" ? "Bình luận" : (t.title || t.text || "(không có chữ)")}
+                  </div>
+                  <span style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.coral, display: "flex", alignItems: "center", gap: 3 }}>{g.count}<Flag size={12} /></span>
+                </div>
+                {t.title && t.text && g.targetType !== "user" && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{t.text}</div>}
+                {g.targetType === "comment" && t.text && <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textMuted, marginTop: 4, lineHeight: 1.4 }}>“{t.text}”</div>}
+                <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginTop: 4 }}>
+                  {t.author ? <>@{t.author.handle}{t.author.suspended ? " · đã khoá" : ""} · </> : null}{overdue ? <b style={{ color: C.coral }}>quá 24 giờ · </b> : null}{timeAgoShort(tab === "open" ? g.firstAt : (g.resolvedAt || g.lastAt))}
+                  {tab === "done" && g.resolution ? <> · <b style={{ color: C.text }}>{RES_LABEL[g.resolution] || g.resolution}</b></> : null}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7 }}>
+                  {Object.entries(g.reasons || {}).map(([r, n]) => (
+                    <span key={r} style={{ padding: "2px 8px", borderRadius: 99, background: r === "child_safety" ? C.coral : C.surfaceRaised, color: r === "child_safety" ? "#fff" : C.text, fontFamily: bodyFont, fontSize: 12, fontWeight: 600 }}>{n > 1 ? `${n} · ` : ""}{REPORT_REASON_LABEL[r] || r}</span>
+                  ))}
+                </div>
+                {g.notes?.length > 0 && <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 6, fontStyle: "italic" }}>{g.notes.slice(0, 3).map((x, i) => <div key={i}>“{x}”</div>)}</div>}
+                {tab === "open" && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    <button disabled={!!busy} onClick={() => act(g, "dismiss", "Bỏ qua báo cáo (không vi phạm)")} style={btn("transparent", C.text)}>Bỏ qua</button>
+                    {g.targetType !== "user" && <button disabled={!!busy} onClick={() => act(g, "remove", "Gỡ nội dung này")} style={btn(C.gold, "#1A1305")}>Gỡ</button>}
+                    {g.targetType !== "user" && <button disabled={!!busy} onClick={() => act(g, "remove_suspend", "Gỡ nội dung và khoá tài khoản người đăng")} style={btn(C.coral, "#fff")}>Gỡ + khoá</button>}
+                    {g.targetType === "user" && <button disabled={!!busy} onClick={() => act(g, "suspend", "Khoá tài khoản này")} style={btn(C.coral, "#fff")}>Khoá tài khoản</button>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>,
     document.body,
@@ -15096,7 +15203,19 @@ function ProfileView({
   const [userSheet, setUserSheet] = useState(false); // "⋯" trên hồ sơ người khác
   const [privacyOpen, setPrivacyOpen] = useState(false); // Quyền riêng tư (hồ sơ của mình)
   const [settingsOpen, setSettingsOpen] = useState(false); // ⚙ Cài đặt (hồ sơ của mình)
-  const [legalOpen, setLegalOpen] = useState(null); // "terms" | "privacy"
+  const [legalOpen, setLegalOpen] = useState(null); // "hub" | slug văn bản (LegalSheet)
+  const [modOpen, setModOpen] = useState(false); // bàn kiểm duyệt (quản trị viên)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  // "Tải thông tin của bạn": xin link tải ngắn hạn → mở (web: tải file; app: trình duyệt tải).
+  const exportMyData = async () => {
+    setExporting(true);
+    try {
+      const r = await api.auth.exportLink();
+      window.location.assign(BASE_URL + r.url);
+    } catch (e) { window.alert(e?.message || "Chưa tạo được bản sao dữ liệu, thử lại sau."); }
+    finally { setTimeout(() => setExporting(false), 1500); }
+  };
   const [deleteOpen, setDeleteOpen] = useState(false); // xác nhận xoá tài khoản (App Store 5.1.1(v))
   const [deleting, setDeleting] = useState(false);
   const theyBlocked = !isMe && !!mod?.isBlocked(targetId);
@@ -15123,7 +15242,7 @@ function ProfileView({
   // Nhân khẩu học: chính chủ dùng /users/me (thấy cả field ẩn); người khác chỉ nhận field công khai.
   useEffect(() => {
     let alive = true;
-    const load = isMe ? api.auth.me().then((r) => r?.user) : (profileUserId ? api.social.profile(profileUserId).then((r) => r?.user) : Promise.resolve(null));
+    const load = isMe ? api.auth.me().then((r) => { if (alive) setIsAdmin(!!r?.isAdmin); return r?.user; }) : (profileUserId ? api.social.profile(profileUserId).then((r) => r?.user) : Promise.resolve(null));
     load.then((u) => { if (alive) setDemo(u ? { age: u.age, gender: u.gender, occupation: u.occupation, pub: u.demographicsPublic || {} } : null); }).catch(() => { if (alive) setDemo(null); });
     return () => { alive = false; };
   }, [isMe, profileUserId, profileV]);
@@ -15307,12 +15426,15 @@ function ProfileView({
             <SheetRow icon={Edit3} label="Sửa hồ sơ" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
             {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
             {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
-            <SheetRow icon={FileText} label="Điều khoản & quyền riêng tư" onClick={() => { setSettingsOpen(false); setLegalOpen("terms"); }} />
+            {isAdmin && <SheetRow icon={Flag} label="Kiểm duyệt" hint="Xử lý báo cáo trong 24 giờ" onClick={() => { setSettingsOpen(false); setModOpen(true); }} />}
+            <SheetRow icon={Download} label={exporting ? "Đang chuẩn bị…" : "Tải thông tin của bạn"} hint="Bản sao dữ liệu (JSON)" onClick={() => { if (!exporting) { setSettingsOpen(false); exportMyData(); } }} />
+            <SheetRow icon={FileText} label="Chính sách & cam kết" onClick={() => { setSettingsOpen(false); setLegalOpen("hub"); }} />
             {onLogout && <SheetRow icon={LogOut} danger label="Đăng xuất" onClick={() => { setSettingsOpen(false); if (window.confirm("Đăng xuất khỏi tài khoản?")) onLogout(); }} />}
             {onDeleteAccount && <SheetRow icon={Trash2} danger label="Xoá tài khoản" onClick={() => { setSettingsOpen(false); setDeleteOpen(true); }} />}
           </BottomSheet>
         )}
         {legalOpen && <LegalSheet doc={legalOpen} onClose={() => setLegalOpen(null)} />}
+        {modOpen && <AdminReportsSheet onClose={() => setModOpen(false)} />}
         {deleteOpen && (
           <BottomSheet onClose={() => !deleting && setDeleteOpen(false)}>
             <div style={{ padding: "4px 18px 6px", textAlign: "center" }}>

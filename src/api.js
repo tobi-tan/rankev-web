@@ -159,6 +159,8 @@ export const auth = {
   updateProfile(patch) { return apiFetch('/users/me', { method: 'PATCH', body: patch }); },
   // Xoá tài khoản vĩnh viễn (App Store 5.1.1(v)) → bỏ token cục bộ.
   async deleteAccount() { await apiFetch('/users/me', { method: 'DELETE' }); clearTokens(); },
+  // "Tải thông tin của bạn": link tải file JSON ngắn hạn (10 phút) → mở bằng trình duyệt.
+  exportLink() { return apiFetch('/users/me/export-link', { method: 'POST', body: {} }); },
 };
 
 // ---------------- Posts / Feed ----------------
@@ -228,8 +230,15 @@ export const moderation = {
   unmute(userId) { return apiFetch(`/users/${userId}/mute`, { method: 'DELETE' }); },
   block(userId) { return apiFetch(`/users/${userId}/block`, { method: 'POST', body: {} }); },
   unblock(userId) { return apiFetch(`/users/${userId}/block`, { method: 'DELETE' }); },
-  // type: 'post' | 'comment' | 'user'; reason: spam|harassment|hate|violence|sexual|misinformation|other
+  // type: 'post' | 'comment' | 'user'; reason: xem REPORT_REASONS (backend moderation.schemas)
   report(type, id, reason, note) { return apiFetch(`/${type}s/${id}/report`, { method: 'POST', body: { reason, note } }); },
+};
+
+// ---------------- Kiểm duyệt (chỉ quản trị viên — /users/me trả isAdmin) ----------------
+export const admin = {
+  reports(status = 'open', targetId) { return apiFetch(`/admin/reports?status=${status}${targetId ? `&targetId=${targetId}` : ''}`); },
+  // action: 'dismiss' | 'remove' | 'suspend' | 'remove_suspend'
+  resolve(targetType, targetId, action, note) { return apiFetch('/admin/reports/resolve', { method: 'POST', body: { targetType, targetId, action, note } }); },
 };
 
 // ---------------- Rankie vote ----------------
@@ -486,6 +495,6 @@ export function subscribeLiveState(sessionId, onState) {
 
 export default {
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
-  auth, posts, rankies, tournaments, messaging, moderation, search, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
+  auth, admin, posts, rankies, tournaments, messaging, moderation, search, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
   uploadImage, uploadVideo, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
 };
