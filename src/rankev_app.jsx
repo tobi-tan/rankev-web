@@ -11,7 +11,7 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail,
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
@@ -2078,6 +2078,17 @@ function AdminReportsSheet({ onClose }) {
     catch (e) { window.alert(e?.message || "Chưa xử lý được"); }
     finally { setBusy(null); }
   };
+  // "Gửi email thử": chẩn đoán cấu hình email (Resend) ngay trong app.
+  const [mailing, setMailing] = useState(false);
+  const testEmail = async () => {
+    setMailing(true);
+    try {
+      const r = await api.admin.testEmail();
+      const parts = [r.ok ? `✅ Đã gửi email thử tới ${r.to}.` : `❌ Chưa gửi được email tới ${r.to}.`, r.hint, r.error && `Lỗi từ Resend: ${r.error}`, r.resetRequestsLastHour >= 3 && `Lưu ý: bạn đã yêu cầu mã quên mật khẩu ${r.resetRequestsLastHour} lần trong 1 giờ — đã chạm giới hạn 3 lần/giờ, đợi 1 giờ rồi thử lại.`];
+      window.alert(parts.filter(Boolean).join("\n\n"));
+    } catch (e) { window.alert(e?.message || 'Chưa gửi được'); }
+    finally { setMailing(false); }
+  };
   const TypeIcon = { post: Grid3x3, comment: MessageCircle, user: User };
   const RES_LABEL = { dismiss: "Đã bỏ qua", remove: "Đã gỡ", suspend: "Đã khoá", remove_suspend: "Đã gỡ + khoá" };
   const btn = (bg, fg) => ({ height: 32, padding: "0 12px", borderRadius: 99, border: bg === "transparent" ? `1px solid ${C.border}` : "none", background: bg, color: fg, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" });
@@ -2088,6 +2099,7 @@ function AdminReportsSheet({ onClose }) {
           <Flag size={18} color={C.gold} />
           <div style={{ flex: 1, fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>Kiểm duyệt</div>
           {data?.stats?.overdue > 0 && <span title="Báo cáo chờ quá 24 giờ" style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.coral, display: "flex", alignItems: "center", gap: 4 }}>{data.stats.overdue}<Clock size={13} /></span>}
+          <button onClick={testEmail} disabled={mailing} aria-label="Gửi email thử" title="Gửi email thử (kiểm tra cấu hình email)" style={{ ...iconButton, color: C.textMuted, opacity: mailing ? 0.4 : 1 }}><Mail size={17} /></button>
           <button onClick={() => load()} aria-label="Làm mới" title="Làm mới" style={{ ...iconButton, color: C.textMuted }}><RefreshCw size={17} /></button>
           <button onClick={onClose} aria-label="Đóng" style={{ ...iconButton, color: C.textMuted }}><X size={20} /></button>
         </div>
