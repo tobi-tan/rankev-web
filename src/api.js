@@ -144,7 +144,7 @@ export const auth = {
   async social(provider, token) {
     const data = await apiFetch('/auth/social', { auth: false, method: 'POST', body: { provider, token } });
     setTokens(data);
-    return data.user;
+    return { ...data.user, isNew: !!data.isNew }; // isNew: vừa tạo tài khoản
   },
   providers() { return apiFetch('/auth/providers', { auth: false }); }, // → { google, facebook, apple }
   async logout() {

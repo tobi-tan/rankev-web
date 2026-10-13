@@ -16395,8 +16395,8 @@ function AuthGate({ onAuthed }) {
     setErr(null); setSocialBusy(provider);
     try {
       const token = await getSocialToken(provider);
-      await auth.social(provider, token);
-      await onAuthed();
+      const r = await auth.social(provider, token);
+      await onAuthed({ isNew: !!r?.isNew }); // tài khoản MXH vừa tạo → đi qua phần giới thiệu
     } catch (e) {
       const label = { google: "Google", facebook: "Facebook", apple: "Apple" }[provider];
       if (e?.message === "__notconfigured__") setErr(`Đăng nhập ${label} chưa được bật. Cần cấu hình khoá ứng dụng (VITE_${provider.toUpperCase()}_...).`);
@@ -16416,7 +16416,7 @@ function AuthGate({ onAuthed }) {
         callback: async (resp) => {
           if (!resp?.credential) return;
           setErr(null); setSocialBusy("google");
-          try { await auth.social("google", resp.credential); await onAuthed(); }
+          try { const r = await auth.social("google", resp.credential); await onAuthed({ isNew: !!r?.isNew }); }
           catch (e) { setErr(e?.message || "Đăng nhập Google thất bại."); }
           finally { setSocialBusy(null); }
         },
