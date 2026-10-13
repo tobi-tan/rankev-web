@@ -16971,6 +16971,82 @@ function DobWheel({ value, onChange, disabled }) {
   );
 }
 
+// CHỌN TÊN NGƯỜI DÙNG — tài khoản Google/Facebook/Apple mới (handle tạm ngẫu nhiên) phải tự chọn
+// @handle trước khi vào app. KHÔNG gợi ý từ email (lộ thông tin cá nhân) — chỉ từ tên hiển thị.
+const toHandleSlug = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d")
+  .replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").replace(/_+/g, "_").slice(0, 20);
+function HandlePickerScreen({ user, onDone, onLogout }) {
+  const genericName = /^Người dùng (Google|Facebook|Apple)$/.test(user?.name || "");
+  const [name, setName] = useState(genericName ? "" : (user?.name || ""));
+  const [handle, setHandle] = useState("");
+  const [check, setCheck] = useState(null); // { handle, valid, available, reason }
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const base = toHandleSlug(name);
+  const [rnd] = useState(() => Math.floor(100 + Math.random() * 900)); // cố định để gợi ý không nhảy khi gõ
+  const suggestions = base.length >= 3 ? [...new Set([base, base.slice(0, 17) + rnd, (base + "_vn").slice(0, 20)])] : [];
+  useEffect(() => {
+    const h = handle.trim();
+    if (!h) { setCheck(null); return; }
+    let alive = true;
+    const t = setTimeout(() => { api.auth.checkHandle(h).then((r) => alive && setCheck(r)).catch(() => alive && setCheck(null)); }, 350);
+    return () => { alive = false; clearTimeout(t); };
+  }, [handle]);
+  const ok = !!check && check.handle === handle.trim() && check.available && name.trim().length > 0;
+  const submit = async () => {
+    if (!ok || busy) return;
+    setBusy(true); setErr("");
+    try {
+      const r = await api.auth.updateProfile({ handle: handle.trim(), name: name.trim() });
+      onDone(r?.user);
+    } catch (e) { setErr(e?.message || "Chưa lưu được, thử lại."); setBusy(false); }
+  };
+  const field = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: bodyFont, fontSize: 16, outline: "none" };
+  const status = !handle.trim() ? null
+    : !check || check.handle !== handle.trim() ? <span style={{ color: C.textFaint }}>Đang kiểm tra…</span>
+    : check.available ? <span style={{ color: C.teal, display: "inline-flex", alignItems: "center", gap: 4 }}><Check size={14} /> Còn trống</span>
+    : <span style={{ color: C.coral }}>{check.reason || "Không dùng được"}</span>;
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", justifyContent: "center" }}>
+      {FONT_IMPORT}
+      <div style={{ width: "100%", maxWidth: 430, padding: "max(28px, env(safe-area-inset-top)) 22px 28px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+          <span style={{ width: 84, height: 84, borderRadius: 99, overflow: "hidden", display: "grid", placeItems: "center", background: user?.avatarColor || C.surfaceRaised, fontSize: 38 }}>
+            {user?.avatarUrl ? <img src={user.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (user?.avatarEmoji || "🙂")}
+          </span>
+        </div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 22, color: C.text, textAlign: "center" }}>Chọn tên người dùng</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, textAlign: "center", marginTop: 6, lineHeight: 1.5 }}>
+          Tên người dùng hiện công khai — mọi người tìm và @nhắc bạn bằng tên này. Email của bạn luôn được giữ kín.
+        </div>
+
+        <label style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.textMuted, marginTop: 22, marginBottom: 6 }}>Tên hiển thị</label>
+        <input value={name} onChange={(e) => setName(e.target.value.slice(0, 80))} placeholder="Tên của bạn" autoComplete="name" style={field} />
+
+        <label style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 600, color: C.textMuted, marginTop: 16, marginBottom: 6 }}>Tên người dùng</label>
+        <div style={{ position: "relative" }}>
+          <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.textFaint, fontFamily: bodyFont, fontSize: 16 }}>@</span>
+          <input value={handle} onChange={(e) => { setErr(""); setHandle(toHandleSlug(e.target.value)); }} placeholder="ten_cua_ban" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            style={{ ...field, paddingLeft: 32, borderColor: check && check.handle === handle.trim() ? (check.available ? C.teal : C.coral) : C.border }} />
+        </div>
+        <div style={{ minHeight: 20, marginTop: 6, fontFamily: bodyFont, fontSize: 13 }}>{status || <span style={{ color: C.textFaint }}>3–20 ký tự: chữ không dấu, số hoặc _</span>}</div>
+        {suggestions.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+            {suggestions.map((s) => (
+              <button key={s} onClick={() => setHandle(s)} style={{ padding: "6px 12px", borderRadius: 99, border: `1px solid ${handle === s ? C.gold : C.border}`, background: "transparent", color: C.text, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}>@{s}</button>
+            ))}
+          </div>
+        )}
+        {err && <div style={{ color: C.coral, fontFamily: bodyFont, fontSize: 13, marginTop: 10 }}>{err}</div>}
+        <div style={{ flex: 1, minHeight: 24 }} />
+        <button onClick={submit} disabled={!ok || busy} style={{ ...primaryButton, width: "100%", opacity: ok && !busy ? 1 : 0.5 }}>{busy ? "Đang lưu…" : "Tiếp tục"}</button>
+        {onLogout && <button onClick={onLogout} style={{ marginTop: 12, background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 13, cursor: "pointer" }}>Không phải bạn? Đăng xuất</button>}
+      </div>
+    </div>
+  );
+}
+
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState({ type: [] }); // {theme, type:[], rating, age, gender, occupation}
@@ -17336,6 +17412,7 @@ export default function RankevApp() {
   }, [theme]);
   const toggleTheme = useCallback(() => setTheme((t) => (t === "light" ? "dark" : "light")), []);
   // Onboarding lần đầu ("rank everything"). Đã xem 1 lần thì thôi (lưu ở máy).
+  const [needHandle, setNeedHandle] = useState(false); // tài khoản MXH mới chưa tự chọn @handle
   const [onboarded, setOnboarded] = useState(() => { try { return localStorage.getItem("rankev.onboarded") === "1"; } catch { return true; } });
   const [rankies, setRankies] = useState(initialRankies);
   // --- Feed thật từ API (Phần 2) — merge cùng mock, mock giữ làm nội dung nền/fallback ---
@@ -18569,6 +18646,7 @@ export default function RankevApp() {
       });
     }
     if (me?.rankUps) setRankTiers((prev) => ({ ...prev, ...me.rankUps }));
+    if (u) setNeedHandle(u.handleConfirmed === false);
   }, []);
   useEffect(() => {
     // Khi refresh token cũng hết hạn → quay về màn đăng nhập.
@@ -19078,6 +19156,9 @@ export default function RankevApp() {
   }
   if (!authed) {
     return <AuthGate onAuthed={handleAuthed} />;
+  }
+  if (needHandle) {
+    return <HandlePickerScreen user={currentUser} onDone={(u) => { if (u) hydrateFromApi({ user: u }); setNeedHandle(false); }} onLogout={handleLogout} />;
   }
   if (!onboarded) {
     return (

@@ -157,6 +157,8 @@ export const auth = {
   reset(email, code, password) { return apiFetch('/auth/reset', { auth: false, method: 'POST', body: { email, code, password } }); },
   me() { return apiFetch('/users/me'); }, // → { user, rankUps }
   updateProfile(patch) { return apiFetch('/users/me', { method: 'PATCH', body: patch }); },
+  // @handle hợp lệ + còn trống? → { handle, valid, available, reason }
+  checkHandle(handle) { return apiFetch(`/users/handle-check?handle=${encodeURIComponent(handle)}`); },
   // Xoá tài khoản vĩnh viễn (App Store 5.1.1(v)) → bỏ token cục bộ.
   async deleteAccount() { await apiFetch('/users/me', { method: 'DELETE' }); clearTokens(); },
   // "Tải thông tin của bạn": link tải file JSON ngắn hạn (10 phút) → mở bằng trình duyệt.
