@@ -239,7 +239,7 @@ export const admin = {
   reports(status = 'open', targetId) { return apiFetch(`/admin/reports?status=${status}${targetId ? `&targetId=${targetId}` : ''}`); },
   // action: 'dismiss' | 'remove' | 'suspend' | 'remove_suspend'
   resolve(targetType, targetId, action, note) { return apiFetch('/admin/reports/resolve', { method: 'POST', body: { targetType, targetId, action, note } }); },
-  testEmail() { return apiFetch('/admin/test-email', { method: 'POST', body: {} }); }, // gửi thư thử tới chính mình (chẩn đoán Resend)
+  testEmail(to) { return apiFetch('/admin/test-email', { method: 'POST', body: to ? { to } : {} }); }, // gửi thư thử (mặc định tới chính mình) — chẩn đoán cấu hình email
 };
 
 // ---------------- Rankie vote ----------------

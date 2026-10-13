@@ -2081,10 +2081,14 @@ function AdminReportsSheet({ onClose }) {
   // "Gửi email thử": chẩn đoán cấu hình email (Resend) ngay trong app.
   const [mailing, setMailing] = useState(false);
   const testEmail = async () => {
+    // Để trống = gửi tới chính mình; nhập email người khác để kiểm tra người dùng khác có nhận được không.
+    const to = window.prompt("Gửi email thử tới địa chỉ nào? (để trống = email của bạn)", "");
+    if (to === null) return;
     setMailing(true);
     try {
-      const r = await api.admin.testEmail();
-      const parts = [r.ok ? `✅ Đã gửi email thử tới ${r.to}.` : `❌ Chưa gửi được email tới ${r.to}.`, r.hint, r.error && `Lỗi từ Resend: ${r.error}`, r.resetRequestsLastHour >= 3 && `Lưu ý: bạn đã yêu cầu mã quên mật khẩu ${r.resetRequestsLastHour} lần trong 1 giờ — đã chạm giới hạn 3 lần/giờ, đợi 1 giờ rồi thử lại.`];
+      const r = await api.admin.testEmail(to.trim() || undefined);
+      const via = r.provider === "brevo" ? "Brevo" : r.provider === "resend" ? "Resend" : "máy chủ";
+      const parts = [r.ok ? `✅ Đã gửi email thử tới ${r.to} (qua ${via}).` : `❌ Chưa gửi được email tới ${r.to}.`, r.hint, r.error && `Lỗi từ ${via}: ${r.error}`, r.resetRequestsLastHour >= 3 && `Lưu ý: bạn đã yêu cầu mã quên mật khẩu ${r.resetRequestsLastHour} lần trong 1 giờ — đã chạm giới hạn 3 lần/giờ, đợi 1 giờ rồi thử lại.`];
       window.alert(parts.filter(Boolean).join("\n\n"));
     } catch (e) { window.alert(e?.message || 'Chưa gửi được'); }
     finally { setMailing(false); }
