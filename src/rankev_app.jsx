@@ -15436,6 +15436,7 @@ function ProfileView({
           </div>
         )}
 
+        {isMe && <EmailVerifyBanner />}
         {settingsOpen && (
           <BottomSheet onClose={() => setSettingsOpen(false)}>
             <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Cài đặt</div>
@@ -17051,6 +17052,55 @@ function HandlePickerScreen({ user, onDone, onLogout }) {
   );
 }
 
+// Lời nhắc XÁC MINH EMAIL "mềm" (chỉ ở Hồ sơ của chính mình) — không chặn tính năng nào.
+// Mã 6 số đã tự gửi lúc đăng ký; bấm "Xác minh" → nhập mã (gửi lại được, tối đa 3 lần/giờ).
+function EmailVerifyBanner() {
+  const [hidden, setHidden] = useState(currentUser.emailVerified !== false);
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  if (hidden) return null;
+  const submit = async () => {
+    if (code.length !== 6 || busy) return;
+    setBusy(true); setMsg("");
+    try { await api.auth.verifyEmail(code); currentUser.emailVerified = true; setOpen(false); setHidden(true); }
+    catch (e) { setMsg(e?.message || "Mã không đúng hoặc đã hết hạn"); }
+    finally { setBusy(false); }
+  };
+  const resend = async () => {
+    setMsg("");
+    try {
+      const r = await api.auth.sendVerifyEmail();
+      setMsg(r?.status === "sent" ? "Đã gửi mã mới — kiểm tra hộp thư (cả mục Spam)." : r?.status === "limited" ? "Bạn đã yêu cầu quá 3 lần trong 1 giờ, thử lại sau." : r?.status === "already" ? "Email đã được xác minh." : "Chưa gửi được, thử lại sau.");
+      if (r?.status === "already") { currentUser.emailVerified = true; setOpen(false); setHidden(true); }
+    } catch (e) { setMsg(e?.message || "Chưa gửi được, thử lại sau."); }
+  };
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "10px 12px", borderRadius: 12, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
+        <Mail size={18} color={C.gold} style={{ flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 13, color: C.text, lineHeight: 1.4 }}>Xác minh email để lấy lại được tài khoản khi quên mật khẩu.</div>
+        <button onClick={() => { setOpen(true); setMsg(""); }} style={{ flexShrink: 0, height: 32, padding: "0 12px", borderRadius: 99, border: "none", background: C.gold, color: "#1A1305", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Xác minh</button>
+      </div>
+      {open && (
+        <BottomSheet onClose={() => !busy && setOpen(false)}>
+          <div style={{ padding: "0 18px 10px" }}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Xác minh email</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 6, lineHeight: 1.45 }}>Nhập mã 6 số Rankev đã gửi tới email đăng ký của bạn.</div>
+            <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              inputMode="numeric" autoComplete="one-time-code" placeholder="••••••" autoFocus
+              style={{ width: "100%", boxSizing: "border-box", marginTop: 14, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 24, letterSpacing: 8, textAlign: "center", outline: "none" }} />
+            {msg && <div style={{ fontFamily: bodyFont, fontSize: 13, color: /Đã gửi|đã được/.test(msg) ? C.teal : C.coral, marginTop: 8 }}>{msg}</div>}
+            <button onClick={submit} disabled={code.length !== 6 || busy} style={{ ...primaryButton, width: "100%", marginTop: 14, opacity: code.length === 6 && !busy ? 1 : 0.5 }}>{busy ? "Đang xác minh…" : "Xác minh"}</button>
+            <button onClick={resend} style={{ width: "100%", marginTop: 10, background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Gửi lại mã</button>
+          </div>
+        </BottomSheet>
+      )}
+    </>
+  );
+}
+
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState({ type: [] }); // {theme, type:[], rating, age, gender, occupation}
@@ -18647,6 +18697,7 @@ export default function RankevApp() {
         bio: u.bio || "", // chưa viết tiểu sử → để trống (không dùng câu MẪU)
         followers: u.rankPoints || 0,
         apiId: u.id, // UUID thật, dùng cho các API cần id user
+        emailVerified: u.emailVerified, // false → Hồ sơ nhắc xác minh email (không chặn)
       });
     }
     if (me?.rankUps) setRankTiers((prev) => ({ ...prev, ...me.rankUps }));

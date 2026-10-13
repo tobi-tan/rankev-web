@@ -153,6 +153,9 @@ export const auth = {
     clearTokens();
   },
   // Quên mật khẩu: gửi mã 6 số qua email · đổi mật khẩu bằng mã
+  // Xác minh email "mềm": gửi lại mã → { status: 'sent'|'already'|'limited'|'failed' } · nhập mã
+  sendVerifyEmail() { return apiFetch('/auth/verify-email/send', { method: 'POST', body: {} }); },
+  verifyEmail(code) { return apiFetch('/auth/verify-email', { method: 'POST', body: { code } }); },
   forgot(email) { return apiFetch('/auth/forgot', { auth: false, method: 'POST', body: { email } }); },
   reset(email, code, password) { return apiFetch('/auth/reset', { auth: false, method: 'POST', body: { email, code, password } }); },
   me() { return apiFetch('/users/me'); }, // → { user, rankUps }
