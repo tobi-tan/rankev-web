@@ -76,7 +76,7 @@ export const canSystemShare = () => isNative || (typeof navigator !== "undefined
  * plugin @capgo/capacitor-social-login. `webClientId` = Client ID loại **Web** (cùng giá trị
  * VITE_GOOGLE_CLIENT_ID) → id_token có aud = Web client ID, backend xác minh như bản web.
  * Điều kiện: Google Cloud Console có thêm OAuth client loại **Android** (package com.rankev.app
- * + SHA-1 của khoá ký) trong CÙNG project — xem docs/play-store.md.
+ * + SHA-1 của khoá ký) trong CÙNG project — xem store/PLAY-STORE.md.
  */
 let googleInit = null;
 export async function nativeGoogleIdToken(webClientId) {

@@ -357,6 +357,10 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
 // tâm) → 2 (Yêu thích) → 3 (Fan cuồng). Thay cho hệ Follow cũ. RankUp chỉ điều khiển
 // feed cá nhân, không tính điểm/không ảnh hưởng phân phối công khai.
 const INITIAL_RANKS = { u_fanclub: 2, u_esports: 1 };
+// NỘI DUNG MẪU (bài/kênh viết cứng để thử UI hồi chưa có backend) — TẮT với người dùng thật:
+// trước đây bản thật trộn bài giả (số liệu giả 8.124 phiếu, 12.8K lượt…) vào feed của MỌI người.
+// Bật lại khi cần thử giao diện offline: localStorage "rankev.demo" = "1" (chỉ máy đó).
+const SHOW_DEMO_CONTENT = (() => { try { return localStorage.getItem("rankev.demo") === "1"; } catch { return false; } })();
 
 // Metadata mỗi tầng RankUp: nhãn + màu (teal → vàng → cam-lửa).
 const RANK_TIERS = [
@@ -13795,7 +13799,8 @@ function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
             }}
           >
             <div style={{ position: "relative" }}>
-              <Icon size={20} fill={isActive && it.id === "create" ? C.gold : "none"} />
+              {/* Tạo mới đang chọn: đĩa vàng + dấu cộng màu nền (trước tô cùng màu → mất dấu cộng) */}
+              <Icon size={isActive && it.id === "create" ? 22 : 20} fill={isActive && it.id === "create" ? C.gold : "none"} color={isActive && it.id === "create" ? C.bg : undefined} />
               {it.badge > 0 && (
                 <div style={{
                   position: "absolute", top: -4, right: -6,
@@ -17468,7 +17473,7 @@ export default function RankevApp() {
   // Onboarding lần đầu ("rank everything"). Đã xem 1 lần thì thôi (lưu ở máy).
   const [needHandle, setNeedHandle] = useState(false); // tài khoản MXH mới chưa tự chọn @handle
   const [onboarded, setOnboarded] = useState(() => { try { return localStorage.getItem("rankev.onboarded") === "1"; } catch { return true; } });
-  const [rankies, setRankies] = useState(initialRankies);
+  const [rankies, setRankies] = useState(SHOW_DEMO_CONTENT ? initialRankies : []);
   // --- Feed thật từ API (Phần 2) — merge cùng mock, mock giữ làm nội dung nền/fallback ---
   const [apiPosts, setApiPosts] = useState([]);
   const [apiCursor, setApiCursor] = useState(null);
@@ -17577,7 +17582,7 @@ export default function RankevApp() {
   const [notifItems, setNotifItems] = useState([]);
   // Quan hệ RankUp của người dùng với từng kênh (authorId → tier 0-3). Điều khiển feed
   // cá nhân, không tính điểm công khai.
-  const [rankTiers, setRankTiers] = useState(() => ({ ...INITIAL_RANKS }));
+  const [rankTiers, setRankTiers] = useState(() => (SHOW_DEMO_CONTENT ? { ...INITIAL_RANKS } : {}));
   // Ghi quan hệ RankUp lên backend cho author thật (UUID); author mock bỏ qua.
   const syncRankApi = (authorId, tier) => {
     if (isApiId(authorId)) api.social.rankUp(authorId, tier).catch(() => {});
@@ -17936,8 +17941,8 @@ export default function RankevApp() {
   };
 
   const apiRankies = apiPosts.filter((p) => p.type === "rankie");
-  const allPaths = [samplePath, otherPath, demoPathAdventure, ...userPaths, ...apiPosts.filter((p) => p.type === "path")];
-  const allDecks = [sampleDeck, sampleExamDeck, otherSurvey, otherExam, ...userDecks, ...apiPosts.filter((p) => p.type === "deck")];
+  const allPaths = [...(SHOW_DEMO_CONTENT ? [samplePath, otherPath, demoPathAdventure] : []), ...userPaths, ...apiPosts.filter((p) => p.type === "path")];
+  const allDecks = [...(SHOW_DEMO_CONTENT ? [sampleDeck, sampleExamDeck, otherSurvey, otherExam] : []), ...userDecks, ...apiPosts.filter((p) => p.type === "deck")];
 
   // Per-post management metadata (pin/hide/visibility/soft-delete), keyed by post id.
   // Kept separate from the post objects themselves so we don't have to touch the
