@@ -15,7 +15,7 @@ import {
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
-import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE } from "./native.js";
+import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE, nativeGoogleIdToken } from "./native.js";
 const SHARE_HOST = SHARE_BASE.replace(/^https?:\/\//, ""); // hiển thị gọn: rankev-web.vercel.app
 
 // ---------- DESIGN TOKENS ----------
@@ -16243,6 +16243,8 @@ async function getSocialToken(provider) {
   if (provider === "google") {
     const clientId = SOCIAL_ENV.google;
     if (!clientId) throw new Error("__notconfigured__");
+    // App điện thoại: Google chặn đăng nhập web trong WebView → dùng đăng nhập native.
+    if (isNative) return nativeGoogleIdToken(clientId);
     await loadScript("https://accounts.google.com/gsi/client", "gsi-script");
     return await new Promise((resolve, reject) => {
       try {
@@ -16407,7 +16409,7 @@ function AuthGate({ onAuthed }) {
   // Google: dùng NÚT CHÍNH THỨC của Google (tin cậy hơn One Tap). Render vào googleRef.
   const googleRef = useRef(null);
   useEffect(() => {
-    if (!SOCIAL_ENV.google || !googleRef.current) return;
+    if (!SOCIAL_ENV.google || isNative || !googleRef.current) return; // app: nút riêng → đăng nhập native
     let cancelled = false;
     loadScript("https://accounts.google.com/gsi/client", "gsi-script").then(() => {
       if (cancelled || !googleRef.current || !window.google?.accounts?.id) return;
@@ -16454,11 +16456,13 @@ function AuthGate({ onAuthed }) {
         </div>
 
         {/* Nút mạng xã hội — Google dùng nút chính thức khi đã cấu hình */}
-        {SOCIAL_ENV.google
+        {/* Web: nút chính thức của Google. App: nút riêng gọi đăng nhập native (Google chặn bản web trong WebView). */}
+        {SOCIAL_ENV.google && !isNative
           ? <div ref={googleRef} style={{ display: "flex", justifyContent: "center", marginBottom: 10, minHeight: 44 }} />
-          : socialBtn("google", "Tiếp tục với Google", false)}
-        {socialBtn("facebook", "Tiếp tục với Facebook", false)}
-        {socialBtn("apple", "Tiếp tục với Apple", true)}
+          : SOCIAL_ENV.google ? socialBtn("google", "Tiếp tục với Google", false) : null}
+        {/* Facebook / Apple: chỉ hiện khi đã cấu hình khoá (nút bấm vào báo lỗi bị coi là tính năng hỏng khi duyệt app) */}
+        {SOCIAL_ENV.facebook && !isNative && socialBtn("facebook", "Tiếp tục với Facebook", false)}
+        {SOCIAL_ENV.apple && !isNative && socialBtn("apple", "Tiếp tục với Apple", true)}
 
         {/* Ngăn cách */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "14px 0" }}>

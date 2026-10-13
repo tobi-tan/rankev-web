@@ -1,6 +1,9 @@
 # Build APP ĐIỆN THOẠI trên cloud (không cần Android Studio / máy Mac).
 # - Android: mỗi lần push main → APK tại link cố định https://github.com/tobi-tan/rankev-web/releases/download/android-latest/rankev.apk
 #   Tải về điện thoại Android → mở file để cài (cho phép "cài ứng dụng không rõ nguồn" nếu được hỏi).
+# - Bản PHÁT HÀNH cho Play Store (AAB đã ký): khi repo có secrets RANKEV_UPLOAD_KEYSTORE_BASE64 +
+#   RANKEV_UPLOAD_KEYSTORE_PASSWORD → link cố định .../download/android-latest/rankev-play.aab
+#   Số phiên bản = 100 + số lần build (tự tăng — Play Store từ chối số đã dùng), tên 1.0.<lần build>.
 # - iOS: chạy tay (Actions → "App điện thoại" → Run workflow) → kiểm tra app biên dịch được.
 #   Cài lên iPhone thật / TestFlight cần tài khoản Apple Developer để ký (bước sau).
 name: App điện thoại
@@ -20,12 +23,15 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # để đăng APK lên GitHub Releases (link tải cố định)
+  contents: write # để đăng APK/AAB lên GitHub Releases (link tải cố định)
 
 jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      KS_B64: ${{ secrets.RANKEV_UPLOAD_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -47,22 +53,40 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace -PrankevVersionCode=$((100 + VERSION_CODE)) -PrankevVersionName=1.0.$VERSION_CODE
+      # Bản ký chính thức cho Play Store — chỉ chạy khi đã thêm khoá vào GitHub Secrets.
+      - name: Build AAB phát hành (đã ký)
+        if: ${{ env.KS_B64 != '' }}
+        working-directory: android
+        env:
+          RANKEV_KEYSTORE_PASSWORD: ${{ secrets.RANKEV_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          export RANKEV_KEYSTORE="$RUNNER_TEMP/upload.p12"
+          ./gradlew bundleRelease --no-daemon --stacktrace -PrankevVersionCode=$((100 + VERSION_CODE)) -PrankevVersionName=1.0.$VERSION_CODE
+          rm -f "$RUNNER_TEMP/upload.p12"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/rankev-play.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: rankev-android
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            rankev-play.aab
+          if-no-files-found: ignore
           retention-days: 14
       # Link tải CỐ ĐỊNH, không cần đăng nhập GitHub:
       # https://github.com/tobi-tan/rankev-web/releases/download/android-latest/rankev.apk
-      - name: Đăng APK mới nhất
+      # https://github.com/tobi-tan/rankev-web/releases/download/android-latest/rankev-play.aab
+      - name: Đăng APK/AAB mới nhất
         if: github.event_name == 'push'
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk rankev.apk
+          FILES="rankev.apk"
+          if [ -f rankev-play.aab ]; then FILES="$FILES rankev-play.aab"; fi
           gh release delete android-latest --yes --cleanup-tag || true
-          gh release create android-latest rankev.apk --prerelease \
-            --title "Rankev Android (bản thử mới nhất)" \
-            --notes "Bản thử tự build từ commit ${GITHUB_SHA::7}. Mở link này trên điện thoại Android → tải rankev.apk → mở để cài."
+          gh release create android-latest $FILES --prerelease \
+            --title "Rankev Android (bản mới nhất)" \
+            --notes "Phiên bản 1.0.${VERSION_CODE} (mã $((100 + VERSION_CODE))) từ commit ${GITHUB_SHA::7}. rankev.apk = bản thử cài tay. rankev-play.aab (nếu có) = bản đã ký để nộp Google Play Console."
         env:
           GH_TOKEN: ${{ github.token }}
 

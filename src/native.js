@@ -69,3 +69,27 @@ export async function systemShare({ title, url, text }) {
   return false;
 }
 export const canSystemShare = () => isNative || (typeof navigator !== "undefined" && !!navigator.share);
+
+/**
+ * Đăng nhập Google NATIVE (app Android/iOS). Google CHẶN đăng nhập kiểu web (GIS) bên trong
+ * WebView của app (lỗi "disallowed_useragent") → app dùng Credential Manager của Android qua
+ * plugin @capgo/capacitor-social-login. `webClientId` = Client ID loại **Web** (cùng giá trị
+ * VITE_GOOGLE_CLIENT_ID) → id_token có aud = Web client ID, backend xác minh như bản web.
+ * Điều kiện: Google Cloud Console có thêm OAuth client loại **Android** (package com.rankev.app
+ * + SHA-1 của khoá ký) trong CÙNG project — xem docs/play-store.md.
+ */
+let googleInit = null;
+export async function nativeGoogleIdToken(webClientId) {
+  const { SocialLogin } = await import("@capgo/capacitor-social-login");
+  if (!googleInit) googleInit = SocialLogin.initialize({ google: { webClientId, mode: "online" } }).catch((e) => { googleInit = null; throw e; });
+  await googleInit;
+  try {
+    const r = await SocialLogin.login({ provider: "google", options: { scopes: ["email", "profile"] } });
+    const t = r?.result?.idToken;
+    if (!t) throw new Error("Không lấy được token Google");
+    return t;
+  } catch (e) {
+    if (e?.code === "USER_CANCELLED" || /cancel/i.test(String(e?.message || ""))) throw new Error("Đã huỷ đăng nhập Google");
+    throw e;
+  }
+}

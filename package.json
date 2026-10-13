@@ -17,6 +17,7 @@
     "@capacitor/share": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
+    "@capgo/capacitor-social-login": "8.5.11",
     "emojibase-data": "^17.0.0",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",

@@ -1,0 +1,17 @@
+# Giữ máy chủ Render (gói miễn phí) không "ngủ": Render tắt dịch vụ sau ~15 phút không có
+# request → người mở app đầu tiên phải chờ 30–60 giây. Gọi /health mỗi 10 phút là đủ giữ thức.
+# (Một dịch vụ chạy liên tục ≈ 744 giờ/tháng, nằm trong 750 giờ miễn phí của Render.)
+name: Giữ máy chủ thức
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Gọi /health
+        run: curl -fsS --max-time 90 --retry 2 --retry-delay 10 https://rankev-backend.onrender.com/health

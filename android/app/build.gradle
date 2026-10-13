@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Phiên bản: CI truyền -PrankevVersionCode / -PrankevVersionName (mỗi lần build tăng dần — Play Store
+// từ chối versionCode đã dùng). Build tay không truyền → 1 / "1.0".
+def rankevVersionCode = (project.findProperty('rankevVersionCode') ?: '1') as Integer
+def rankevVersionName = (project.findProperty('rankevVersionName') ?: '1.0') as String
+// Khoá ký bản phát hành (upload key, PKCS12) — CI giải mã từ GitHub Secrets ra file tạm.
+def rankevKeystore = System.getenv('RANKEV_KEYSTORE')
+
 android {
     namespace = "com.rankev.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +14,8 @@ android {
         applicationId "com.rankev.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode rankevVersionCode
+        versionName rankevVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +23,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (rankevKeystore) {
+                storeFile file(rankevKeystore)
+                storeType "pkcs12"
+                storePassword System.getenv('RANKEV_KEYSTORE_PASSWORD')
+                keyAlias "upload"
+                keyPassword System.getenv('RANKEV_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (rankevKeystore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
