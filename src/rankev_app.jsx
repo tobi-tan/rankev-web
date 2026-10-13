@@ -17087,13 +17087,13 @@ function EmailVerifyBanner() {
         <BottomSheet onClose={() => !busy && setOpen(false)}>
           <div style={{ padding: "0 18px 10px" }}>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Xác minh email</div>
-            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 6, lineHeight: 1.45 }}>Nhập mã 6 số Rankev đã gửi tới email đăng ký của bạn.</div>
+            <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 6, lineHeight: 1.45 }}>Nhập mã 6 số Rankev gửi tới email đăng ký của bạn. Chưa có thư (hoặc đã quá 30 phút)? Bấm “Gửi mã” bên dưới.</div>
             <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
               inputMode="numeric" autoComplete="one-time-code" placeholder="••••••" autoFocus
               style={{ width: "100%", boxSizing: "border-box", marginTop: 14, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontSize: 24, letterSpacing: 8, textAlign: "center", outline: "none" }} />
             {msg && <div style={{ fontFamily: bodyFont, fontSize: 13, color: /Đã gửi|đã được/.test(msg) ? C.teal : C.coral, marginTop: 8 }}>{msg}</div>}
             <button onClick={submit} disabled={code.length !== 6 || busy} style={{ ...primaryButton, width: "100%", marginTop: 14, opacity: code.length === 6 && !busy ? 1 : 0.5 }}>{busy ? "Đang xác minh…" : "Xác minh"}</button>
-            <button onClick={resend} style={{ width: "100%", marginTop: 10, background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Gửi lại mã</button>
+            <button onClick={resend} style={{ width: "100%", marginTop: 10, background: "none", border: "none", color: C.gold, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Gửi mã</button>
           </div>
         </BottomSheet>
       )}
