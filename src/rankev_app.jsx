@@ -11,7 +11,7 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles,
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
@@ -3530,7 +3530,7 @@ function EditPostModal({ post, onClose, onSave }) {
         <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>Ảnh bìa</span>
         {media && (media.url || media.emoji) ? (
           <div style={{ marginTop: 8, position: "relative" }}>
-            <PostMedia media={media} height={140} />
+            <PostMedia media={media} onChange={setMedia} />
             <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
               <button onClick={() => uploadInto((url) => setMedia({ type: "image", url }))} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }} title="Đổi ảnh"><ImagePlus size={15} /></button>
               <button onClick={() => setMedia(null)} style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }} title="Xoá ảnh"><X size={15} /></button>
@@ -3965,37 +3965,81 @@ function VoteBubbleLayer({ bubbles }) {
 }
 
 
-// Renders post media: an image (color-block placeholder) or a video (placeholder with play button).
-// In the prototype, real files aren't uploaded; media carries { type, color, emoji, url? }.
-function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480, bleed = false }) {
+// Ảnh/video của bài. ẢNH: khung theo tỉ lệ THẬT của ảnh nhưng giới hạn 4:5 (dọc) … 1.91:1 (ngang)
+// như Instagram, ảnh luôn LẤP ĐẦY khung (không viền đen) — phần thừa bị cắt quanh `media.focus`
+// (điểm lấy nét người tạo chọn). `onChange` (màn tạo/sửa bài): kéo ảnh để chọn vùng hiện, đồng
+// thời ghi kích thước gốc w/h để feed vẽ khung đúng tỉ lệ ngay (không nhảy chiều cao).
+// Video / chưa có URL: khung cao cố định như cũ.
+const MEDIA_MIN_RATIO = 0.8, MEDIA_MAX_RATIO = 1.91;
+function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480, bleed = false, onChange }) {
   const edge = bleed ? { borderLeft: "none", borderRight: "none" } : null; // tràn viền: bỏ viền 2 bên
-  // fit: "cover" (cắt lấp đầy, chiều cao cố định) | "contain" (hiện trọn ảnh dọc) |
-  // "auto" (mặc định: ảnh DỌC → contain hiện trọn kiểu IG/TikTok, ảnh ngang/vuông → cover).
-  const [portrait, setPortrait] = useState(false);
+  const [nat, setNat] = useState(() => (media?.w && media?.h ? { w: media.w, h: media.h } : null));
   const [imgBroken, setImgBroken] = useState(false); // ảnh 404/hỏng → hiện placeholder thay vì icon vỡ
-  useEffect(() => { setPortrait(false); setImgBroken(false); }, [media?.url]);
+  const boxRef = useRef(null);
+  const drag = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => { setImgBroken(false); setNat(media?.w && media?.h ? { w: media.w, h: media.h } : null); }, [media?.url]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!media) return null;
   const url = media.url && !imgBroken ? media.url : null;
-  const bg = url
-    ? undefined
-    : `linear-gradient(135deg, ${media.color || C.surfaceRaised}, ${C.surface})`;
-  const onImgLoad = (e) => { if (fit === "auto") { const im = e.target; if (im.naturalWidth && im.naturalHeight) setPortrait(im.naturalHeight > im.naturalWidth * 1.05); } };
-  // contain: hiển thị TRỌN ảnh (ảnh dọc — không cắt ngang). Khung nền tối, cao co theo
-  // ảnh nhưng không vượt maxHeight; ảnh căn giữa.
-  const useContain = !!url && (fit === "contain" || (fit === "auto" && portrait));
-  if (useContain) {
+  const isImage = !!url && !isVideoUrl(url) && media.type !== "video";
+  const focus = media.focus || { x: 50, y: 50 };
+  const onImgLoad = (e) => {
+    const im = e.target; if (!im.naturalWidth || !im.naturalHeight) return;
+    const n = { w: im.naturalWidth, h: im.naturalHeight };
+    setNat(n);
+    if (onChange && (media.w !== n.w || media.h !== n.h)) onChange({ ...media, w: n.w, h: n.h });
+  };
+
+  // ẢNH: khung tỉ lệ (cover + điểm lấy nét). fit="cover" giữ chiều cao cố định (thẻ nhỏ).
+  if (isImage && fit !== "cover") {
+    const ratio = nat ? Math.min(MEDIA_MAX_RATIO, Math.max(MEDIA_MIN_RATIO, nat.w / nat.h)) : null;
+    const natRatio = nat ? nat.w / nat.h : 1;
+    const axis = !nat ? null : natRatio > MEDIA_MAX_RATIO + 0.01 ? "x" : natRatio < MEDIA_MIN_RATIO - 0.01 ? "y" : null; // trục bị cắt
+    const canEdit = !!onChange && !!axis;
+    const onDown = (e) => {
+      if (!canEdit || !boxRef.current) return;
+      const r = boxRef.current.getBoundingClientRect();
+      const scale = Math.max(r.width / nat.w, r.height / nat.h);
+      const overflow = axis === "x" ? nat.w * scale - r.width : nat.h * scale - r.height; // px bị cắt
+      drag.current = { x: e.clientX, y: e.clientY, start: { ...focus }, overflow };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      setDragging(true);
+    };
+    const onMove = (e) => {
+      const d = drag.current; if (!d || !d.overflow) return;
+      const delta = axis === "x" ? e.clientX - d.x : e.clientY - d.y;
+      const pct = Math.max(0, Math.min(100, d.start[axis] - (delta / d.overflow) * 100)); // kéo ảnh sang phải → thấy phần bên trái
+      onChange({ ...media, focus: { ...d.start, [axis]: Math.round(pct) } });
+    };
+    const onUp = () => { drag.current = null; setDragging(false); };
     return (
-      <div style={{ position: "relative", width: "100%", maxHeight, borderRadius: radius, overflow: "hidden", background: "#0b0b0d", border: `1px solid ${C.border}`, ...edge, display: "flex", justifyContent: "center", alignItems: "center" }}>
-        <Pic src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ maxWidth: "100%", maxHeight, objectFit: "contain", display: "block" }} />
+      <div ref={boxRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+        style={{ position: "relative", width: "100%", aspectRatio: ratio ? String(ratio) : undefined, height: ratio ? undefined : height, borderRadius: radius, overflow: "hidden", background: C.surfaceRaised, border: `1px solid ${C.border}`, ...edge,
+          cursor: canEdit ? (dragging ? "grabbing" : "grab") : undefined, touchAction: canEdit ? "none" : undefined, userSelect: "none" }}>
+        <Pic src={url} alt="" draggable={false} onLoad={onImgLoad} onError={() => setImgBroken(true)}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `${focus.x}% ${focus.y}%`, display: "block", pointerEvents: "none" }} />
+        {canEdit && (
+          // Gợi ý căn khung — chỉ ở màn tạo/sửa bài, khi ảnh dài/rộng hơn khung feed
+          <div style={{ position: "absolute", left: 8, bottom: 8, display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 99, background: "rgba(0,0,0,0.6)", color: "#fff", fontFamily: bodyFont, fontSize: 12, fontWeight: 600, pointerEvents: "none", opacity: dragging ? 0 : 1, transition: "opacity .15s" }}>
+            {axis === "y" ? <MoveVertical size={14} /> : <MoveHorizontal size={14} />} Kéo để chọn phần hiện trên feed
+          </div>
+        )}
+        {canEdit && dragging && (
+          // lưới 3×3 khi đang kéo (như IG) để căn bố cục
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px)", backgroundSize: "33.333% 33.333%", backgroundPosition: "-1px -1px" }} />
+        )}
       </div>
     );
   }
+
+  const bg = url ? undefined : `linear-gradient(135deg, ${media.color || C.surfaceRaised}, ${C.surface})`;
   return (
     <div
       style={{
         position: "relative",
         width: "100%",
         height,
+        maxHeight,
         borderRadius: radius,
         overflow: "hidden",
         background: bg,
@@ -4006,7 +4050,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
       }}
     >
       {url ? (
-        <Pic src={url} alt="" onLoad={onImgLoad} onError={() => setImgBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Pic src={url} alt="" onError={() => setImgBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${focus.x}% ${focus.y}%` }} />
       ) : (
         <span style={{ fontSize: 54, opacity: 0.9 }}>{media.emoji || (media.type === "video" ? "🎬" : "🖼️")}</span>
       )}
@@ -6728,7 +6772,7 @@ function ChapterCover({ p }) {
       {p.caption && <div style={{ padding: "0 16px 12px", fontFamily: bodyFont, fontSize: 14, color: C.textMuted, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.caption}</div>}
       {img ? (
         <div style={{ position: "relative", width: "100%", aspectRatio: "4 / 3", overflow: "hidden", background: C.surfaceRaised }}>
-          <Pic src={img} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          <Pic src={img} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: p.media?.focus && img === p.media?.url ? `${p.media.focus.x}% ${p.media.focus.y}%` : undefined }} />
         </div>
       ) : optImgs.length === 2 ? (
         // Đối đầu: 2 ảnh VUÔNG cạnh nhau + VS (không kéo giãn lên cả thẻ)
@@ -12430,7 +12474,7 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
           />
           {media && (
             <div style={{ marginTop: 12, position: "relative" }}>
-              <PostMedia media={media} fit="contain" maxHeight={480} />
+              <PostMedia media={media} onChange={setMedia} />
               <button onClick={() => setMedia(null)} title="Xoá media" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center", zIndex: 2 }}><X size={14} /></button>
             </div>
           )}
@@ -13935,7 +13979,7 @@ function TournamentView({ tournamentId, onBack, onOpenRankie, currentUserId, sho
       })()}
       <div style={{ padding: 16 }}>
         {data.media?.url && (
-          <Pic src={data.media.url} alt="" style={{ ...postBleed, maxHeight: 280, objectFit: "cover", display: "block", marginBottom: 14 }} /* ảnh bìa tràn viền như feed */ />
+          <div style={{ ...postBleed, marginBottom: 14 }}><PostMedia media={data.media} radius={0} bleed /></div>
         )}
         {data.caption && (
           <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginBottom: 14, lineHeight: 1.5 }}>{data.caption}</div>
@@ -14619,7 +14663,7 @@ function CreateTournamentView({ initialContestants = [], initialDraft = null, on
           />
           {media?.url && (
             <div style={{ marginTop: 12, position: "relative" }}>
-              <PostMedia media={media} fit="contain" maxHeight={480} />
+              <PostMedia media={media} onChange={setMedia} />
               <button onClick={() => setMedia(null)} title="Xoá ảnh bìa" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 99, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center", zIndex: 2 }}><X size={14} /></button>
             </div>
           )}
@@ -15175,6 +15219,7 @@ function ProfileView({
   onCreateTournament,
   theme,
   onToggleTheme,
+  onReplayOnboarding,
   onShareToProfile,
   onBack,
   onPin,
@@ -15447,6 +15492,7 @@ function ProfileView({
             <div style={{ padding: "0 18px 8px", fontFamily: bodyFont, fontWeight: 700, fontSize: 18, color: C.text }}>Cài đặt</div>
             <SheetRow icon={Edit3} label="Sửa hồ sơ" onClick={() => { setSettingsOpen(false); setEditOpen(true); }} />
             {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
+            {onReplayOnboarding && <SheetRow icon={Sparkles} label="Xem lại phần giới thiệu" hint="Chơi thử 4 màn: đối đầu · path · survey · exam" onClick={() => { setSettingsOpen(false); onReplayOnboarding(); }} />}
             {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
             {isAdmin && <SheetRow icon={Flag} label="Kiểm duyệt" hint="Xử lý báo cáo trong 24 giờ" onClick={() => { setSettingsOpen(false); setModOpen(true); }} />}
             <SheetRow icon={Download} label={exporting ? "Đang chuẩn bị…" : "Tải thông tin của bạn"} hint="Bản sao dữ liệu (JSON)" onClick={() => { if (!exporting) { setSettingsOpen(false); exportMyData(); } }} />
@@ -16757,19 +16803,6 @@ function BasketPickerModal({ basket, onClose, onAdd }) {
   );
 }
 
-// Preview trực quan gọn cho từng dạng nội dung (ít chữ — cho người mới hình dung nhanh).
-function OnbTypePreview({ id }) {
-  const box = { width: 54, height: 42, borderRadius: 10, background: C.surfaceRaised, border: `1px solid ${C.border}`, display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden" };
-  if (id === "rankie")
-    return <div style={box}><div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 26 }}>{[11, 20, 15, 24].map((h, i) => <div key={i} style={{ width: 6, height: h, borderRadius: 2, background: i % 2 ? C.teal : C.gold }} />)}</div></div>;
-  if (id === "path")
-    return <div style={box}><svg width="40" height="28" viewBox="0 0 40 28"><g stroke={C.gold} strokeWidth="2" fill="none"><path d="M7 14 H18 M18 14 L31 7 M18 14 L31 21" /></g><circle cx="7" cy="14" r="3" fill={C.gold} /><circle cx="32" cy="7" r="3" fill={C.teal} /><circle cx="32" cy="21" r="3" fill={C.coral} /></svg></div>;
-  if (id === "survey")
-    return <div style={box}><div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{[0, 1, 2].map((i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 9, height: 9, borderRadius: 3, border: `1.5px solid ${C.gold}`, background: i === 0 ? C.gold : "transparent" }} /><div style={{ width: 22, height: 4, borderRadius: 2, background: C.border }} /></div>)}</div></div>;
-  return <div style={box}><div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "center" }}><div style={{ width: 30, height: 4, borderRadius: 2, background: C.border }} /><div style={{ display: "flex", gap: 8 }}><Check size={14} color={C.teal} strokeWidth={3} /><X size={14} color={C.coral} strokeWidth={3} /></div></div></div>;
-}
-
-// Hình minh hoạ dễ hiểu cho Path/Survey/Exam (khó preview bằng bài thật).
 function PathIllo() {
   return (
     <svg viewBox="0 0 300 116" width="100%" style={{ display: "block" }} aria-label="Minh hoạ Path">
@@ -16850,12 +16883,6 @@ function RankieIllo() {
   );
 }
 
-// Preview mỗi loại nội dung bằng hình minh hoạ dễ hiểu (không dùng bài thật nữa).
-function OnbExample({ type }) {
-  const Illo = { rankie: RankieIllo, path: PathIllo, survey: SurveyIllo, exam: ExamIllo }[type];
-  return Illo ? <div style={{ padding: "4px 2px" }}><Illo /></div> : <OnbTypePreview id={type} />;
-}
-
 // Một hàng kết quả cộng đồng: nhãn + thanh % + số phiếu. Tô đậm lựa chọn của mình.
 function OnbResultRow({ label, count, total, mine }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -16874,21 +16901,11 @@ function OnbResultRow({ label, count, total, mine }) {
 
 // Onboarding "rank everything": mỗi lựa chọn của người mới VỪA cá nhân hoá VỪA là một
 // phiếu thật — chọn xong hiện ngay kết quả cả cộng đồng (ẩn trước khi chọn để không lộ).
-const ONB_TYPES = [
-  { id: "rankie", label: "Rankie", sub: "Biểu đồ cột / tròn" },
-  { id: "path", label: "Path", sub: "Chọn hướng → mở kết cục" },
-  { id: "survey", label: "Survey", sub: "Khảo sát nhiều câu" },
-  { id: "exam", label: "Exam", sub: "Đố vui có chấm điểm" },
-];
 // Câu hỏi "điều khoản" (đọc thật hay bấm đồng ý?) + câu hỏi tò mò — chọn xong hiện kết quả cộng đồng.
 const ONB_TERMS = [
   { id: "all", tag: "A", label: "Đọc hết rồi, từng chữ một!" },
   { id: "skim", tag: "B", label: "Đọc lướt mấy ý chính" },
   { id: "agree", tag: "C", label: "Bấm đồng ý như mọi người 😅" },
-];
-const ONB_FLAT = [
-  { id: "yes", tag: "🫓", label: "Có" },
-  { id: "no", tag: "🌍", label: "Không" },
 ];
 const ONB_AGE_BUCKETS = ["<18", "18-24", "25-34", "35-44", "45+"];
 const ONB_GENDERS = ["Nam", "Nữ", "Khác"];
@@ -17106,6 +17123,231 @@ function EmailVerifyBanner() {
   );
 }
 
+// ===== MÀN CHƠI THỬ trong phần giới thiệu — mỗi màn là một tính năng THẬT của Rankev, chọn xong
+// hiện ngay kết quả cộng đồng (phiếu thật, khoá h2h · persona · screen · quiz ở /onboarding/vote).
+const ONB_CSS = `
+@keyframes onbPulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.12); } }
+@keyframes onbConfetti { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
+@keyframes onbWin { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1.04); } }
+@keyframes onbFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes onbShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+`;
+// Pháo giấy nhỏ (emoji) bung ra từ tâm — không dùng thư viện.
+function OnbConfetti({ show }) {
+  const bits = useMemo(() => Array.from({ length: 18 }, (_, i) => ({ e: ["🎉", "✨", "⭐", "🔥", "💛"][i % 5], dx: Math.round(Math.cos((i / 18) * Math.PI * 2) * (90 + (i % 4) * 25)), dy: Math.round(Math.sin((i / 18) * Math.PI * 2) * (70 + (i % 3) * 25)) - 30, rot: (i % 2 ? 1 : -1) * (90 + i * 10), d: 0.7 + (i % 5) * 0.08 })), []);
+  if (!show) return null;
+  return (
+    <div style={{ position: "absolute", left: "50%", top: "45%", width: 0, height: 0, pointerEvents: "none", zIndex: 5 }}>
+      {bits.map((b, i) => <span key={i} style={{ position: "absolute", fontSize: 18, "--dx": b.dx + "px", "--dy": b.dy + "px", "--rot": b.rot + "deg", animation: `onbConfetti ${b.d}s ease-out forwards` }}>{b.e}</span>)}
+    </div>
+  );
+}
+const onbTitle = (t, sub) => (
+  <>
+    <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, lineHeight: 1.25 }}>{t}</div>
+    {sub && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginTop: 4, marginBottom: 16, lineHeight: 1.45 }}>{sub}</div>}
+  </>
+);
+const onbTag = (Icon, label) => (
+  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, marginBottom: 10 }}><Icon size={13} /> {label}</div>
+);
+
+// 1) ĐỐI ĐẦU — Phở hay Bún chả?
+const ONB_H2H = [{ id: "pho", emoji: "🍜", label: "Phở", color: "#D9822B" }, { id: "buncha", emoji: "🥢", label: "Bún chả", color: "#2E8B6E" }];
+function OnbH2H({ stats, revealed, busy, onPick, mine }) {
+  const st = stats || {}; const total = st.voters || 0;
+  return (
+    <div style={{ position: "relative" }}>
+      {onbTag(Swords, "Rankie đối đầu")}
+      {onbTitle("Phở hay Bún chả?", "Cuộc chiến muôn thuở của ẩm thực Việt. Chạm để bỏ phiếu!")}
+      <div style={{ position: "relative", display: "flex", gap: 14 }}>
+        {ONB_H2H.map((o) => {
+          const on = mine === o.id; const pct = revealed && total ? Math.round(((st.counts?.[o.id] || 0) / total) * 100) : null;
+          return (
+            <button key={o.id} disabled={busy || revealed} onClick={() => onPick(o.id)}
+              style={{ flex: 1, position: "relative", aspectRatio: "3 / 4", borderRadius: 20, border: `3px solid ${on ? C.gold : o.color}`, cursor: revealed ? "default" : "pointer", overflow: "hidden",
+                background: `linear-gradient(160deg, ${o.color}, ${o.color}99)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                boxShadow: on ? "0 0 22px rgba(212,169,74,.55)" : "none", animation: on ? "onbWin .5s ease forwards" : "none", opacity: revealed && !on ? 0.6 : 1, filter: revealed && !on ? "grayscale(.4)" : "none", transition: "opacity .3s, filter .3s" }}>
+              <span style={{ fontSize: 64, animation: revealed ? "none" : "onbFloat 2.4s ease-in-out infinite" }}>{o.emoji}</span>
+              <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 20, color: "#fff", textShadow: "0 2px 6px rgba(0,0,0,.35)" }}>{o.label}</span>
+              {pct != null && <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 26, color: "#fff", textShadow: "0 2px 6px rgba(0,0,0,.35)", animation: "popIn .35s ease" }}>{pct}%</span>}
+            </button>
+          );
+        })}
+        <div style={{ position: "absolute", left: "50%", top: "50%", width: 50, height: 50, borderRadius: 99, background: "#17110a", border: `2.5px solid ${C.gold}`, display: "grid", placeItems: "center", fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 19, color: C.gold, transform: "translate(-50%,-50%)", animation: revealed ? "none" : "onbPulse 1.4s ease-in-out infinite", zIndex: 3 }}>VS</div>
+        <OnbConfetti show={revealed && !!mine} />
+      </div>
+      {revealed && total > 0 && <div style={{ textAlign: "center", marginTop: 12, fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>{total} người đã chọn · trên Rankev mọi cuộc đối đầu đều là phiếu thật</div>}
+    </div>
+  );
+}
+
+// 2) PATH — Bạn là kiểu người Rankev nào?
+const ONB_PATH_Q = [
+  { q: "Cuối tuần lý tưởng của bạn?", opts: [["explorer", "🧗", "Đi phượt, khám phá chỗ mới"], ["strategist", "♟️", "Ở nhà, lên kế hoạch cả tuần"], ["social", "🎉", "Tụ tập bạn bè tới khuya"], ["creator", "🎨", "Làm một thứ gì đó của riêng mình"]] },
+  { q: "Thấy một cuộc tranh luận nảy lửa trên mạng, bạn…", opts: [["strategist", "🔍", "Tìm nguồn, phân tích tới cùng"], ["social", "💬", "Nhảy vào bình luận ngay"], ["explorer", "🍿", "Hóng xem ai thắng"], ["creator", "✍️", "Viết hẳn một bài phản biện"]] },
+];
+const ONB_PERSONA = {
+  explorer: { emoji: "🧭", name: "Nhà thám hiểm", desc: "Tò mò mọi thứ. Path nhiều kết cục và các giải đấu loại trực tiếp là sân chơi của bạn.", color: "#2E8B6E" },
+  strategist: { emoji: "♟️", name: "Chiến lược gia", desc: "Thích phân tích và đúng tới từng chi tiết. Exam chấm điểm và bảng xếp hạng sinh ra cho bạn.", color: "#4A6FA5" },
+  social: { emoji: "🎉", name: "Linh hồn bữa tiệc", desc: "Ở đâu có tranh luận là có bạn. Đối đầu, bình luận và @nhắc bạn bè là sở trường.", color: "#C0563D" },
+  creator: { emoji: "🎨", name: "Nhà sáng tạo", desc: "Bạn không chỉ chọn — bạn đặt câu hỏi. Tự tạo Rankie, Survey cho cả cộng đồng trả lời.", color: "#B8862F" },
+};
+function OnbPath({ stats, revealed, busy, onDone, mine }) {
+  const [qi, setQi] = useState(0);
+  const [picks, setPicks] = useState([]);
+  const pick = (id) => {
+    const nextPicks = [...picks, id]; setPicks(nextPicks);
+    if (qi + 1 < ONB_PATH_Q.length) { setTimeout(() => setQi(qi + 1), 220); return; }
+    const tally = {}; nextPicks.forEach((p) => { tally[p] = (tally[p] || 0) + 1; });
+    const best = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    onDone(best[1] > 1 ? best[0] : nextPicks[nextPicks.length - 1]); // hoà → theo câu cuối
+  };
+  if (revealed && mine) {
+    const P = ONB_PERSONA[mine]; const st = stats || {}; const pct = st.voters ? Math.round(((st.counts?.[mine] || 0) / st.voters) * 100) : null;
+    return (
+      <div style={{ position: "relative" }}>
+        {onbTag(GitBranch, "Path · kết cục của bạn")}
+        <div style={{ position: "relative", padding: "22px 18px", borderRadius: 20, background: `linear-gradient(150deg, ${P.color}, ${P.color}88)`, textAlign: "center", animation: "popIn .4s ease", overflow: "hidden" }}>
+          <div style={{ fontSize: 60, animation: "onbFloat 2.4s ease-in-out infinite" }}>{P.emoji}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,.85)", textTransform: "uppercase", letterSpacing: 0.6, marginTop: 6 }}>Bạn là</div>
+          <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 28, color: "#fff", lineHeight: 1.15 }}>{P.name}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 15, color: "rgba(255,255,255,.92)", marginTop: 10, lineHeight: 1.5 }}>{P.desc}</div>
+          {pct != null && <div style={{ display: "inline-block", marginTop: 14, padding: "6px 12px", borderRadius: 99, background: "rgba(0,0,0,.25)", fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: "#fff" }}>🎯 {pct}% người dùng giống bạn</div>}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          {Object.entries(ONB_PERSONA).map(([id, p]) => <OnbResultRow key={id} label={`${p.emoji} ${p.name}`} count={st.counts?.[id] || 0} total={st.voters || 0} mine={mine === id} />)}
+        </div>
+      </div>
+    );
+  }
+  const Q = ONB_PATH_Q[qi];
+  return (
+    <div>
+      {onbTag(GitBranch, `Path · câu ${qi + 1}/${ONB_PATH_Q.length}`)}
+      {onbTitle("Bạn là kiểu người Rankev nào?", "Mỗi lựa chọn rẽ sang một hướng — cuối đường là kết cục của riêng bạn.")}
+      <div key={qi} style={{ animation: "popIn .25s ease" }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 12 }}>{Q.q}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {Q.opts.map(([id, e, label]) => (
+            <button key={id + label} disabled={busy} onClick={() => pick(id)}
+              style={{ padding: "16px 10px", borderRadius: 16, border: `1.5px solid ${C.border}`, background: C.surface, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, textAlign: "center" }}>
+              <span style={{ fontSize: 32 }}>{e}</span>
+              <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, lineHeight: 1.3 }}>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 3) SURVEY — mỗi ngày lướt mạng xã hội bao lâu?
+const ONB_SCREEN = [["<1", "📵", "Dưới 1 giờ"], ["1-3", "📱", "1 – 3 giờ"], ["3-5", "🤳", "3 – 5 giờ"], ["5+", "😵", "Hơn 5 giờ"]];
+function OnbSurvey({ stats, revealed, busy, onPick, mine }) {
+  const st = stats || {}; const total = st.voters || 0;
+  const max = Math.max(1, ...ONB_SCREEN.map(([id]) => st.counts?.[id] || 0));
+  return (
+    <div>
+      {onbTag(Layers, "Survey ẩn danh")}
+      {onbTitle("Mỗi ngày bạn lướt mạng xã hội bao lâu?", "Thành thật nhé — khảo sát ẩn danh, chỉ hiện số liệu gộp.")}
+      {!revealed ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {ONB_SCREEN.map(([id, e, label]) => (
+            <button key={id} disabled={busy} onClick={() => onPick(id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px", borderRadius: 14, border: `1.5px solid ${C.border}`, background: C.surface, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 24 }}>{e}</span><span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 16, color: C.text }}>{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        // biểu đồ cột dọc — cột của bạn vàng
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 200, padding: "12px 6px 0", animation: "popIn .3s ease" }}>
+          {ONB_SCREEN.map(([id, e, label]) => {
+            const n = st.counts?.[id] || 0; const pct = total ? Math.round((n / total) * 100) : 0; const on = mine === id;
+            return (
+              <div key={id} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%", justifyContent: "flex-end" }}>
+                <span style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: on ? C.gold : C.text }}>{pct}%</span>
+                <div style={{ width: "100%", height: `${Math.max(6, (n / max) * 120)}px`, borderRadius: "10px 10px 4px 4px", background: on ? C.gold : "color-mix(in srgb, var(--teal) 60%, transparent)", transition: "height .6s cubic-bezier(.2,.7,.2,1)" }} />
+                <span style={{ fontSize: 20 }}>{e}</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 11, color: on ? C.gold : C.textMuted, textAlign: "center", lineHeight: 1.2 }}>{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {revealed && total > 0 && <div style={{ textAlign: "center", marginTop: 14, fontFamily: bodyFont, fontSize: 13, color: C.textMuted }}>{total} người đã trả lời</div>}
+    </div>
+  );
+}
+
+// 4) EXAM — 3 câu đố, chấm ngay
+const ONB_QUIZ = [
+  { q: "Thủ đô của nước Úc là thành phố nào?", opts: ["Sydney", "Canberra", "Melbourne"], a: 1, why: "Canberra được chọn làm thủ đô để “hoà giải” Sydney và Melbourne." },
+  { q: "Con vật nào có thể ngủ trong khi đứng?", opts: ["Mèo", "Ngựa", "Chó"], a: 1, why: "Ngựa có cơ chế “khoá” khớp chân nên ngủ đứng được." },
+  { q: "Từ 7/2025, Việt Nam có bao nhiêu tỉnh, thành phố?", opts: ["63", "45", "34"], a: 2, why: "Sau sắp xếp đơn vị hành chính, cả nước còn 34 tỉnh, thành phố." },
+];
+function OnbExam({ stats, revealed, busy, onDone, mine }) {
+  const [qi, setQi] = useState(0);
+  const [pickedIdx, setPickedIdx] = useState(null);
+  const [score, setScore] = useState(0);
+  const Q = ONB_QUIZ[Math.min(qi, ONB_QUIZ.length - 1)];
+  const answer = (i) => {
+    if (pickedIdx != null) return;
+    setPickedIdx(i); const right = i === Q.a; const s = score + (right ? 1 : 0); setScore(s);
+    if (right) haptic("light");
+    setTimeout(() => {
+      if (qi + 1 < ONB_QUIZ.length) { setQi(qi + 1); setPickedIdx(null); }
+      else onDone(String(s));
+    }, 1300);
+  };
+  if (revealed && mine != null) {
+    const st = stats || {}; const total = st.voters || 0; const s = Number(mine);
+    const full = total ? Math.round(((st.counts?.["3"] || 0) / total) * 100) : null;
+    return (
+      <div style={{ position: "relative", textAlign: "center" }}>
+        {onbTag(Edit3, "Exam · kết quả")}
+        <div style={{ position: "relative", width: 140, height: 140, margin: "6px auto 10px", borderRadius: 99, display: "grid", placeItems: "center", background: `conic-gradient(${C.gold} ${(s / 3) * 360}deg, ${C.surfaceRaised} 0deg)`, animation: "popIn .4s ease" }}>
+          <div style={{ width: 112, height: 112, borderRadius: 99, background: C.bg, display: "grid", placeItems: "center" }}>
+            <div><div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 38, color: C.gold, lineHeight: 1 }}>{s}/3</div><div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>câu đúng</div></div>
+          </div>
+          <OnbConfetti show={s === 3} />
+        </div>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 17, color: C.text }}>{s === 3 ? "Xuất sắc! Không câu nào làm khó được bạn 🏆" : s === 2 ? "Rất khá! Chỉ trượt một câu 👏" : s === 1 ? "Khởi đầu ổn — Exam trên Rankev còn nhiều đề hay 💪" : "Không sao, ai cũng từng bắt đầu từ 0 😄"}</div>
+        {full != null && <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}><b style={{ color: C.gold }}>{full}%</b> người chơi đạt điểm tuyệt đối</div>}
+        <div style={{ marginTop: 14, textAlign: "left" }}>
+          {["3", "2", "1", "0"].map((k) => <OnbResultRow key={k} label={`${k}/3 câu đúng`} count={st.counts?.[k] || 0} total={total} mine={mine === k} />)}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      {onbTag(Edit3, `Exam · câu ${qi + 1}/${ONB_QUIZ.length}`)}
+      {onbTitle("Đố vui 30 giây", "Chọn đáp án — đúng sai hiện ngay, cuối bài có điểm.")}
+      <div key={qi} style={{ animation: "popIn .25s ease" }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 12, lineHeight: 1.35 }}>{Q.q}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {Q.opts.map((o, i) => {
+            const show = pickedIdx != null; const right = i === Q.a; const wrongPick = show && i === pickedIdx && !right;
+            return (
+              <button key={o} disabled={busy || show} onClick={() => answer(i)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px", borderRadius: 14, textAlign: "left", cursor: show ? "default" : "pointer",
+                  border: `1.5px solid ${show && right ? C.teal : wrongPick ? C.coral : C.border}`, background: show && right ? "color-mix(in srgb, var(--teal) 18%, transparent)" : wrongPick ? "color-mix(in srgb, var(--coral) 16%, transparent)" : C.surface,
+                  animation: wrongPick ? "onbShake .35s ease" : "none" }}>
+                <span style={{ width: 26, height: 26, borderRadius: 99, display: "grid", placeItems: "center", flexShrink: 0, background: show && right ? C.teal : wrongPick ? C.coral : C.surfaceRaised, color: show && (right || wrongPick) ? "#fff" : C.textMuted, fontFamily: bodyFont, fontWeight: 700, fontSize: 13 }}>
+                  {show && right ? <Check size={15} /> : wrongPick ? <X size={15} /> : String.fromCharCode(65 + i)}
+                </span>
+                <span style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 16, color: C.text }}>{o}</span>
+              </button>
+            );
+          })}
+        </div>
+        {pickedIdx != null && <div style={{ marginTop: 12, fontFamily: bodyFont, fontSize: 13, color: C.textMuted, lineHeight: 1.45, animation: "popIn .25s ease" }}>💡 {Q.why}</div>}
+      </div>
+    </div>
+  );
+}
+
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState({ type: [] }); // {theme, type:[], rating, age, gender, occupation}
@@ -17115,7 +17357,8 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   const [busy, setBusy] = useState(false);
   const [occQuery, setOccQuery] = useState(""); // ô tìm nghề
   const [occOpen, setOccOpen] = useState(false);
-  const steps = ["intro", "terms", "theme", "type", "age", "gender", "occupation", "flat_earth", "rating", "outro"];
+  // 4 màn chơi thử (đối đầu · path · survey · exam) giới thiệu tính năng thật, rồi tới cá nhân hoá.
+  const steps = ["intro", "h2h", "path", "survey", "exam", "terms", "theme", "age", "gender", "occupation", "rating", "outro"];
   const [legalDoc, setLegalDoc] = useState(null);
   const s = steps[step];
   const next = () => setStep((i) => Math.min(i + 1, steps.length - 1));
@@ -17207,6 +17450,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
   return (
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
       {FONT_IMPORT}
+      <style>{ONB_CSS}</style>
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", padding: "20px 22px 28px", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           {step > 0 && step < steps.length - 1 && (
@@ -17224,7 +17468,16 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><BrandLogo height={96} /></div>
               <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
               <div style={{ fontFamily: bodyFont, fontSize: 16, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Mỗi lựa chọn của bạn là một lá phiếu — chọn xong sẽ thấy ngay cả cộng đồng đang nghĩ gì.</div>
-              <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 26, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Bắt đầu <ChevronRight size={18} /></button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 20 }}>
+                {[["⚔️", "Đối đầu", "Phở hay Bún chả?"], ["🧭", "Path", "Bạn là ai?"], ["📊", "Survey", "Cộng đồng nghĩ gì?"], ["🏆", "Exam", "Đố vui có điểm"]].map(([e, t, sub], i) => (
+                  <div key={t} style={{ padding: "12px 10px", borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, textAlign: "left", animation: `popIn .35s ease ${0.08 * i}s both` }}>
+                    <div style={{ fontSize: 22, animation: `onbFloat 2.6s ease-in-out ${0.3 * i}s infinite` }}>{e}</div>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, marginTop: 4 }}>{t}</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 22, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Chơi thử 4 màn <ChevronRight size={18} /></button>
             </div>
           )}
 
@@ -17234,7 +17487,10 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
             </button>)}
           {legalDoc && <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />}
 
-          {s === "flat_earth" && pollStep("flat_earth", "Bạn có tin rằng Trái Đất phẳng không?", ONB_FLAT)}
+          {s === "h2h" && (<div><OnbH2H stats={stats.h2h} revealed={revealed.h2h} busy={busy} mine={choice.h2h} onPick={(id) => { setChoice((c) => ({ ...c, h2h: id })); haptic("light"); submitVote("h2h", [id]); }} />{revealed.h2h && <button onClick={next} style={{ ...primaryFull, animation: "popIn .3s ease" }}>Tiếp tục</button>}</div>)}
+          {s === "path" && (<div><OnbPath stats={stats.persona} revealed={revealed.persona} busy={busy} mine={choice.persona} onDone={(p) => { setChoice((c) => ({ ...c, persona: p })); submitVote("persona", [p]); }} />{revealed.persona && <button onClick={next} style={{ ...primaryFull, animation: "popIn .3s ease" }}>Tiếp tục</button>}</div>)}
+          {s === "survey" && (<div><OnbSurvey stats={stats.screen} revealed={revealed.screen} busy={busy} mine={choice.screen} onPick={(id) => { setChoice((c) => ({ ...c, screen: id })); submitVote("screen", [id]); }} />{revealed.screen && <button onClick={next} style={{ ...primaryFull, animation: "popIn .3s ease" }}>Tiếp tục</button>}</div>)}
+          {s === "exam" && (<div><OnbExam stats={stats.quiz} revealed={revealed.quiz} busy={busy} mine={choice.quiz} onDone={(sc) => { setChoice((c) => ({ ...c, quiz: sc })); submitVote("quiz", [sc]); }} />{revealed.quiz && <button onClick={next} style={{ ...primaryFull, animation: "popIn .3s ease" }}>Tiếp tục</button>}</div>)}
 
           {s === "theme" && (
             <div>
@@ -17261,44 +17517,6 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
                 </div>
               )}
               <button onClick={next} disabled={!revealed.theme} style={{ ...primaryFull, opacity: revealed.theme ? 1 : 0.5, cursor: revealed.theme ? "pointer" : "default" }}>Tiếp tục</button>
-            </div>
-          )}
-
-          {s === "type" && (
-            <div>
-              <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 24, color: C.text, marginBottom: 4 }}>Bạn thích dạng nội dung nào?</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, marginBottom: 16 }}>Chọn nhiều cũng được — mỗi loại là một kiểu "rank everything".</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {ONB_TYPES.map((o) => {
-                  const on = (choice.type || []).includes(o.id);
-                  const Icon = { rankie: BarChart3, path: GitBranch, survey: Layers, exam: Edit3 }[o.id];
-                  return (
-                    <button key={o.id} disabled={revealed.type} onClick={() => setChoice((c) => { const set = new Set(c.type || []); set.has(o.id) ? set.delete(o.id) : set.add(o.id); return { ...c, type: [...set] }; })}
-                      style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%", padding: "12px 14px", borderRadius: 14, cursor: revealed.type ? "default" : "pointer", textAlign: "left", border: `1.5px solid ${on ? C.gold : C.border}`, background: on ? C.goldSoft : C.surface }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <Icon size={18} color={on ? C.gold : C.textMuted} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, color: C.text }}>{o.label}</div>
-                          <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{o.sub}</div>
-                        </div>
-                        <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.gold : "transparent", border: `1.5px solid ${on ? C.gold : C.border}` }}>{on && <Check size={14} color="#231a05" strokeWidth={3} />}</span>
-                      </div>
-                      <OnbExample type={o.id} />
-                    </button>
-                  );
-                })}
-              </div>
-              {revealed.type && (
-                <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, animation: "popIn .3s ease" }}>
-                  <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: C.textFaint, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Cộng đồng thích gì</div>
-                  {ONB_TYPES.map((o) => (
-                    <OnbResultRow key={o.id} label={o.label} count={stats.type?.counts?.[o.id] || 0} total={stats.type?.voters || 0} mine={(choice.type || []).includes(o.id)} />
-                  ))}
-                </div>
-              )}
-              {!revealed.type
-                ? <button onClick={() => submitVote("type", choice.type)} disabled={busy || !(choice.type || []).length} style={{ ...primaryFull, opacity: (choice.type || []).length ? 1 : 0.5, cursor: (choice.type || []).length ? "pointer" : "default" }}>Xem mọi người chọn gì →</button>
-                : <button onClick={next} style={primaryFull}>Tiếp tục</button>}
             </div>
           )}
 
@@ -19543,6 +19761,7 @@ export default function RankevApp() {
               onCreateTournament={startCreateTournament}
               theme={theme}
               onToggleTheme={toggleTheme}
+              onReplayOnboarding={() => { window.scrollTo(0, 0); setOnboarded(false); }}
               onShareToProfile={shareToProfile}
               // Tab Hồ sơ (thanh menu dưới) không có thanh "quay lại" — như Instagram; quay về Bảng tin
               // bằng tab / cử chỉ vuốt quay lại.
