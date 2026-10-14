@@ -38,6 +38,24 @@ export function clearTokens() {
 }
 export function isLoggedIn() { return Boolean(getAccessToken()); }
 
+// "CHUYỂN SANG RANKEV" (như chủ Trang Facebook chuyển sang Trang): quản trị viên nhận phiên của
+// tài khoản chính thức @rankev; phiên cá nhân được cất lại trên máy để "Quay về".
+const OWNER_KEY = 'rankev.ownerSession';
+export const pageSession = {
+  active() { try { return !!localStorage.getItem(OWNER_KEY); } catch { return false; } },
+  async switchToOfficial() {
+    const r = await apiFetch('/admin/act-as-official', { method: 'POST', body: {} });
+    localStorage.setItem(OWNER_KEY, JSON.stringify({ accessToken: getAccessToken(), refreshToken: getRefreshToken() }));
+    setTokens(r);
+    return r;
+  },
+  switchBack() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(OWNER_KEY) || 'null'); localStorage.removeItem(OWNER_KEY); } catch { /* ignore */ }
+    if (saved && saved.accessToken) setTokens(saved); else clearTokens();
+  },
+};
+
 export class ApiError extends Error {
   constructor(status, code, message, details) {
     super(message);

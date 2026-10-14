@@ -11,10 +11,10 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles, Repeat, BadgeCheck,
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
-import api, { auth, setAuthLostHandler, BASE_URL } from "./api.js";
+import api, { auth, setAuthLostHandler, BASE_URL, pageSession } from "./api.js";
 import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE, nativeGoogleIdToken } from "./native.js";
 const SHARE_HOST = SHARE_BASE.replace(/^https?:\/\//, ""); // hiển thị gọn: rankev-web.vercel.app
 
@@ -15494,6 +15494,12 @@ function ProfileView({
             {mod && <SheetRow icon={ShieldCheck} label="Quyền riêng tư" onClick={() => { setSettingsOpen(false); setPrivacyOpen(true); }} />}
             {onReplayOnboarding && <SheetRow icon={Sparkles} label="Xem lại phần giới thiệu" hint="Chơi thử 4 màn: đối đầu · path · survey · exam" onClick={() => { setSettingsOpen(false); onReplayOnboarding(); }} />}
             {onToggleTheme && <SheetRow icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Chuyển giao diện tối" : "Chuyển giao diện sáng"} onClick={() => { onToggleTheme(); setSettingsOpen(false); }} />}
+            {isAdmin && !pageSession.active() && <SheetRow icon={Repeat} label="Chuyển sang Rankev" hint="Đăng bài, trả lời dưới tên tài khoản chính thức" onClick={async () => {
+              setSettingsOpen(false);
+              try { await pageSession.switchToOfficial(); try { localStorage.setItem("rankev.onboarded", "1"); } catch { /* ignore */ } window.location.reload(); }
+              catch (e) { window.alert(e?.message || "Chưa chuyển được"); }
+            }} />}
+            {pageSession.active() && <SheetRow icon={Repeat} label="Quay về tài khoản của bạn" hint="Đang dùng Rankev ✓" onClick={() => { setSettingsOpen(false); pageSession.switchBack(); window.location.reload(); }} />}
             {isAdmin && <SheetRow icon={Flag} label="Kiểm duyệt" hint="Xử lý báo cáo trong 24 giờ" onClick={() => { setSettingsOpen(false); setModOpen(true); }} />}
             <SheetRow icon={Download} label={exporting ? "Đang chuẩn bị…" : "Tải thông tin của bạn"} hint="Bản sao dữ liệu (JSON)" onClick={() => { if (!exporting) { setSettingsOpen(false); exportMyData(); } }} />
             <SheetRow icon={FileText} label="Chính sách & cam kết" onClick={() => { setSettingsOpen(false); setLegalOpen("hub"); }} />
@@ -19459,6 +19465,12 @@ export default function RankevApp() {
       {FONT_IMPORT}
       <div className="rk-statusbar-shield" />
       <RankieSaveOverlay pending={pendingSave} onConfirm={confirmSaveToRankie} onCancel={() => setPendingSave(null)} basket={rankieBasket} basketOpen={basketOpen} setBasketOpen={setBasketOpen} basketHidden={basketHidden} setBasketHidden={setBasketHidden} onRemove={removeFromBasket} onOpenRef={openRef} onCreateTournament={(items) => startCreateTournament(items.map((it) => ({ name: it.label, emoji: it.refType === "user" ? "👤" : it.refType === "post" ? "📊" : it.refType === "comment" ? "💬" : undefined, refType: it.refType, refId: it.refId })))} />
+      {pageSession.active() && (
+        <div style={{ position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 0px) + 74px)", left: "50%", transform: "translateX(-50%)", zIndex: 80, display: "flex", alignItems: "center", gap: 8, padding: "5px 6px 5px 12px", borderRadius: 99, background: C.gold, color: "#1A1305", boxShadow: "0 6px 18px rgba(0,0,0,.3)", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+          <BadgeCheck size={15} /> Đang dùng Rankev
+          <button onClick={() => { pageSession.switchBack(); window.location.reload(); }} style={{ border: "none", borderRadius: 99, padding: "4px 10px", background: "#1A1305", color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Quay về</button>
+        </div>
+      )}
       {notifOpen && <NotificationsPanel items={notifItems} onClose={() => setNotifOpen(false)} onOpenItem={onNotifClick} onOpenHandle={openAuthorByHandle} />}
       {seriesPickerPost && <SeriesPickerModal post={seriesPickerPost} mySeries={mySeries} onClose={() => setSeriesPickerPost(null)} onAdd={(sid, newName) => addPostToSeries(seriesPickerPost, sid, newName)} />}
       {toast && (
