@@ -188,6 +188,8 @@ export const auth = {
 
 // ---------------- Posts / Feed ----------------
 export const posts = {
+  // Thẻ gợi ý "Đối đầu kinh điển": trận #kinhdien của @rankev mà mình chưa vote (trận nóng trước)
+  classics(limit = 18) { return apiFetch(`/feed/classics?limit=${limit}`); },
   feed(cursor, type) {
     const q = new URLSearchParams({ limit: '20' });
     if (cursor) q.set('cursor', cursor);

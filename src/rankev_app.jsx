@@ -5675,7 +5675,57 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
   );
 }
 
-function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
+// THẺ GỢI Ý "⚔️ ĐỐI ĐẦU KINH ĐIỂN" chèn giữa feed (như "Gợi ý cho bạn" của Facebook): hàng trận
+// vuốt ngang, CHẠM MỘT BÊN LÀ VOTE NGAY. Chỉ gồm trận #kinhdien của @rankev mà bạn chưa vote
+// (server lọc), trận nóng trước. Vote xong ô hiện % + "Xem bài"; lần tải sau trận đó không còn.
+function ClassicsSuggestCard({ items, total, votedMap, liveOptions, onVote, onOpen, onSeeAll }) {
+  if (!items?.length) return null;
+  return (
+    <div style={{ padding: "14px 0 16px", borderBottom: `1px solid ${C.border}`, background: "color-mix(in srgb, var(--gold) 7%, transparent)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 15 }}><Swords size={17} /> Đối đầu kinh điển</div>
+        <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>{total > 0 ? `${total} trận bạn chưa chọn` : "Bạn đã chọn hết 🎉"}</span>
+      </div>
+      <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "0 16px", scrollSnapType: "x mandatory", scrollbarWidth: "none" }} data-noswipe>
+        {items.map((it, idx) => {
+          const opts = (liveOptions?.[it.id] || it.options || []).slice(0, 2);
+          const picked = votedMap?.[it.id];
+          const pickedId = Array.isArray(picked) ? picked[0] : picked;
+          const voted = pickedId != null;
+          const sum = opts.reduce((s, o) => s + (o.votes || 0), 0);
+          const people = (it.participants || 0) + (voted ? 1 : 0); // + phiếu mình vừa bầu (danh sách tải trước khi vote)
+          const hot = idx === 0 && (it.participants || 0) > 0;
+          return (
+            <div key={it.id} style={{ flex: "0 0 168px", scrollSnapAlign: "start", background: C.surface, border: `1px solid ${voted ? C.gold : C.border}`, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: hot ? C.coral : C.textFaint, fontVariantNumeric: "tabular-nums" }}>
+                {hot ? <><Flame size={12} /> Đang nóng · {fmtCompact(people)}</> : <>{fmtCompact(people)} <Users size={11} /></>}
+              </div>
+              <div onClick={() => onOpen?.(it)} style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, lineHeight: 1.3, minHeight: 36, cursor: "pointer", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{it.title}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {opts.map((o) => {
+                  const mine = voted && (o.id === pickedId || o.label === opts.find((x) => x.id === pickedId)?.label);
+                  const pct = voted && sum ? Math.round(((o.votes || 0) / sum) * 100) : null;
+                  return (
+                    <button key={o.id} onClick={(e) => { e.stopPropagation(); if (!voted) onVote?.(it, o.id); }} disabled={voted}
+                      style={{ flex: 1, minWidth: 0, position: "relative", aspectRatio: "1 / 1.15", borderRadius: 10, overflow: "hidden", padding: 0, cursor: voted ? "default" : "pointer",
+                        border: `2px solid ${mine ? C.gold : o.color || C.border}`, background: `linear-gradient(160deg, ${o.color || C.surfaceRaised}, ${(o.color || "#334")}aa)`, opacity: voted && !mine ? 0.55 : 1 }}>
+                      {o.image ? <Pic src={o.image} alt="" style={{ position: "absolute", inset: "8% 8% 30%", width: "84%", height: "62%", objectFit: "contain" }} /> : <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 30 }}>{o.emoji || "⭐"}</span>}
+                      <span style={{ position: "absolute", left: 4, right: 4, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pct != null ? `${pct}%` : o.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {voted && <button onClick={() => onOpen?.(it)} style={{ border: "none", background: "none", padding: 0, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer", textAlign: "left" }}>Xem bài, bình luận →</button>}
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={onSeeAll} style={{ marginTop: 10, marginLeft: 16, border: "none", background: "none", padding: 0, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Xem tất cả #kinhdien →</button>
+    </div>
+  );
+}
+
+function FeedView({ classics = [], onSeeAllClassics, feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
   const mod = useModeration();
@@ -5843,7 +5893,15 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
             Chưa có bài đăng nào{typeFilter !== "all" ? ` (${currentLabel})` : ""}.
           </div>
         )}
-        {feedItems.map((item) => {
+        {feedItems.map((item, feedIdx) => {
+          const classicsFirst = feedItems.length < 12 ? 2 : 7;
+          const classicsSlot = feedIdx >= classicsFirst && (feedIdx - classicsFirst) % 12 === 0 ? (feedIdx - classicsFirst) / 12 : -1;
+          const classicsChunk = classicsSlot >= 0 && typeFilter === "all" ? classics.slice(classicsSlot * 6, classicsSlot * 6 + 6) : [];
+          const classicsCard = classicsChunk.length ? (
+            <ClassicsSuggestCard key={"classics-" + classicsSlot} items={classicsChunk} total={classics.filter((c) => votedMap?.[c.id] == null).length} votedMap={votedMap} liveOptions={liveOptions}
+              onVote={(it, optId) => onVoteInline?.(it, optId)} onOpen={(it) => onOpenRankie(it.id, it)} onSeeAll={onSeeAllClassics} />
+          ) : null;
+          const node = (() => {
           // (khung chứa có class rk-feedlist: mỗi thẻ content-visibility:auto — xem CSS toàn cục)
           // Series nhiều chapter → carousel vuốt ngang ngay trên feed (kiểu ảnh nhiều slide của IG).
           const chapters = item.seriesId ? (seriesMap?.[item.seriesId]?.posts || []) : [];
@@ -5865,6 +5923,8 @@ function FeedView({ feedItems, seriesMap, votedMap, participatedKeys, participat
               {renderCard(feedSourceFor(item) === "sponsored" ? { ...item, _sponsored: true } : item)}
             </SaveWrap>
           );
+          })();
+          return classicsCard ? <React.Fragment key={"wrap-" + (item.id || item.seriesId)}>{classicsCard}{node}</React.Fragment> : node;
         })}
       </div>
       {shareTarget && (
@@ -19001,9 +19061,13 @@ export default function RankevApp() {
 
   // Làm mới feed (bấm logo Rankev / kéo xuống) — nạp lại từ backend + về đầu trang.
   const [feedRefreshing, setFeedRefreshing] = useState(false);
+  // Thẻ gợi ý "Đối đầu kinh điển" trên feed (trận #kinhdien của @rankev mình chưa vote)
+  const [classicItems, setClassicItems] = useState([]);
+  const loadClassics = useCallback(() => { api.posts.classics(18).then((r) => setClassicItems((r.items || []).map(apiSummaryToProto))).catch(() => {}); }, []);
   const refreshFeed = useCallback(async () => {
     if (!authed || feedRefreshing) return;
     setFeedRefreshing(true);
+    loadClassics();
     try {
       const res = await api.posts.feed();
       setApiPosts((res.items || []).map(apiSummaryToProto));
@@ -19056,6 +19120,7 @@ export default function RankevApp() {
     })();
     loadMySeries(); // nạp series của mình để chọn khi thêm chapter
     loadTournamentFeed(); // nạp giải đấu để hiện thẻ giải trên feed
+    loadClassics(); // thẻ gợi ý "Đối đầu kinh điển"
     // Nạp danh sách đã lưu (bookmark) thật để đồng bộ trạng thái nút lưu.
     (async () => {
       try {
@@ -19500,6 +19565,8 @@ export default function RankevApp() {
           <ScreenBoundary resetKey={screenKey} onBack={() => goBack("feed")}>
           <KeepAlive active={view === "feed"} name="feed">
             <FeedView
+              classics={classicItems}
+              onSeeAllClassics={() => { searchMemory.query = ""; searchMemory.browse = "kinhdien"; setView("search"); }}
               pathUnlocks={pathUnlocks}
               feedItems={feedItemsGrouped}
               seriesMap={allSeries}
