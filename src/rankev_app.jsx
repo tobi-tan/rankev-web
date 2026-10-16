@@ -5709,8 +5709,10 @@ function ClassicsSuggestCard({ items, total, votedMap, liveOptions, onVote, onOp
                     <button key={o.id} onClick={(e) => { e.stopPropagation(); if (!voted) onVote?.(it, o.id); }} disabled={voted}
                       style={{ flex: 1, minWidth: 0, position: "relative", aspectRatio: "1 / 1.15", borderRadius: 10, overflow: "hidden", padding: 0, cursor: voted ? "default" : "pointer",
                         border: `2px solid ${mine ? C.gold : o.color || C.border}`, background: `linear-gradient(160deg, ${o.color || C.surfaceRaised}, ${(o.color || "#334")}aa)`, opacity: voted && !mine ? 0.55 : 1 }}>
-                      {o.image ? <Pic src={o.image} alt="" style={{ position: "absolute", inset: "8% 8% 30%", width: "84%", height: "62%", objectFit: "contain" }} /> : <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 30 }}>{o.emoji || "⭐"}</span>}
-                      <span style={{ position: "absolute", left: 4, right: 4, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pct != null ? `${pct}%` : o.label}</span>
+                      {o.image && /twemoji/.test(o.image) ? <Pic src={o.image} alt="" style={{ position: "absolute", inset: "8% 8% 30%", width: "84%", height: "62%", objectFit: "contain" }} />
+                        : o.image ? <><Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /><span style={{ position: "absolute", inset: "45% 0 0", background: "linear-gradient(transparent, rgba(0,0,0,.75))" }} /></>
+                        : <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 30 }}>{o.emoji || "⭐"}</span>}
+                      <span style={{ position: "absolute", left: 4, right: 4, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, lineHeight: 1.2, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.6)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{pct != null ? `${pct}%` : o.label}</span>
                     </button>
                   );
                 })}
