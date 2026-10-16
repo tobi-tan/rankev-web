@@ -4085,7 +4085,11 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
 // Ở màn CHI TIẾT, truyền `expandable` để mô tả thu gọn `clampLines` dòng + nút "Xem thêm/
 // Thu gọn" mở/đóng TẠI CHỖ (kiểu Facebook) — chỉ hiện nút khi mô tả thực sự bị tràn.
 // `bleed`: ảnh tràn hết chiều ngang bài (ngôn ngữ thiết kế bài viết không khung).
-function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false }) {
+function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false }) {
+  // Dòng ghi nguồn ảnh ("📷 Ảnh: …", bài kinh điển) tách khỏi mô tả: feed bỏ qua, chi tiết hiện chữ nhỏ cuối.
+  const creditAt = rawCaption ? rawCaption.indexOf("📷 Ảnh:") : -1;
+  const caption = creditAt >= 0 ? rawCaption.slice(0, creditAt).trim() : rawCaption;
+  const credit = creditAt >= 0 ? rawCaption.slice(creditAt).trim() : null;
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const textRef = useRef(null);
@@ -4096,7 +4100,7 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
     // vốn cắt luôn box khiến scrollHeight == clientHeight). Nhờ vậy so được nội dung tràn.
     setOverflowing(el.scrollHeight - el.clientHeight > 2);
   }, [caption, expandable, clampLines]);
-  if (!caption && !media) return null;
+  if (!caption && !media && !(expandable && credit)) return null;
   // Thu gọn: expandable dùng maxHeight (đo tràn được); feed card dùng -webkit-line-clamp (có "…").
   const collapsedStyle = expandable
     ? { maxHeight: expanded ? "none" : `${clampLines * 1.45}em`, overflow: "hidden" }
@@ -4112,6 +4116,7 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
               fontSize: 14,
               color: C.text,
               lineHeight: 1.45,
+              whiteSpace: expandable ? "pre-line" : undefined,
               ...collapsedStyle,
             }}
           >
@@ -4131,6 +4136,9 @@ function PostContent({ caption, media, clampLines = 2, mediaHeight = 180, showMo
                 <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}>…xem thêm</span>
               )}
         </div>
+      )}
+      {expandable && credit && (
+        <div style={{ marginTop: caption ? 6 : 0, marginBottom: media ? 10 : 0, fontFamily: bodyFont, fontSize: 11.5, lineHeight: 1.4, color: C.textFaint }}>{credit}</div>
       )}
       {media && (bleed
         ? <div style={postBleed}><PostMedia media={media} height={Math.max(mediaHeight, 220)} radius={0} bleed /></div>
@@ -4553,7 +4561,17 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }
 //  • variant "fire"  : viền màu dày, ẢNH GIỮ MÀU GỐC (dễ nhìn), bên dẫn có LỬA cháy theo % (3 mức).
 //  • variant "overlay": kiểu cổ điển (phủ gradient màu đội lên ảnh) + vương miện 👑 cho bên dẫn.
 // Mức lửa (tự chia theo % bên dẫn): 51–59% nhỏ · 60–74% vừa · ≥75% bùng cháy · 50/50 tắt.
-function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190, variant = "fire" }) {
+// Tiêu đề chỉ lặp lại 2 phương án ("A vs B", "A hay B?", "A hoặc B") → thừa, vì lá cờ VS bên dưới
+// đã ghi A và B. Chỉ hiện tiêu đề khi chủ post đặt tiêu đề riêng.
+function isRedundantVersusTitle(r) {
+  if (r?.options?.length !== 2) return false;
+  const norm = (x) => String(x || "").toLowerCase().replace(/[?!.…]+/g, " ").replace(/\s+/g, " ").trim();
+  const t = norm(r.title); const a = norm(r.options[0]?.label); const b = norm(r.options[1]?.label);
+  if (!a || !b) return false;
+  return ["vs", "hay", "hoặc", "or", "với", "đấu"].some((w) => t === `${a} ${w} ${b}` || t === `${b} ${w} ${a}`);
+}
+
+function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 / 5", variant = "fire" }) {
   const [a, b] = options;
   if (!a || !b) return null;
   const isFire = variant === "fire";
@@ -4585,12 +4603,12 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
     const Wrap = clickable ? "button" : "div";
     // Khung ảnh trong (viền màu ở kiểu lửa / cắt hình cờ ở kiểu cổ điển).
     const frameStyle = isFire ? {
-      position: "relative", zIndex: 1, height, borderRadius: 12, overflow: "hidden",
+      position: "relative", zIndex: 1, aspectRatio: aspect, borderRadius: 12, overflow: "hidden",
       border: `4px solid ${sideCol}`, background: "#0d0d0d",
       boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : (isWinner ? `0 0 16px ${C.gold}aa` : "none"),
       outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
     } : {
-      position: "relative", zIndex: 1, height, overflow: "hidden",
+      position: "relative", zIndex: 1, aspectRatio: aspect, overflow: "hidden",
       clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)",
       background: `linear-gradient(160deg, ${sideCol}, ${sideCol}cc)`, boxShadow: `0 8px 20px ${sideCol}44`,
       outline: mine ? "3px solid #fff" : "none", outlineOffset: 1,
@@ -4606,8 +4624,15 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
         {/* Vùng ảnh (có thể bốc lửa khi đang dẫn) — CHỮ nằm ngoài, không che ảnh */}
         <div style={{ position: "relative" }}>
           {isFire && level > 0 && <FireFrame level={level} />}
+          {/* Badge VS (chỉ khi CHƯA có kết quả) — gắn vào giữa mép phải vùng ảnh bên A → luôn giữa 2 ảnh. */}
+          {i === 0 && !decided && <div style={{ position: "absolute", left: "calc(100% + 9px)", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 18, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
           <div style={frameStyle}>
-            {o.image ? (
+            {o.image && /twemoji/.test(o.image) ? (
+              // Ảnh emoji: nằm gọn giữa nền màu đội (phóng kín khung trông vỡ/thô)
+              <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}99)`, display: "grid", placeItems: "center" }}>
+                <Pic src={o.image} alt="" style={{ width: "62%", height: "62%", objectFit: "contain", filter: imgFx }} />
+              </div>
+            ) : o.image ? (
               <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
             ) : (
               <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)` }} />
@@ -4632,56 +4657,103 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, height = 190
       </Wrap>
     );
   };
-  const vsTop = (isFire ? 12 : 0) + height / 2; // căn badge VS vào giữa vùng ẢNH (chữ nằm dưới)
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 18, padding: isFire ? "12px 10px 10px" : 0 }}>
       {flag(a, colorA, pctA, 0)}
       {flag(b, colorB, pctB, 1)}
-      {/* Badge VS chỉ khi CHƯA có kết quả — đã kết thúc thì bỏ để khoe bên thắng. */}
-      {!decided && <div style={{ position: "absolute", left: "50%", top: vsTop, transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 18, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
     </div>
   );
 }
 
-// Khung lửa cháy động bằng CSS (không dùng emoji): quầng lửa nhấp nháy 4 phía + các ngọn
-// lửa liếm quanh viền. Cường độ theo level (1 nhỏ · 2 vừa · 3 bùng cháy). Đặt SAU khung cờ
-// (z-index thấp hơn) nhưng tràn ra ngoài viền → trông như lá cờ đang bốc cháy quanh mép.
-function FireFrame({ level }) {
-  const inset = -(5 + level * 3);
-  const blur = 4 + level * 2;
-  const topN = level === 3 ? 10 : level === 2 ? 7 : 5;
-  // Ngọn lửa: span NGOÀI lo vị trí + xoay; span TRONG lo animation (scale/opacity) → không đè nhau.
-  const tongue = (key, len, dur, delay, posStyle) => (
-    <span key={key} aria-hidden style={{ position: "absolute", ...posStyle }}>
-      <span style={{
-        display: "block", width: 9 + level * 2, height: len,
-        background: "linear-gradient(to top, #e5391a 0%, #ff7a1a 45%, #ffdf6a 100%)",
-        clipPath: "polygon(50% 0, 72% 42%, 62% 100%, 38% 100%, 28% 42%)",
-        filter: "blur(1.1px)", transformOrigin: "bottom center",
-        animation: `vsFireTongue ${dur}s ease-in-out ${delay}s infinite alternate`,
-      }} />
-    </span>
-  );
+// Khung lửa cháy động (canvas, không emoji): hạt lửa sinh dọc 4 cạnh khung, bay ra ngoài +
+// bốc lên, đổi màu vàng → cam → đỏ rồi tắt (cộng sáng "lighter") → viền lửa liếm sát mép như
+// ảnh mẫu. Cường độ theo level (1 nhỏ · 2 vừa · 3 bùng cháy). Nằm DƯỚI khung ảnh (z-index 0)
+// nên chỉ phần lửa tràn ra ngoài mép là thấy. Dừng vẽ khi khuất màn hình / bật giảm chuyển động.
+let fireSpriteCache = null;
+function fireSprites() {
+  if (fireSpriteCache) return fireSpriteCache;
+  const mk = (inner, mid) => {
+    const c = document.createElement("canvas"); c.width = c.height = 32;
+    const g = c.getContext("2d"); const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, inner); gr.addColorStop(0.4, mid); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return c;
+  };
+  fireSpriteCache = [
+    mk("rgba(255,250,220,.9)", "rgba(255,215,95,.55)"),
+    mk("rgba(255,205,95,.85)", "rgba(255,135,30,.5)"),
+    mk("rgba(255,140,40,.75)", "rgba(230,65,15,.4)"),
+    mk("rgba(200,55,15,.5)", "rgba(130,25,8,.2)"),
+  ];
+  return fireSpriteCache;
+}
+function FireFrame({ level, radius = 12 }) {
+  const ref = useRef(null);
+  const M = 9 + level * 4; // lề cho lửa tràn ra ngoài khung
+  const MT = M + 10 + level * 4; // lề TRÊN rộng hơn: lửa bốc lên cao
+  useEffect(() => {
+    const cv = ref.current; const ctx = cv?.getContext?.("2d");
+    if (!ctx) return undefined;
+    const reduce = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const sprites = fireSprites();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    let W = 0, H = 0, w = 0, h = 0;
+    const size = () => {
+      const r = cv.getBoundingClientRect(); W = r.width; H = r.height; w = Math.max(0, W - 2 * M); h = Math.max(0, H - M - MT);
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    const border = () => {
+      ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+      ctx.save(); ctx.shadowColor = "#ff6a10"; ctx.shadowBlur = 8 + level * 5; ctx.strokeStyle = "rgba(255,175,70,.95)"; ctx.lineWidth = 2;
+      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(M, MT, w, h, radius); else ctx.rect(M, MT, w, h); ctx.stroke(); ctx.restore();
+    };
+    const parts = [];
+    const rate = [0, 280, 460, 700][level] || 280; // hạt/giây cho chu vi chuẩn ~720px
+    const spawn = () => {
+      let d = Math.random() * 2 * (w + h); let x, y, nx, ny;
+      if (d < w) { x = M + d; y = MT; nx = 0; ny = -1; }
+      else if ((d -= w) < h) { x = M + w; y = MT + d; nx = 1; ny = 0; }
+      else if ((d -= h) < w) { x = M + w - d; y = MT + h; nx = 0; ny = 1; }
+      else { d -= w; x = M; y = MT + h - d; nx = -1; ny = 0; }
+      const out = (4 + Math.random() * 9) * (0.8 + level * 0.2);
+      const rise = (10 + Math.random() * 20) * (0.7 + level * 0.25);
+      parts.push({ x: x - nx * 1.5, y: y - ny * 1.5, vx: nx * out + (Math.random() - 0.5) * 6, vy: ny * out - rise, life: 0,
+        max: 0.22 + Math.random() * 0.3 + level * 0.05, r: 2.2 + Math.random() * 1.8 + level * 0.6 });
+    };
+    size();
+    let raf = 0, last = 0, acc = 0, visible = true;
+    const step = (dt) => {
+      acc += rate * ((2 * (w + h)) / 720) * dt;
+      while (acc >= 1) { spawn(); acc -= 1; }
+      ctx.clearRect(0, 0, W, H);
+      border();
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i]; p.life += dt; const k = p.life / p.max;
+        if (k >= 1) { parts.splice(i, 1); continue; }
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 35 * dt; p.vx *= 0.96;
+        const sz = p.r * (1 - k * 0.55) * 2;
+        ctx.globalAlpha = k < 0.12 ? k / 0.12 : 1 - ((k - 0.12) / 0.88) * 0.95;
+        // kéo dài theo chiều dọc → ra hình ngọn lửa thay vì đốm tròn
+        ctx.drawImage(sprites[Math.min(3, Math.floor(k * 4))], p.x - sz * 0.35, p.y - sz * 1.2, sz * 0.7, sz * 2);
+      }
+      ctx.globalAlpha = 1;
+    };
+    const frame = (t) => {
+      raf = requestAnimationFrame(frame);
+      const dt = Math.min(0.05, last ? (t - last) / 1000 : 0.016); last = t;
+      if (visible && w) step(dt);
+    };
+    // Giảm chuyển động: chạy mô phỏng ~1 giây rồi vẽ 1 khung cố định (vẫn thấy lửa, không nhúc nhích).
+    const still = () => { if (!w) return; parts.length = 0; for (let i = 0; i < 60; i++) step(1 / 60); };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { size(); if (reduce) still(); }) : null;
+    ro?.observe(cv);
+    const io = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver(([e]) => { visible = e.isIntersecting; }) : null;
+    io?.observe(cv);
+    if (reduce) still(); else raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); io?.disconnect(); };
+  }, [level, radius, M, MT]);
   return (
-    <div aria-hidden style={{ position: "absolute", inset, zIndex: 0, pointerEvents: "none", borderRadius: 16 }}>
-      {/* Quầng lửa 4 phía (blur + nhấp nháy) — tạo khung lửa bao quanh */}
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: 16,
-        background:
-          "radial-gradient(92% 55% at 50% 107%, #ffe27a, #ff8a1a 40%, #e5391a 66%, transparent 77%)," +
-          "radial-gradient(55% 92% at -6% 50%, #ffd15a, #ff6a1a 46%, transparent 73%)," +
-          "radial-gradient(55% 92% at 106% 50%, #ffd15a, #ff6a1a 46%, transparent 73%)," +
-          "radial-gradient(95% 55% at 50% -6%, #ffe89a, #ff7a1a 42%, transparent 75%)",
-        filter: `blur(${blur}px) saturate(1.35)`, animation: "vsFireAura .55s ease-in-out infinite alternate",
-      }} />
-      {/* Ngọn lửa liếm cạnh TRÊN */}
-      {Array.from({ length: topN }).map((_, i) => tongue(`t${i}`, 18 + level * 7 + (i % 3) * 5, 0.5 + (i % 4) * 0.11, i * 0.05, {
-        left: `${5 + i * (90 / (topN - 1 || 1))}%`, top: -(11 + level * 5), transform: "translateX(-50%)",
-      }))}
-      {/* Vài ngọn ở góc trên trái/phải cho cảm giác cháy quanh viền */}
-      {tongue("lc", 15 + level * 5, 0.62, 0.08, { left: -(6 + level * 2), top: `${16}%`, transform: "rotate(-60deg)" })}
-      {tongue("rc", 15 + level * 5, 0.66, 0.14, { right: -(6 + level * 2), top: `${16}%`, transform: "rotate(60deg)" })}
-    </div>
+    <canvas ref={ref} aria-hidden style={{ position: "absolute", left: -M, top: -MT, width: `calc(100% + ${2 * M}px)`, height: `calc(100% + ${M + MT}px)`, zIndex: 0, pointerEvents: "none" }} />
   );
 }
 
@@ -5129,7 +5201,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
   // và chưa đóng. Vote xong biểu đồ cập nhật tại chỗ (Twitter-poll style).
   const canVoteInline =
     !!onVote && !closed && !scheduled && rankie.votingType === "single" &&
-    rankie.options.length <= 4 && rankie.options.every((o) => !o.image);
+    rankie.options.length <= 4 && (rankie.options.length === 2 || rankie.options.every((o) => !o.image)); // đối đầu có ảnh: chạm ảnh = vote
   const inlineVote = (id, e) => { e?.stopPropagation?.(); onVote?.(id, e); };
 
   // Thẻ đối đầu (VersusBanner) — khớp điều kiện nhánh render biểu đồ bên dưới.
@@ -5175,7 +5247,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
       )}
       {/* #13: ẩn tiêu đề tự tạo "A vs B" (trùng đúng tên 2 phương án) — lá cờ VS đã nói lên
           đối đầu; chỉ hiện tiêu đề khi chủ post đặt tiêu đề riêng. */}
-      {!(rankie.options?.length === 2 && rankie.title === `${rankie.options[0]?.label} vs ${rankie.options[1]?.label}`) && (
+      {!isRedundantVersusTitle(rankie) && (
         <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>
           {rankie.title}
         </div>
@@ -5206,7 +5278,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
         <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
       ) : (rankie.chartType === "head_to_head" || rankie.chartType === "hh_classic" || rankie.options.length === 2) ? (
         // Đối đầu trên feed: lá cờ VS bản THẤP (~140px). Kiểu người tạo đã chọn (lửa / cổ điển).
-        <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} height={140} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} />
+        <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} />
       ) : rankie.votingType === "rating" ? (
         (() => {
           // Rating options are stored star-count-first (id "5" = 5 stars, etc.) with a
@@ -5675,63 +5747,16 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
   );
 }
 
-// THẺ GỢI Ý "⚔️ ĐỐI ĐẦU KINH ĐIỂN" chèn giữa feed (như "Gợi ý cho bạn" của Facebook): hàng trận
-// vuốt ngang, CHẠM MỘT BÊN LÀ VOTE NGAY. Chỉ gồm trận #kinhdien của @rankev mà bạn chưa vote
-// (server lọc), trận nóng trước. Vote xong ô hiện % + "Xem bài"; lần tải sau trận đó không còn.
-function ClassicsSuggestCard({ items, total, votedMap, liveOptions, onVote, onOpen, onSeeAll }) {
-  if (!items?.length) return null;
-  return (
-    <div style={{ padding: "14px 0 16px", borderBottom: `1px solid ${C.border}`, background: "color-mix(in srgb, var(--gold) 7%, transparent)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 15 }}><Swords size={17} /> Đối đầu kinh điển</div>
-        <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted }}>{total > 0 ? `${total} trận bạn chưa chọn` : "Bạn đã chọn hết 🎉"}</span>
-      </div>
-      <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "0 16px", scrollSnapType: "x mandatory", scrollbarWidth: "none" }} data-noswipe>
-        {items.map((it, idx) => {
-          const opts = (liveOptions?.[it.id] || it.options || []).slice(0, 2);
-          const picked = votedMap?.[it.id];
-          const pickedId = Array.isArray(picked) ? picked[0] : picked;
-          const voted = pickedId != null;
-          const sum = opts.reduce((s, o) => s + (o.votes || 0), 0);
-          const people = (it.participants || 0) + (voted ? 1 : 0); // + phiếu mình vừa bầu (danh sách tải trước khi vote)
-          const hot = idx === 0 && (it.participants || 0) > 0;
-          return (
-            <div key={it.id} style={{ flex: "0 0 168px", scrollSnapAlign: "start", background: C.surface, border: `1px solid ${voted ? C.gold : C.border}`, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: hot ? C.coral : C.textFaint, fontVariantNumeric: "tabular-nums" }}>
-                {hot ? <><Flame size={12} /> Đang nóng · {fmtCompact(people)}</> : <>{fmtCompact(people)} <Users size={11} /></>}
-              </div>
-              <div onClick={() => onOpen?.(it)} style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, lineHeight: 1.3, minHeight: 36, cursor: "pointer", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{it.title}</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {opts.map((o) => {
-                  const mine = voted && (o.id === pickedId || o.label === opts.find((x) => x.id === pickedId)?.label);
-                  const pct = voted && sum ? Math.round(((o.votes || 0) / sum) * 100) : null;
-                  return (
-                    <button key={o.id} onClick={(e) => { e.stopPropagation(); if (!voted) onVote?.(it, o.id); }} disabled={voted}
-                      style={{ flex: 1, minWidth: 0, position: "relative", aspectRatio: "1 / 1.15", borderRadius: 10, overflow: "hidden", padding: 0, cursor: voted ? "default" : "pointer",
-                        border: `2px solid ${mine ? C.gold : o.color || C.border}`, background: `linear-gradient(160deg, ${o.color || C.surfaceRaised}, ${(o.color || "#334")}aa)`, opacity: voted && !mine ? 0.55 : 1 }}>
-                      {o.image && /twemoji/.test(o.image) ? <Pic src={o.image} alt="" style={{ position: "absolute", inset: "8% 8% 30%", width: "84%", height: "62%", objectFit: "contain" }} />
-                        : o.image ? <><Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /><span style={{ position: "absolute", inset: "45% 0 0", background: "linear-gradient(transparent, rgba(0,0,0,.75))" }} /></>
-                        : <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 30 }}>{o.emoji || "⭐"}</span>}
-                      <span style={{ position: "absolute", left: 4, right: 4, bottom: 5, fontFamily: bodyFont, fontWeight: 700, fontSize: 11, lineHeight: 1.2, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.6)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{pct != null ? `${pct}%` : o.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {voted && <button onClick={() => onOpen?.(it)} style={{ border: "none", background: "none", padding: 0, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 12, cursor: "pointer", textAlign: "left" }}>Xem bài, bình luận →</button>}
-            </div>
-          );
-        })}
-      </div>
-      <button onClick={onSeeAll} style={{ marginTop: 10, marginLeft: 16, border: "none", background: "none", padding: 0, color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Xem tất cả #kinhdien →</button>
-    </div>
-  );
-}
-
-function FeedView({ classics = [], onSeeAllClassics, feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
+function FeedView({ classics = [], feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
   const mod = useModeration();
   // Render 1 thẻ feed theo loại — tách riêng để carousel Series tái dùng cho từng chapter.
+  // Trận kinh điển (@rankev + #kinhdien) đăng cùng lúc → nếu để nguyên sẽ dồn thành 1 khối. Ở tab
+  // "Tất cả": rút chúng khỏi luồng chính, rồi chèn XEN KẼ từng bài (chỉ trận chưa vote, nóng trước).
+  const isOfficialClassic = (it) => it?.type === "rankie" && it.author?.handle === "@rankev" && (it.tags || []).includes("kinhdien");
+  const streamItems = typeFilter === "all" ? feedItems.filter((it) => !isOfficialClassic(it)) : feedItems;
+  const classicsQueue = (() => { const ids = new Set(streamItems.map((i) => i.id)); return classics.filter((c) => !ids.has(c.id)); })();
   const renderCard = (it) => (
     it.type === "tournament" ? (
       <TournamentCarousel t={it} onOpenTournament={onOpenTournament} onOpenRankie={onOpenRankie} onOpenAuthor={onOpenAuthor} onShare={(x) => setShareTarget({ id: x.id, title: x.title, type: "tournament", category: x.category })} />
@@ -5890,18 +5915,24 @@ function FeedView({ classics = [], onSeeAllClassics, feedItems, seriesMap, voted
 
       {/* Danh sách bài: sát mép, KHÔNG khung — mỗi bài tự lo lề trong và vạch ngăn (postSurface). */}
       <div className="rk-feedlist" style={{ ...postListStyle, borderTop: `1px solid ${C.border}`, marginTop: 8 }}>
-        {feedItems.length === 0 && (
+        {streamItems.length === 0 && !classicsQueue.length && (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>
             Chưa có bài đăng nào{typeFilter !== "all" ? ` (${currentLabel})` : ""}.
           </div>
         )}
-        {feedItems.map((item, feedIdx) => {
-          const classicsFirst = feedItems.length < 12 ? 2 : 7;
-          const classicsSlot = feedIdx >= classicsFirst && (feedIdx - classicsFirst) % 12 === 0 ? (feedIdx - classicsFirst) / 12 : -1;
-          const classicsChunk = classicsSlot >= 0 && typeFilter === "all" ? classics.slice(classicsSlot * 6, classicsSlot * 6 + 6) : [];
-          const classicsCard = classicsChunk.length ? (
-            <ClassicsSuggestCard key={"classics-" + classicsSlot} items={classicsChunk} total={classics.filter((c) => votedMap?.[c.id] == null).length} votedMap={votedMap} liveOptions={liveOptions}
-              onVote={(it, optId) => onVoteInline?.(it, optId)} onOpen={(it) => onOpenRankie(it.id, it)} onSeeAll={onSeeAllClassics} />
+        {streamItems.map((item, feedIdx) => {
+          // Gợi ý TỪNG BÀI kinh điển (#kinhdien của @rankev, chưa vote, chưa có trong feed) —
+          // chèn như một bài thường: sau bài thứ 3 (feed ngắn: thứ 2), rồi cứ mỗi 6 bài.
+          const suggestFirst = streamItems.length < 12 ? 1 : 3;
+          const suggestSlot = typeFilter === "all" && feedIdx >= suggestFirst && (feedIdx - suggestFirst) % 6 === 0 ? (feedIdx - suggestFirst) / 6 : -1;
+          const suggestItem = suggestSlot >= 0 ? classicsQueue[suggestSlot] : null;
+          const classicsCard = suggestItem ? (
+            <SaveWrap key={"sg-" + suggestItem.id} item={postSaveItem(suggestItem)}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px 0", fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.textFaint }}>
+                <Sparkles size={13} color={C.gold} /> Gợi ý cho bạn
+              </div>
+              {renderCard(suggestItem)}
+            </SaveWrap>
           ) : null;
           const node = (() => {
           // (khung chứa có class rk-feedlist: mỗi thẻ content-visibility:auto — xem CSS toàn cục)
@@ -5928,6 +5959,12 @@ function FeedView({ classics = [], onSeeAllClassics, feedItems, seriesMap, voted
           })();
           return classicsCard ? <React.Fragment key={"wrap-" + (item.id || item.seriesId)}>{classicsCard}{node}</React.Fragment> : node;
         })}
+        {typeFilter === "all" && (() => {
+          const used = streamItems.reduce((n, _, k) => n + (k >= (streamItems.length < 12 ? 1 : 3) && (k - (streamItems.length < 12 ? 1 : 3)) % 6 === 0 ? 1 : 0), 0);
+          return streamItems.length < 12 ? classicsQueue.slice(used, used + 6).map((c) => (
+            <SaveWrap key={"sg-" + c.id} item={postSaveItem(c)}>{renderCard(c)}</SaveWrap>
+          )) : null;
+        })()}
       </div>
       {shareTarget && (
         <ShareModal item={shareTarget} onClose={() => setShareTarget(null)} onShareToProfile={onShareToProfile} contacts={contacts ?? []} onShared={() => onBumpShares?.(shareTarget)} />
@@ -7649,7 +7686,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
           ]} />} />
         )}
         {/* #13: ẩn tiêu đề tự tạo "A vs B" (trùng tên 2 phương án) — chỉ hiện tiêu đề riêng của chủ post. */}
-        {!(rankie.options?.length === 2 && rankie.title === `${rankie.options[0]?.label} vs ${rankie.options[1]?.label}`) && (
+        {!isRedundantVersusTitle(rankie) && (
           <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.25 }}>
             {rankie.title}
           </div>
@@ -7681,7 +7718,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               />
             ) : (
               // Lá cờ VS: "head_to_head" = Cờ lửa (viền + lửa); "hh_classic" = kiểu cổ điển (phủ màu).
-              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} height={200} variant={activeChart === "hh_classic" ? "overlay" : "fire"} />
+              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} variant={activeChart === "hh_classic" ? "overlay" : "fire"} />
             )
           )}
           {activeChart === "bar" && (
@@ -19122,7 +19159,7 @@ export default function RankevApp() {
     })();
     loadMySeries(); // nạp series của mình để chọn khi thêm chapter
     loadTournamentFeed(); // nạp giải đấu để hiện thẻ giải trên feed
-    loadClassics(); // thẻ gợi ý "Đối đầu kinh điển"
+    loadClassics(); // gợi ý từng bài kinh điển trong feed
     // Nạp danh sách đã lưu (bookmark) thật để đồng bộ trạng thái nút lưu.
     (async () => {
       try {
@@ -19568,7 +19605,6 @@ export default function RankevApp() {
           <KeepAlive active={view === "feed"} name="feed">
             <FeedView
               classics={classicItems}
-              onSeeAllClassics={() => { searchMemory.query = ""; searchMemory.browse = "kinhdien"; setView("search"); }}
               pathUnlocks={pathUnlocks}
               feedItems={feedItemsGrouped}
               seriesMap={allSeries}
