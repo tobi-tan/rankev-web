@@ -4586,10 +4586,14 @@ function isRedundantVersusTitle(r) {
   return ["vs", "hay", "hoặc", "or", "với", "đấu"].some((w) => t === `${a} ${w} ${b}` || t === `${b} ${w} ${a}`);
 }
 
-function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 / 5", variant = "fire" }) {
+// bleed: TRÀN VIỀN như ảnh các bài khác (feed + chi tiết) — 2 ảnh sát mép, khe mảnh ở giữa,
+// màu đội = vạch đáy ảnh, lửa cháy TRONG ảnh (bốc từ đáy + liếm 2 mép). Không bleed (màn tạo bài)
+// giữ khung bo góc viền màu + lửa quanh khung.
+function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 / 5", variant = "fire", bleed = false }) {
   const [a, b] = options;
   if (!a || !b) return null;
   const isFire = variant === "fire";
+  const flat = isFire && bleed; // kiểu tràn viền
   const sumVotes = (a.votes || 0) + (b.votes || 0);
   const total = sumVotes || 1;
   // Chưa có phiếu → 50/50 (trước đây 0:0 thành 0%/100% → bên B bốc lửa và tự thành WINNER).
@@ -4617,7 +4621,9 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 
     const imgFx = isLoser ? "grayscale(1) brightness(0.9)" : "none";
     const Wrap = clickable ? "button" : "div";
     // Khung ảnh trong (viền màu ở kiểu lửa / cắt hình cờ ở kiểu cổ điển).
-    const frameStyle = isFire ? {
+    const frameStyle = flat ? {
+      position: "relative", zIndex: 1, aspectRatio: aspect, overflow: "hidden", background: "#0d0d0d",
+    } : isFire ? {
       position: "relative", zIndex: 1, aspectRatio: aspect, borderRadius: 12, overflow: "hidden",
       border: `4px solid ${sideCol}`, background: "#0d0d0d",
       boxShadow: level >= 2 ? `0 0 ${10 + level * 6}px ${level >= 3 ? "#ff4d0e" : "#ff8a1a"}` : (isWinner ? `0 0 16px ${C.gold}aa` : "none"),
@@ -4638,9 +4644,9 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 
       >
         {/* Vùng ảnh (có thể bốc lửa khi đang dẫn) — CHỮ nằm ngoài, không che ảnh */}
         <div style={{ position: "relative" }}>
-          {isFire && level > 0 && <FireFrame level={level} />}
+          {isFire && !flat && level > 0 && <FireFrame level={level} />}
           {/* Badge VS (chỉ khi CHƯA có kết quả) — gắn vào giữa mép phải vùng ảnh bên A → luôn giữa 2 ảnh. */}
-          {i === 0 && !decided && <div style={{ position: "absolute", left: "calc(100% + 9px)", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 18, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
+          {i === 0 && !decided && <div style={{ position: "absolute", left: flat ? "calc(100% + 1.5px)" : "calc(100% + 9px)", top: "50%", transform: "translate(-50%,-50%)", zIndex: 5, width: 48, height: 48, borderRadius: 99, background: "#17110a", border: `2px solid ${C.gold}`, boxShadow: "0 4px 12px rgba(0,0,0,0.4)", display: "grid", placeItems: "center", fontFamily: logoFont, fontWeight: 700, fontSize: 18, color: C.gold, fontStyle: "italic", letterSpacing: -0.5 }}>VS</div>}
           <div style={frameStyle}>
             {o.image && /twemoji/.test(o.image) ? (
               // Ảnh emoji: nằm gọn giữa nền màu đội (phóng kín khung trông vỡ/thô)
@@ -4658,12 +4664,23 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 
                 <div style={{ position: "absolute", top: 14, right: -26, transform: "rotate(45deg)", width: 112, textAlign: "center", background: C.gold, color: "#1B1205", fontFamily: bodyFont, fontWeight: 700, fontSize: 10, letterSpacing: 1, padding: "3px 0", boxShadow: "0 1px 5px rgba(0,0,0,0.45)" }}>WINNER</div>
               </div>
             )}
+            {flat && (
+              <>
+                {/* lửa cháy trong ảnh + quầng cam viền trong */}
+                {level > 0 && <FireFrame level={level} inner />}
+                {level > 0 && <div style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none", boxShadow: `inset 0 0 ${14 + level * 8}px ${level >= 3 ? "rgba(255,90,20,.75)" : "rgba(255,140,40,.6)"}` }} />}
+                {/* vạch màu đội (thắng: vàng) ở đáy ảnh */}
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 5, zIndex: 3, background: isWinner ? C.gold : sideCol }} />
+                {/* đã chọn: viền trắng bên trong */}
+                {mine && <div style={{ position: "absolute", inset: 0, zIndex: 3, pointerEvents: "none", boxShadow: "inset 0 0 0 3px #fff" }} />}
+              </>
+            )}
             {/* Vương miện bên đang DẪN (chỉ khi còn mở, biến thể cổ điển) */}
             {!isFire && leading && !isClosed && <span style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 10, zIndex: 3, fontSize: 18, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}>👑</span>}
           </div>
         </div>
         {/* Tên + thống kê NẰM NGOÀI khung ảnh */}
-        <div style={{ textAlign: "center", minWidth: 0 }}>
+        <div style={{ textAlign: "center", minWidth: 0, padding: flat ? "0 8px" : 0 }}>
           <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 16, lineHeight: 1.15, color: isLoser ? C.textMuted : C.text, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {o.label || `Đội ${i + 1}`}{mine && <VotedMarker voteMarker={rankie.voteMarker} />}
           </div>
@@ -4673,7 +4690,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 
     );
   };
   return (
-    <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 18, padding: isFire ? "12px 10px 10px" : 0 }}>
+    <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: flat ? 3 : 18, padding: flat ? "0 0 10px" : isFire ? "12px 10px 10px" : 0, ...(flat ? postBleed : null) }}>
       {flag(a, colorA, pctA, 0)}
       {flag(b, colorB, pctB, 1)}
     </div>
@@ -4701,10 +4718,10 @@ function fireSprites() {
   ];
   return fireSpriteCache;
 }
-function FireFrame({ level, radius = 12 }) {
+function FireFrame({ level, radius = 12, inner = false }) {
   const ref = useRef(null);
-  const M = 9 + level * 4; // lề cho lửa tràn ra ngoài khung
-  const MT = M + 10 + level * 4; // lề TRÊN rộng hơn: lửa bốc lên cao
+  const M = inner ? 0 : 9 + level * 4; // lề cho lửa tràn ra ngoài khung (inner: vẽ trong ảnh)
+  const MT = inner ? 0 : M + 10 + level * 4; // lề TRÊN rộng hơn: lửa bốc lên cao
   useEffect(() => {
     const cv = ref.current; const ctx = cv?.getContext?.("2d");
     if (!ctx) return undefined;
@@ -4717,6 +4734,7 @@ function FireFrame({ level, radius = 12 }) {
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     const border = () => {
+      if (inner) return; // trong ảnh: quầng viền làm bằng box-shadow inset
       ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
       ctx.save(); ctx.shadowColor = "#ff6a10"; ctx.shadowBlur = 8 + level * 5; ctx.strokeStyle = "rgba(255,175,70,.95)"; ctx.lineWidth = 2;
       ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(M, MT, w, h, radius); else ctx.rect(M, MT, w, h); ctx.stroke(); ctx.restore();
@@ -4724,6 +4742,19 @@ function FireFrame({ level, radius = 12 }) {
     const parts = [];
     const rate = [0, 280, 460, 700][level] || 280; // hạt/giây cho chu vi chuẩn ~720px
     const spawn = () => {
+      if (inner) {
+        // Lửa TRONG ảnh: 60% bốc từ mép đáy, còn lại liếm dọc 2 mép bên (phần dưới 3/4), hướng vào trong.
+        const rise = (22 + Math.random() * 30) * (0.7 + level * 0.3);
+        if (Math.random() < 0.6) {
+          parts.push({ x: Math.random() * w, y: h + 2, vx: (Math.random() - 0.5) * 8, vy: -rise * 1.25, life: 0,
+            max: 0.3 + Math.random() * 0.35 + level * 0.08, r: 3 + Math.random() * 2.5 + level * 0.9 });
+        } else {
+          const left = Math.random() < 0.5;
+          parts.push({ x: left ? -1 : w + 1, y: h * (0.25 + Math.random() * 0.75), vx: (left ? 1 : -1) * (5 + Math.random() * 8), vy: -rise * 0.8, life: 0,
+            max: 0.22 + Math.random() * 0.25 + level * 0.05, r: 2.4 + Math.random() * 2 + level * 0.6 });
+        }
+        return;
+      }
       let d = Math.random() * 2 * (w + h); let x, y, nx, ny;
       if (d < w) { x = M + d; y = MT; nx = 0; ny = -1; }
       else if ((d -= w) < h) { x = M + w; y = MT + d; nx = 1; ny = 0; }
@@ -4768,7 +4799,7 @@ function FireFrame({ level, radius = 12 }) {
     return () => { cancelAnimationFrame(raf); ro?.disconnect(); io?.disconnect(); };
   }, [level, radius, M, MT]);
   return (
-    <canvas ref={ref} aria-hidden style={{ position: "absolute", left: -M, top: -MT, width: `calc(100% + ${2 * M}px)`, height: `calc(100% + ${M + MT}px)`, zIndex: 0, pointerEvents: "none" }} />
+    <canvas ref={ref} aria-hidden style={{ position: "absolute", zIndex: inner ? 2 : 0, left: -M, top: -MT, width: `calc(100% + ${2 * M}px)`, height: `calc(100% + ${M + MT}px)`, pointerEvents: "none" }} />
   );
 }
 
@@ -5293,7 +5324,7 @@ function RankieCard({ rankie, onOpen, onOpenAuthor, menuSlot, moreMenu, myVoteId
         <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
       ) : (rankie.chartType === "head_to_head" || rankie.chartType === "hh_classic" || rankie.options.length === 2) ? (
         // Đối đầu trên feed: lá cờ VS bản THẤP (~140px). Kiểu người tạo đã chọn (lửa / cổ điển).
-        <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} />
+        <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} bleed />
       ) : rankie.votingType === "rating" ? (
         (() => {
           // Rating options are stored star-count-first (id "5" = 5 stars, etc.) with a
@@ -7762,7 +7793,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               />
             ) : (
               // Lá cờ VS: "head_to_head" = Cờ lửa (viền + lửa); "hh_classic" = kiểu cổ điển (phủ màu).
-              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} variant={activeChart === "hh_classic" ? "overlay" : "fire"} />
+              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} variant={activeChart === "hh_classic" ? "overlay" : "fire"} bleed />
             )
           )}
           {activeChart === "bar" && (
