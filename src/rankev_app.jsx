@@ -202,6 +202,7 @@ const FONT_IMPORT = (
     @keyframes flagSway { 0%,100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
     @keyframes flagYank { 0%,100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.16); } }
     @keyframes skinPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+    @keyframes rkHeroIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes vsFireAura { 0% { opacity: 0.82; transform: scaleY(0.97) scaleX(1.0); } 100% { opacity: 1; transform: scaleY(1.06) scaleX(0.99); } }
     @keyframes vsFireTongue { 0% { transform: translateX(-50%) scaleY(0.78) scaleX(1.05); opacity: 0.78; } 100% { transform: translateX(-50%) scaleY(1.2) scaleX(0.88); opacity: 1; } }
   `}</style>
@@ -3693,12 +3694,12 @@ function BrandLogo({ height = 40, style }) {
   );
 }
 
-function Pic({ src, alt = "", style, onError, ...rest }) {
+const Pic = React.forwardRef(function Pic({ src, alt = "", style, onError, ...rest }, ref) {
   if (isVideoUrl(src)) {
-    return <video src={src} autoPlay muted loop playsInline preload="metadata" style={style} onError={onError} {...rest} />;
+    return <video ref={ref} src={src} autoPlay muted loop playsInline preload="metadata" style={style} onError={onError} {...rest} />;
   }
-  return <img src={src} alt={alt} style={style} onError={onError} {...rest} />;
-}
+  return <img ref={ref} src={src} alt={alt} style={style} onError={onError} {...rest} />;
+});
 
 // ---------- Bộ chọn đính kèm: 3 mục RIÊNG — Emoji · Ảnh/Video · GIF ----------
 // (user 2026-10-05: tách riêng từng mục; emoji gợi ý cũ chỉ 12 cái → dùng thư viện đầy đủ
@@ -3978,7 +3979,21 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
   const boxRef = useRef(null);
   const drag = useRef(null);
   const [dragging, setDragging] = useState(false);
-  useEffect(() => { setImgBroken(false); setNat(media?.w && media?.h ? { w: media.w, h: media.h } : null); }, [media?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  const imgRef = useRef(null);
+  // Chỉ đặt lại khi ĐỔI ảnh (không chạy lúc mới hiện): Safari tải ảnh có sẵn trong cache XONG trước
+  // khi effect chạy → trước đây effect xoá kích thước vừa đo → khung kẹt ở chiều cao mặc định
+  // (ảnh dọc bị cắt thành khung ngang).
+  const lastUrl = useRef(media?.url);
+  useEffect(() => {
+    if (lastUrl.current === media?.url) return;
+    lastUrl.current = media?.url;
+    setImgBroken(false); setNat(media?.w && media?.h ? { w: media.w, h: media.h } : null);
+  }, [media?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Ảnh đã tải xong trước khi gắn onLoad (cache) → đo luôn.
+  useLayoutEffect(() => {
+    const im = imgRef.current;
+    if (!nat && im?.complete && im.naturalWidth && im.naturalHeight) setNat({ w: im.naturalWidth, h: im.naturalHeight });
+  });
   if (!media) return null;
   const url = media.url && !imgBroken ? media.url : null;
   const isImage = !!url && !isVideoUrl(url) && media.type !== "video";
@@ -4016,7 +4031,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
       <div ref={boxRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
         style={{ position: "relative", width: "100%", aspectRatio: ratio ? String(ratio) : undefined, height: ratio ? undefined : height, borderRadius: radius, overflow: "hidden", background: C.surfaceRaised, border: `1px solid ${C.border}`, ...edge,
           cursor: canEdit ? (dragging ? "grabbing" : "grab") : undefined, touchAction: canEdit ? "none" : undefined, userSelect: "none" }}>
-        <Pic src={url} alt="" draggable={false} onLoad={onImgLoad} onError={() => setImgBroken(true)}
+        <Pic ref={imgRef} src={url} alt="" draggable={false} onLoad={onImgLoad} onError={() => setImgBroken(true)}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `${focus.x}% ${focus.y}%`, display: "block", pointerEvents: "none" }} />
         {canEdit && (
           // Gợi ý căn khung — chỉ ở màn tạo/sửa bài, khi ảnh dài/rộng hơn khung feed
@@ -4635,7 +4650,7 @@ function VersusBanner({ rankie, options, onVote, votedId, isClosed, aspect = "4 
             ) : o.image ? (
               <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: imgFx }} />
             ) : (
-              <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)` }} />
+              <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${sideCol}, ${sideCol}bb)`, display: "grid", placeItems: "center", fontSize: 56, filter: imgFx }}>{o.emoji || null}</div>
             )}
             {/* Ruy băng "THẮNG" vắt chéo góc trên-phải bên thắng (không che giữa ảnh) */}
             {isWinner && (
@@ -5471,19 +5486,38 @@ function TournamentFeedHero({ t, data, roundName }) {
 
   let body = null;
   let blur = true;
-  if (!data || (!anyStarted && !champ)) {
+  if (!champ && (!data || !anyStarted)) {
     // 1 · Chưa đấu trận nào → ảnh bìa rõ nét (+ đếm ngược trận mở màn nếu đã hẹn giờ)
     blur = false;
     const next = real.filter((m) => ts(m.opensAt) > now).sort((a, b) => ts(a.opensAt) - ts(b.opensAt))[0];
     body = next ? <div style={{ position: "absolute", left: 0, right: 0, bottom: 10, display: "flex", justifyContent: "center" }}><CountdownChip toTs={ts(next.opensAt)} prefix="Mở màn" /></div> : null;
   } else if (champ) {
-    // 6 · Có nhà vô địch
-    body = (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 4 }}>👑</div>
-        {tile(champ, 92, "win", true)}
-        {nameEl(champ, 200, true)}
+    // 6 · Có nhà vô địch: 👑 vô địch + Á quân + đồng hạng 3 (bán kết thua) — đủ ý cho khung cao.
+    const fin = matches.find((m) => m.round === maxRound && m.winnerRef);
+    const loserOf = (m) => (m && m.winnerRef ? (m.aRef?.name === m.winnerRef.name ? m.bRef : m.aRef) : null);
+    const runner = loserOf(fin);
+    const thirds = maxRound >= 1 ? matches.filter((m) => m.round === maxRound - 1).map(loserOf).filter(Boolean) : [];
+    const podium = (ref, tag) => (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
+        {tile(ref, 40, "plain")}
+        {nameEl(ref, 84)}
+        <div style={{ fontFamily: bodyFont, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.7)", textShadow: "0 1px 4px rgba(0,0,0,.8)", marginTop: 1 }}>{tag}</div>
       </div>
+    );
+    body = (
+      <>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 4 }}>👑</div>
+          {tile(champ, 92, "win", true)}
+          {nameEl(champ, 200, true)}
+        </div>
+        {(runner || thirds.length > 0) && (
+          <div style={{ display: "flex", gap: 18, justifyContent: "center", marginTop: 6 }}>
+            {runner && podium(runner, "Á QUÂN")}
+            {thirds.map((r, i) => <React.Fragment key={i}>{podium(r, "HẠNG 3")}</React.Fragment>)}
+          </div>
+        )}
+      </>
     );
   } else if (maxRound >= 1 && cur >= maxRound - 1) {
     // 5 · Từ bán kết → 2 tầng cuối: bán kết (thắng vàng / thua xám / đang live) → chung kết
@@ -5572,16 +5606,26 @@ function TournamentFeedHero({ t, data, roundName }) {
     else blur = false;
   }
 
+  // Thống kê giải ở đáy ảnh (khi đã đấu): số đội · số trận · tổng phiếu.
+  const teams = new Set(matches.flatMap((m) => [m.aRef?.name, m.bRef?.name]).filter(Boolean)).size;
+  const votesAll = matches.reduce((n, m) => n + (m.votes?.a || 0) + (m.votes?.b || 0), 0);
+  const stats = blur && data && teams > 0 ? (
+    <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 2, fontFamily: bodyFont, fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.72)", textShadow: "0 1px 4px rgba(0,0,0,.8)", pointerEvents: "none" }}>
+      <span>{teams} đội</span><span>·</span><span>{real.length} trận</span><span>·</span><span>{fmtCompact(votesAll)} phiếu</span>
+    </div>
+  ) : null;
   return (
-    <div style={{ position: "relative", height: H, borderRadius: 12, overflow: "hidden", marginBottom: 10, background: C.surfaceRaised }}>
+    // Cao TỐI THIỂU H, giãn theo slide cao nhất của carousel (flex) → không còn khoảng trống bên dưới.
+    <div style={{ position: "relative", flex: "1 1 auto", minHeight: H, display: "flex", flexDirection: "column", borderRadius: 12, overflow: "hidden", marginBottom: 10, background: C.surfaceRaised }}>
       {cover ? (
-        <Pic src={cover} alt="" style={{ position: "absolute", top: blur ? -16 : 0, left: blur ? -16 : 0, width: blur ? "calc(100% + 32px)" : "100%", height: blur ? "calc(100% + 32px)" : "100%", objectFit: "cover", filter: blur ? "blur(8px) brightness(0.42)" : "none" }} />
+        <Pic src={cover} alt="" style={{ position: "absolute", top: blur ? -16 : 0, left: blur ? -16 : 0, width: blur ? "calc(100% + 32px)" : "100%", height: blur ? "calc(100% + 32px)" : "100%", objectFit: "cover", filter: blur ? "blur(8px) brightness(0.42)" : "none", transition: "filter .35s ease" }} />
       ) : (
         <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 30% 20%, ${C.goldSoft}, transparent 65%), linear-gradient(135deg, ${C.surfaceRaised}, ${C.bg})` }} />
       )}
       {!cover && !blur && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}><Trophy size={44} color={C.gold} /></div>}
       {blur ? (
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 10 }}>{body}</div>
+        // Nội dung CHẢY theo chiều cao (không absolute) → nhiều thông tin thì khung tự cao lên, không đè nhau.
+        <div style={{ position: "relative", zIndex: 1, flex: "1 1 auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 10px", animation: "rkHeroIn .3s ease" }}>{body}{stats}</div>
       ) : body}
     </div>
   );
@@ -5654,7 +5698,7 @@ function TournamentCarousel({ t, onOpenTournament, onOpenRankie, onOpenAuthor, o
       {t.author && <AuthorRow author={t.author} size={36} onOpenAuthor={onOpenAuthor} meta={tourMeta} trailing={<FeedPostMenu item={t} />} />}
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 10 }}>{t.title}</div>
       {/* Ảnh bảng đấu tràn viền như ảnh các bài khác */}
-      <div className="rk-bleed" style={postBleed}><TournamentFeedHero t={t} data={data} roundName={roundName} /></div>
+      <div className="rk-bleed" style={{ ...postBleed, flex: "1 1 auto", display: "flex", flexDirection: "column" }}><TournamentFeedHero t={t} data={data} roundName={roundName} /></div>
       <div className="rk-engage" style={{ marginTop: 10 }}>
         <EngagementBar
           type="tournament"
@@ -18179,6 +18223,7 @@ export default function RankevApp() {
     return [item, ...prev];
   }), [showToast]);
 
+  const feedVoteBusy = useRef(new Set()); // rankie đang gửi phiếu từ feed (chặn bấm đúp)
   // Bài thật từ API có id dạng UUID; bài mock có id ngắn ("r1"…). Chỉ gọi API cho bài thật.
   const isApiId = (id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const toOptionIds = (val) => (Array.isArray(val) ? val : val != null ? [val] : []);
@@ -18210,16 +18255,28 @@ export default function RankevApp() {
   // LƯU Ý: thẻ feed gọi onVoteInline(rankie, optId, event) — tham số thứ 3 là SỰ KIỆN, nên
   // phiếu hiện tại (sau khi nạp bản đầy đủ) phải đi qua hàm nội bộ riêng, không dùng chung
   // chữ ký (trước đây event bị hiểu nhầm là "phiếu hiện tại" → bấm lại để huỷ không ăn).
-  const voteOnFeed = (rankie, optId) => voteOnFeedWith(rankie, optId, undefined);
+  const voteOnFeed = (rankie, optId) => {
+    // Đang gửi phiếu cho bài này → bỏ qua lần bấm tiếp (bấm đúp từng gây 2 lượt vote song song).
+    if (feedVoteBusy.current.has(rankie.id)) return;
+    voteOnFeedWith(rankie, optId, undefined);
+  };
+  // Lỗi → lấy lại trạng thái THẬT từ server (tránh hiện "VOTED" mà số phiếu sai).
+  const resyncRankie = (id) => api.posts.get(id).then((full) => {
+    if (!full || full.type !== "rankie") return;
+    setLiveOptions((prev) => ({ ...prev, [id]: apiRankieToProto(full).options }));
+    setVotedMap((prev) => ({ ...prev, [id]: full.myVote?.optionIds?.[0] ?? null }));
+  }).catch(() => {});
   const voteOnFeedWith = (rankie, optId, curOverride) => {
     haptic();
     if (isRankieClosed(rankie)) return;
+    const busy = feedVoteBusy.current;
     // Thẻ feed dựng từ bản TÓM TẮT: option id là "opt0/opt1…" chứ chưa phải UUID thật → vote
     // gửi đi bị 400 "Validation failed" và phiếu KHÔNG được lưu. Nạp bản đầy đủ, ghép đúng
     // lựa chọn (theo nhãn, rồi theo thứ tự) rồi mới bình chọn.
     if (isApiId(rankie.id) && optId && !isApiId(optId)) {
       const label = getOptions(rankie).find((o) => o.id === optId)?.label;
       const idx = Number((/^opt(\d+)$/.exec(optId) || [])[1]);
+      busy.add(rankie.id);
       api.posts.get(rankie.id).then((full) => {
         if (!full || full.type !== "rankie") return;
         const proto = apiRankieToProto(full);
@@ -18229,7 +18286,7 @@ export default function RankevApp() {
         const mine = full.myVote?.optionIds?.[0] ?? null;
         setVotedMap((prev) => ({ ...prev, [rankie.id]: mine }));
         voteOnFeedWith({ ...rankie, options: proto.options }, real.id, mine);
-      }).catch((e) => showToast(e?.message || "Bình chọn thất bại"));
+      }).catch((e) => { busy.delete(rankie.id); showToast(e?.message || "Bình chọn thất bại"); });
       return;
     }
     const cur = curOverride !== undefined ? curOverride : (singleVotedId(votedMap[rankie.id] ?? null) ?? null);
@@ -18253,9 +18310,11 @@ export default function RankevApp() {
     if (isApiId(rankie.id)) {
       // Bấm lại lựa chọn đang chọn = huỷ phiếu THẬT trên server (trước đây chỉ đổi tạm ở máy
       // rồi bị đồng bộ lại → trông như "bấm không ăn").
+      busy.add(rankie.id);
       (off ? api.rankies.unvote(rankie.id) : api.rankies.vote(rankie.id, toOptionIds(newVal)))
         .then((res) => { if (res && res.options) syncServerVotes(rankie.id, res.options); })
-        .catch((e) => showToast(e?.message || "Bình chọn thất bại"));
+        .catch((e) => { showToast(e?.message || "Bình chọn thất bại"); resyncRankie(rankie.id); })
+        .finally(() => busy.delete(rankie.id));
     }
     if (!off) {
       const opt = getOptions(rankie).find((o) => o.id === optId);
