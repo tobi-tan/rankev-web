@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
-  XAxis, YAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-  LineChart, Line, CartesianGrid,
-} from "recharts";
-import {
   Home, GitBranch, PlusCircle, User, Flame, MessageCircle, Share2, ChevronLeft,
   QrCode, Users, Clock, Lock, Globe, Trophy, ChevronRight, Check,
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
@@ -5083,9 +5079,26 @@ function BarViz({ options, onVote, votedId, isClosed, tapCounts, activeTapId, vo
   );
 }
 
+// Recharts (~100KB nén) chỉ dùng cho biểu đồ Tròn + Đường → TẢI KHI CẦN, không nằm trong gói mở app.
+let rechartsMod = null;
+let rechartsLoad = null;
+function useRecharts() {
+  const [mod, setMod] = useState(rechartsMod);
+  useEffect(() => {
+    if (mod) return undefined;
+    let alive = true;
+    (rechartsLoad ||= import("recharts")).then((m) => { rechartsMod = m; if (alive) setMod(m); }).catch(() => {});
+    return () => { alive = false; };
+  }, [mod]);
+  return mod;
+}
+
 function PieViz({ options }) {
+  const R = useRecharts();
   const data = options.map((o) => ({ name: o.label, value: o.votes, color: o.color }));
   const total = options.reduce((s, o) => s + o.votes, 0);
+  if (!R) return <div style={{ height: 130 }} />;
+  const { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } = R;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
       <div style={{ width: 130, height: 130, flexShrink: 0 }}>
@@ -5121,6 +5134,7 @@ function PieViz({ options }) {
 // The past curve is synthesised (deterministically) from createdAt up to each option's
 // current vote total, since the prototype has no server-side history. New votes extend the tail.
 function LineViz({ options, colorFor, createdAt }) {
+  const R = useRecharts();
   // Deterministic pseudo-random so the historical curve is stable across re-renders
   const seededRand = (seed) => {
     let x = Math.sin(seed) * 10000;
@@ -5182,6 +5196,8 @@ function LineViz({ options, colorFor, createdAt }) {
       : d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
   };
 
+  if (!R) return <div style={{ height: 220 }} />;
+  const { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } = R;
   return (
     <div>
       <div style={{ width: "100%", height: 220 }}>
