@@ -1664,16 +1664,18 @@ function InlineCountdown({ toTs, prefix }) {
 function PostMeta({ item, status = [] }) {
   const m = POST_TYPE_META[postTypeKey(item)];
   const Icon = m.icon;
+  const showIcon = postTypeKey(item) === "tournament";
   const parts = [...status.filter(Boolean)];
   // Nhiều trạng thái (LIVE + đếm ngược…) thì bỏ thời gian đăng cho dòng không bị cắt.
   if (item?.createdAt && parts.length < 2) parts.push(<span key="t">{timeAgoShort(item.createdAt)}</span>);
   if (item?._sponsored) parts.push(<span key="sp" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: C.gold }}><Megaphone size={11} /> Được tài trợ</span>);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 12, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", minWidth: 0 }}>
-      {/* Loại bài: CHỈ icon màu (ưu tiên icon, hạn chế chữ) — tên loại ở tooltip / trình đọc màn hình. */}
-      <span title={m.label} aria-label={m.label} style={{ display: "inline-flex", alignItems: "center", color: m.color, flexShrink: 0 }}><Icon size={13} /></span>
+      {/* Loại bài: icon đã có ở thanh tương tác (rankie/path/deck) → KHÔNG lặp lại dưới tên (user 2026-10-21).
+          Riêng giải đấu giữ 🏆 (thanh tương tác của giải không nói lên loại bài). */}
+      {showIcon && <span title={m.label} aria-label={m.label} style={{ display: "inline-flex", alignItems: "center", color: m.color, flexShrink: 0 }}><Icon size={13} /></span>}
       {parts.map((p, i) => (
-        <React.Fragment key={i}><span style={{ color: C.textFaint }}>·</span>{p}</React.Fragment>
+        <React.Fragment key={i}>{(showIcon || i > 0) && <span style={{ color: C.textFaint }}>·</span>}{p}</React.Fragment>
       ))}
     </div>
   );
@@ -16033,7 +16035,8 @@ function apiSummaryToProto(s) {
   };
   if (s.type === "rankie") {
     const opts = (s.options || []).map((o, i) => ({
-      id: "opt" + i, label: o.label || "", emoji: o.emoji || undefined, image: o.imageUrl || undefined,
+      // id thật (feed mới) → chạm là vote ngay, không phải nạp cả bài để tìm id
+      id: o.id || "opt" + i, label: o.label || "", emoji: o.emoji || undefined, image: o.imageUrl || undefined,
       votes: o.votes || 0, color: hexColor(o.color, OPT_FALLBACK[i % OPT_FALLBACK.length]),
     }));
     return { ...base, type: "rankie", votingType: s.votingType || "single", chartType: s.chartType || (opts.length === 2 ? "head_to_head" : "bar"), live: !!s.live, closesAt: s.closesAt ? Date.parse(s.closesAt) : null, voteMarker: s.voteMarker || null, options: opts, comments: [] };
