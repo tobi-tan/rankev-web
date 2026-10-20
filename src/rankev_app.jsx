@@ -6530,6 +6530,16 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
 
   const toggleSupport = (id) =>
     setDraftSupport((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // Nạp trả lời của 1 bình luận từ server.
+  const loadReplies = (cid) => {
+    commentApi
+      .list(postId, { parentId: cid })
+      .then((res) => {
+        const items = ((res && res.items) || res || []).map(apiCommentToProto).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        setComments((prev) => prev.map((x) => (x.id === cid ? { ...x, replies: items, repliesLoaded: true } : x)));
+      })
+      .catch(() => {});
+  };
 
   const react = (id, kind) => {
     setComments((prev) =>
@@ -6582,7 +6592,7 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
       commentApi
         .create(postId, { text: replyDraft.trim() || undefined, parentId: cid })
         .then((c) =>
-          setComments((prev) => prev.map((x) => (x.id === cid ? { ...x, replies: [...(x.replies || []), { id: c.id, user: (c.author && (c.author.name || c.author.handle)) || "Bạn", text: c.text || "", createdAt: Date.parse(c.createdAt) || Date.now() }] } : x)))
+          setComments((prev) => prev.map((x) => (x.id === cid ? { ...x, replyCount: (x.replyCount || 0) + 1, replies: [...(x.replies || []), apiCommentToProto(c)] } : x)))
         )
         .catch(() => {});
     } else {
@@ -6688,6 +6698,12 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                   </span>
                 </div>
 
+                {/* Có trả lời trên server chưa nạp → nút mở */}
+                {apiMode && !c.repliesLoaded && (c.replyCount || 0) > (c.replies?.length || 0) && (
+                  <button onClick={() => loadReplies(c.id)} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted }}>
+                    <span style={{ width: 22, height: 1, background: C.border }} /> Xem {c.replyCount} trả lời
+                  </button>
+                )}
                 {/* Replies */}
                 {(c.replies && c.replies.length > 0) && (
                   <div style={{ marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -6695,6 +6711,9 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
                       <div key={r.id}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
                           <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 14 }}>{r.user}</span>
+                          {getSupportLabel && norm(r.supports).map((id) => getSupportLabel(id)).filter(Boolean).map((sp, idx) => (
+                            <span key={idx} style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
+                          ))}
                           <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>· {timeAgo(r.createdAt)}</span>
                         </div>
                         {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={r.text} /></div>}
@@ -15983,6 +16002,7 @@ function apiCommentToProto(c) {
     createdAt: Date.parse(c.createdAt) || Date.now(),
     myReaction: c.myRank === 1 ? "up" : c.myRank === -1 ? "down" : null,
     replies: [],
+    replyCount: c.replyCount || 0, // trả lời nạp khi bấm "Xem N trả lời" (trước đây bỏ qua → tải lại là mất)
     _api: true,
   };
 }
