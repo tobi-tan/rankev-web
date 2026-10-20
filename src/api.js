@@ -95,7 +95,37 @@ async function doRefresh() {
   return refreshPromise;
 }
 
+// ===== Bộ đệm ngắn hạn cho dữ liệu HỒ SƠ (GET) — mở lại hồ sơ / tab Hồ sơ hiện NGAY =====
+// Gộp request trùng đang bay, giữ kết quả 60s; mọi request ghi (POST/PATCH/DELETE) thành công →
+// xoá đệm (không bao giờ hiện dữ liệu cũ sau khi chính mình vừa sửa). Khoá theo token (đổi tài khoản
+// → không lẫn). prefetch(path) để tải trước (chạm tên tác giả, lúc app rảnh).
+const CACHEABLE = /^\/users\/(me\/posts|[0-9a-f-]{36}(\/posts)?|handle\/[^/?]+(\/posts)?)$/i;
+const CACHE_TTL = 60_000;
+const getCache = new Map(); // key → { at, data?, p? }
+const cloneData = (d) => { try { return typeof structuredClone === 'function' ? structuredClone(d) : JSON.parse(JSON.stringify(d)); } catch { return d; } };
+export function clearApiCache() { getCache.clear(); }
 export async function apiFetch(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  if (method === 'GET' && CACHEABLE.test(path)) {
+    const key = (getAccessToken() || '').slice(-16) + ' ' + path;
+    const hit = getCache.get(key);
+    if (hit && Date.now() - hit.at < CACHE_TTL) return hit.p ? hit.p.then(cloneData) : cloneData(hit.data);
+    const p = apiFetchRaw(path, options);
+    getCache.set(key, { at: Date.now(), p });
+    try {
+      const data = await p;
+      getCache.set(key, { at: Date.now(), data });
+      return cloneData(data);
+    } catch (e) { getCache.delete(key); throw e; }
+  }
+  const out = await apiFetchRaw(path, options);
+  if (method !== 'GET') getCache.clear();
+  return out;
+}
+/** Tải trước (bỏ qua lỗi) — kết quả vào bộ đệm hồ sơ. */
+export function prefetch(path) { if (CACHEABLE.test(path)) apiFetch(path).catch(() => {}); }
+
+async function apiFetchRaw(path, options = {}) {
   const { auth = true, retry = true, headers = {}, body, ...rest } = options;
   const h = { ...headers };
   const isForm = body instanceof FormData;
@@ -114,12 +144,12 @@ export async function apiFetch(path, options = {}) {
   if (res.status === 401 && auth && retry) {
     const usedAuth = h['Authorization']; // token đã gửi ở request này
     const refreshed = await doRefresh();
-    if (refreshed) return apiFetch(path, { ...options, retry: false });
+    if (refreshed) return apiFetchRaw(path, { ...options, retry: false });
     // Nếu trong lúc refresh có LOGIN mới (access token đã đổi) thì đừng xoá phiên mới —
     // đây là refresh của token CŨ đang bay dở, thất bại của nó không được đăng xuất.
     const current = getAccessToken();
     if (current && `Bearer ${current}` !== usedAuth) {
-      return apiFetch(path, { ...options, retry: false });
+      return apiFetchRaw(path, { ...options, retry: false });
     }
     clearTokens();
     if (onAuthLost) onAuthLost();

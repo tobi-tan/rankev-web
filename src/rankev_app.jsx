@@ -7,10 +7,10 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles, Repeat, BadgeCheck,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles, Repeat, BadgeCheck, Compass,
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
-import api, { auth, setAuthLostHandler, BASE_URL, pageSession } from "./api.js";
+import api, { auth, setAuthLostHandler, BASE_URL, pageSession, prefetch } from "./api.js";
 import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE, nativeGoogleIdToken } from "./native.js";
 const SHARE_HOST = SHARE_BASE.replace(/^https?:\/\//, ""); // hiển thị gọn: rankev-web.vercel.app
 
@@ -1877,6 +1877,8 @@ function AuthorRow({ author, onOpenAuthor, size = 30, rightSlot, rankTier = 0, o
     >
       <div
         {...longPress}
+        // Chạm xuống là bắt đầu tải hồ sơ (trước khi nhấc tay) → mở ra là có ngay.
+        onPointerDown={(e) => { longPress.onPointerDown?.(e); if (!isMe && isUuid(author.id)) prefetch('/users/' + author.id); }}
         onClick={isMe ? undefined : (e) => {
           e.stopPropagation();
           onOpenAuthor?.(author.id);
@@ -6200,6 +6202,101 @@ function FeedView({ classics = [], feedItems, seriesMap, votedMap, participatedK
 
 // ---------- SEARCH ----------
 const searchMemory = { query: "", browse: null }; // giữ qua các lần dựng lại SearchView trong phiên
+// ===== KHÁM PHÁ kiểu Pinterest =====
+// Tỉ lệ khung (cao/rộng) theo nội dung → lưới so le tự nhiên như Pinterest.
+function pinRatio(item) {
+  const m = item.media;
+  if (m?.url && m.w && m.h) return Math.min(1.5, Math.max(0.7, m.h / m.w));
+  if (m?.url) return 1.25;
+  // đối đầu: cao thấp xen kẽ theo id → lưới so le tự nhiên
+  if (item.type === "rankie") return (item.options || []).length === 2 ? [1, 1.2, 1.35][String(item.id).charCodeAt(String(item.id).length - 1) % 3] : 0.8;
+  if (item.type === "path") return 1.3;
+  if (item.type === "tournament") return 1.1;
+  return 1;
+}
+// Ô: hình (ảnh bìa / 2 ảnh đối đầu / thanh phiếu / emoji / kết quả Path) + tiêu đề 2 dòng + tác giả + icon·số.
+function PinTile({ item, onOpen, rank, fixedRatio }) {
+  const ratio = fixedRatio || pinRatio(item);
+  const key = postTypeKey(item);
+  const meta = POST_TYPE_META[key] || POST_TYPE_META.rankie;
+  const TypeIcon = meta.icon;
+  const opts = item.type === "rankie" ? item.options || [] : [];
+  const focus = item.media?.focus;
+  const fill = { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" };
+  // side 0/1: emoji đặt GIỮA nửa của mình (không bị đường chéo cắt đôi)
+  const face = (o, col, side) => (o?.image && !/twemoji/.test(o.image))
+    ? <Pic src={o.image} w={400} alt="" style={fill} />
+    : <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${col}, ${col}99)` }}>
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: side ? "50%" : 0, width: "50%", display: "grid", placeItems: "center", fontSize: 30 }}>
+          {o?.image ? <Pic src={o.image} alt="" style={{ width: "70%", aspectRatio: "1", objectFit: "contain" }} /> : (o?.emoji || (o?.label || "?").charAt(0).toUpperCase())}
+        </div>
+      </div>;
+  let art;
+  if (item.media?.url) {
+    art = <Pic src={item.media.url} w={540} alt="" style={{ ...fill, objectPosition: focus ? `${focus.x}% ${focus.y}%` : "50% 50%" }} />;
+  } else if (opts.length === 2) {
+    art = (<>
+      <div style={{ position: "absolute", inset: 0, clipPath: "polygon(0 0, 55% 0, 45% 100%, 0 100%)" }}>{face(opts[0], hexColor(opts[0].color, "#E23B3B"), 0)}</div>
+      <div style={{ position: "absolute", inset: 0, clipPath: "polygon(55% 0, 100% 0, 100% 100%, 45% 100%)" }}>{face(opts[1], hexColor(opts[1].color, "#2F6BFF"), 1)}</div>
+    </>);
+  } else if (opts.length >= 3) {
+    const top = [...opts].sort((a, b) => (b.votes || 0) - (a.votes || 0)).slice(0, 4);
+    const max = Math.max(1, ...top.map((o) => o.votes || 0));
+    art = (
+      <div style={{ position: "absolute", inset: "14% 10% 12%", display: "flex", flexDirection: "column", justifyContent: "center", gap: 9 }}>
+        {top.map((o, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13, width: 16, textAlign: "center" }}>{o.emoji || ""}</span>
+            <div style={{ flex: 1, height: 8, borderRadius: 4, background: "rgba(255,255,255,.1)", overflow: "hidden" }}>
+              <div style={{ width: `${Math.max(8, ((o.votes || 0) / max) * 100)}%`, height: "100%", borderRadius: 4, background: hexColor(o.color, C.gold) }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  } else if (item.media?.emoji) {
+    art = <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 48 }}>{item.media.emoji}</div>;
+  } else if (item.type === "tournament" && item.championRef) {
+    art = <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}><span style={{ fontSize: 20 }}>👑</span><span style={{ fontSize: 44 }}>{item.championRef.emoji || "🏆"}</span></div>;
+  } else {
+    art = <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}><TypeIcon size={40} color={meta.color} /></div>;
+  }
+  const bg = item.media?.color ? `linear-gradient(160deg, ${item.media.color}, var(--surface))` : `linear-gradient(160deg, color-mix(in srgb, ${meta.color} 22%, var(--surface)), var(--surface))`;
+  const n = item.participants || 0;
+  return (
+    <button onClick={onOpen} style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+      <div style={{ position: "relative", width: "100%", paddingTop: `${ratio * 100}%`, borderRadius: 16, overflow: "hidden", background: bg }}>
+        {art}
+        {rank != null && <span style={{ position: "absolute", left: 8, bottom: 2, fontFamily: displayFont, fontWeight: 800, fontSize: 40, lineHeight: 1, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.6)" }}>{rank}</span>}
+        <span style={{ position: "absolute", right: 7, top: 7, width: 24, height: 24, borderRadius: 99, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}><TypeIcon size={13} color="#fff" /></span>
+        {item.live && !isRankieClosed(item) && <span style={{ position: "absolute", left: 7, top: 7, padding: "2px 7px", borderRadius: 99, background: "rgba(0,0,0,.5)", color: C.teal, fontFamily: bodyFont, fontSize: 10, fontWeight: 800 }}>● LIVE</span>}
+      </div>
+      <div style={{ padding: "7px 2px 0" }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, lineHeight: 1.3, color: C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.title}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, minWidth: 0 }}>
+          <MiniAvatar u={item.author} size={18} />
+          <span style={{ flex: 1, minWidth: 0, fontFamily: bodyFont, fontSize: 11.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.author?.name || ""}</span>
+          {n > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{fmtCompact(n)} <Users size={12} /></span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+// Lưới 2 cột so le: mỗi ô vào cột đang THẤP hơn (ước theo tỉ lệ khung + phần chữ).
+function PinGrid({ items, onOpen }) {
+  const cols = [[], []]; const h = [0, 0];
+  items.forEach((it) => { const c = h[0] <= h[1] ? 0 : 1; cols[c].push(it); h[c] += pinRatio(it) + 0.42; });
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+      {cols.map((col, i) => (
+        <div key={i} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+          {col.map((it) => <PinTile key={it.id} item={it} onOpen={() => onOpen(it)} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, searchHistory, onAddHistory, onRemoveHistory, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenSession, onOpenTournament, onShareToProfile, onBack, contacts }) {
   // Nhớ từ khoá/hashtag đang xem khi mở một kết quả rồi quay lại (SearchView bị dựng lại).
   const [query, setQueryRaw] = useState(() => searchMemory.query);
@@ -6223,9 +6320,18 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
   const q = normalizeVi(query.trim());
 
   const trendingTopics = [...allPosts]
-    .filter((p) => !p.hidden && !p.deletedAt && p.visibility !== "private")
+    .filter((p) => !p.hidden && !p.deletedAt && p.visibility !== "private" && p.type !== "share")
     .sort((a, b) => trendingScore(b) - trendingScore(a))
     .slice(0, 10);
+  // Lưới Khám phá: mọi bài công khai (trừ 10 bài thịnh hành ở trên), bài nóng + mới lên trước.
+  const explorePosts = (() => {
+    const top = new Set(trendingTopics.map((p) => p.id));
+    return allPosts
+      .filter((p) => !p.hidden && !p.deletedAt && p.visibility !== "private" && p.type !== "share" && !top.has(p.id))
+      .sort((a, b) => trendingScore(b) + (b.createdAt || 0) / 8.64e7 - (trendingScore(a) + (a.createdAt || 0) / 8.64e7))
+      .slice(0, 60);
+  })();
+  const openExplore = (it) => (it.type === "path" ? onOpenPath(it.id, it) : it.type === "deck" ? onOpenDeck(it.id, it) : it.type === "tournament" ? onOpenTournament?.(it.id) : onOpenRankie(it.id, it));
 
   // browseCategory nay giữ một HASHTAG; lọc theo tags (không phân biệt dấu) hoặc danh mục cũ.
   const categoryPosts = browseCategory
@@ -6404,118 +6510,41 @@ function SearchView({ allPosts, votedMap, participatedKeys, participationByKey, 
         {q.length === 0 && !browseCategory && (
           <div>
 
-            {/* 5 lịch sử tìm kiếm gần nhất */}
-            {(searchHistory || []).length > 0 && (
-              <div style={{ marginBottom: 28 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  {sectionLabel("🕐 Tìm kiếm gần đây")}
-                  <button
-                    onClick={() => (searchHistory || []).forEach((s) => onRemoveHistory(s))}
-                    style={{ background: "none", border: "none", color: C.textFaint, fontFamily: bodyFont, fontSize: 12, cursor: "pointer" }}
-                  >
-                    Xoá tất cả
-                  </button>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  {(searchHistory || []).map((term) => (
-                    <div
-                      key={term}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 4px", borderBottom: `1px solid ${C.border}` }}
-                    >
-                      <button
-                        onClick={() => commitSearch(term)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", flex: 1, textAlign: "left" }}
-                      >
-                        <Search size={14} color={C.textFaint} />
-                        <span style={{ fontFamily: bodyFont, fontSize: 14, color: C.text }}>{term}</span>
-                      </button>
-                      <button onClick={() => onRemoveHistory(term)} style={{ ...iconButton, color: C.textFaint }}>
-                        <X size={14} />
-                      </button>
+            {/* Hashtag: 1 hàng vuốt ngang (kiểu chip của Pinterest/IG) */}
+            <div className="rk-hscroll" style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", margin: "0 -16px 18px", padding: "0 16px" }}>
+              {(searchHistory || []).slice(0, 3).map((term) => (
+                <button key={"h-" + term} onClick={() => commitSearch(term)} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 999, border: `1px solid ${C.border}`, background: "transparent", color: C.textMuted, fontFamily: bodyFont, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                  <Clock size={13} /> {term}
+                </button>
+              ))}
+              {exploreTags.map((t) => (
+                <button key={t} onClick={() => setBrowseCategory(t)} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 999, border: "none", background: C.surfaceRaised, color: C.text, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                  #{t}
+                </button>
+              ))}
+            </div>
+
+            {/* 🔥 Thịnh hành: dải thẻ ảnh vuốt ngang, số thứ hạng to — chạm MỞ BÀI luôn */}
+            {trendingTopics.length > 0 && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}><Flame size={16} color={C.coral} /> Thịnh hành</div>
+                <div className="rk-hscroll" style={{ display: "flex", gap: 10, overflowX: "auto", scrollbarWidth: "none", margin: "0 -16px", padding: "0 16px", scrollSnapType: "x proximity" }}>
+                  {trendingTopics.map((post, i) => (
+                    <div key={post.id} style={{ flex: "0 0 148px", scrollSnapAlign: "start" }}>
+                      <PinTile item={post} rank={i + 1} fixedRatio={1.3} onOpen={() => openExplore(post)} />
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Top 10 trending topics */}
-            {trendingTopics.length > 0 && (
-              <div style={{ marginBottom: 28, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
-                <div style={{ padding: "12px 14px 4px" }}>
-                  {sectionLabel("🔥 Đang thịnh hành")}
-                </div>
-                {trendingTopics.map((post, i) => (
-                  <button
-                    key={post.id}
-                    onClick={() => commitSearch(post.title)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "11px 14px",
-                      borderTop: i > 0 ? `1px solid ${C.border}` : "none",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      width: "100%",
-                    }}
-                  >
-                    <span style={{
-                      fontFamily: monoFont,
-                      fontWeight: 700,
-                      fontSize: 14,
-                      color: i === 0 ? "#E4634A" : i < 3 ? C.gold : C.textFaint,
-                      width: 22,
-                      textAlign: "right",
-                      flexShrink: 0,
-                    }}>
-                      {i + 1}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: bodyFont, fontWeight: 600, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {post.title}
-                      </div>
-                      <div style={{ ...captionText, marginTop: 2 }}>
-                        {fmt(post.participants || 0)} lượt
-                      </div>
-                    </div>
-                    {post.live && (
-                      <Pill tone="live">
-                        <span style={{ width: 5, height: 5, borderRadius: 99, background: C.teal, display: "inline-block" }} /> LIVE
-                      </Pill>
-                    )}
-                  </button>
-                ))}
+            {/* Khám phá: lưới so le 2 cột kiểu Pinterest */}
+            {explorePosts.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontFamily: bodyFont, fontWeight: 800, fontSize: 15, color: C.text }}><Compass size={16} color={C.gold} /> Khám phá</div>
+                <PinGrid items={explorePosts} onOpen={openExplore} />
               </div>
             )}
-
-            {/* Khám phá theo hashtag (thay chủ đề cố định) */}
-            <div>
-              {sectionLabel("# Khám phá theo hashtag")}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {exploreTags.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setBrowseCategory(t)}
-                    style={{
-                      padding: "9px 14px",
-                      borderRadius: 999,
-                      border: `1px solid ${C.border}`,
-                      background: C.surface,
-                      color: C.text,
-                      fontFamily: bodyFont,
-                      fontWeight: 700,
-                      fontSize: 14,
-                      cursor: "pointer",
-                    }}
-                  >
-                    #{t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
           </div>
         )}
       </div>
@@ -15121,6 +15150,13 @@ function ProfileGridTile({ item, onOpen, onLongPress }) {
         {ends.map((e, i) => <div key={i}>{pic({ ...e, color: C.surfaceRaised }, 24)}</div>)}
       </div>
     ) : null;
+  } else if (!isShare && item.type === "tournament") {
+    // Giải đấu: có vô địch → 👑 + ảnh/emoji vô địch; chưa có → cúp vàng rõ nét (trước: cúp xám mờ)
+    art = item.championRef ? (
+      <div style={{ position: "absolute", inset: "12px 0 28px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
+        <span style={{ fontSize: 16, lineHeight: 1 }}>👑</span>{pic({ ...item.championRef, color: hexColor(item.championRef.color, "#D4A94A") }, 44)}
+      </div>
+    ) : <div style={{ position: "absolute", inset: "14px 0 28px", display: "grid", placeItems: "center" }}><Trophy size={34} color={C.gold} /></div>;
   }
   if (!art) art = <div style={{ position: "absolute", inset: "14px 0 28px", display: "grid", placeItems: "center", opacity: 0.35 }}><TypeIcon size={30} color={meta.color} /></div>;
 
@@ -15601,7 +15637,7 @@ function ProfileView({
             {author.avatarUrl ? <img src={author.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (author.avatarEmoji || <User size={28} color={C.gold} />)}
           </div>
           <div style={{ flex: 1, display: "flex", justifyContent: "space-around", alignItems: "center" }}>
-            {statBtn(theirPostsAll.filter((p) => !p.deletedAt).length, <Grid3x3 size={17} color={C.textMuted} />, "Bài viết")}
+            {statBtn(theirPostsAll.filter((p) => !p.deletedAt).length + tournaments.length, <Grid3x3 size={17} color={C.textMuted} />, "Bài viết")}
             {/* Tổng số người RankUp (mọi tầng) — cùng icon với nút RankUp; chạm để xem từng tầng */}
             {statBtn(rankCounts.total, <RankCircleChevrons level={1} color={C.textMuted} size={18} />, "Người đã RankUp (chạm để xem từng tầng)")}
             {statBtn(totalReach, <Eye size={17} color={C.textMuted} />, "Lượt tương tác")}
