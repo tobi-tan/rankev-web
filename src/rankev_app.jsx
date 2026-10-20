@@ -4006,7 +4006,29 @@ function VoteBubbleLayer({ bubbles }) {
 // thời ghi kích thước gốc w/h để feed vẽ khung đúng tỉ lệ ngay (không nhảy chiều cao).
 // Video / chưa có URL: khung cao cố định như cũ.
 const MEDIA_MIN_RATIO = 0.8, MEDIA_MAX_RATIO = 1.91;
-function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480, bleed = false, onChange }) {
+// ===== XEM ẢNH TOÀN MÀN (chạm ảnh ở chi tiết bài; GIỮ ảnh ở lá cờ đối đầu vì chạm = vote) =====
+const lightboxStore = (() => {
+  let v = null; const subs = new Set();
+  return { get: () => v, open: (src) => { v = src; subs.forEach((f) => f()); }, close: () => { v = null; subs.forEach((f) => f()); }, subscribe: (f) => { subs.add(f); return () => subs.delete(f); } };
+})();
+function LightboxHost() {
+  const src = React.useSyncExternalStore(lightboxStore.subscribe, lightboxStore.get, lightboxStore.get);
+  const [zoom, setZoom] = useState(null); // {x,y} điểm phóng (%), null = vừa khung
+  useEffect(() => { setZoom(null); if (!src) return undefined; const k = (e) => { if (e.key === "Escape") lightboxStore.close(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [src]);
+  if (!src) return null;
+  return createPortal(
+    <div onClick={() => lightboxStore.close()} role="dialog" aria-label="Xem ảnh"
+      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.94)", display: "grid", placeItems: "center", animation: "popIn .18s ease", touchAction: "pinch-zoom" }}>
+      <img src={optImg(src, 1600)} alt="" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setZoom((z) => (z ? null : { x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 })); }}
+        style={{ maxWidth: "100vw", maxHeight: "100vh", objectFit: "contain", transform: zoom ? "scale(2.2)" : "none", transformOrigin: zoom ? `${zoom.x}% ${zoom.y}%` : "50% 50%", transition: "transform .25s ease", cursor: zoom ? "zoom-out" : "zoom-in" }} />
+      <button onClick={(e) => { e.stopPropagation(); lightboxStore.close(); }} aria-label="Đóng"
+        style={{ position: "fixed", top: "calc(12px + env(safe-area-inset-top, 0px))", right: 12, width: 40, height: 40, borderRadius: 99, border: "none", background: "rgba(255,255,255,.14)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer" }}><X size={22} /></button>
+    </div>,
+    document.body,
+  );
+}
+
+function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight = 480, bleed = false, onChange, zoomable = false }) {
   const edge = bleed ? { borderLeft: "none", borderRight: "none" } : null; // tràn viền: bỏ viền 2 bên
   const [nat, setNat] = useState(() => (media?.w && media?.h ? { w: media.w, h: media.h } : null));
   const [imgBroken, setImgBroken] = useState(false); // ảnh 404/hỏng → hiện placeholder thay vì icon vỡ
@@ -4063,8 +4085,9 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
     const onUp = () => { drag.current = null; setDragging(false); };
     return (
       <div ref={boxRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+        onClick={zoomable && !onChange ? (e) => { e.stopPropagation(); lightboxStore.open(url); } : undefined}
         style={{ position: "relative", width: "100%", aspectRatio: ratio ? String(ratio) : undefined, height: ratio ? undefined : height, borderRadius: radius, overflow: "hidden", background: C.surfaceRaised, border: `1px solid ${C.border}`, ...edge,
-          cursor: canEdit ? (dragging ? "grabbing" : "grab") : undefined, touchAction: canEdit ? "none" : undefined, userSelect: "none" }}>
+          cursor: canEdit ? (dragging ? "grabbing" : "grab") : zoomable ? "zoom-in" : undefined, touchAction: canEdit ? "none" : undefined, userSelect: "none" }}>
         <Pic ref={imgRef} src={url} alt="" draggable={false} onLoad={onImgLoad} onError={() => setImgBroken(true)}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `${focus.x}% ${focus.y}%`, display: "block", pointerEvents: "none" }} />
         {canEdit && (
@@ -4134,7 +4157,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
 // Ở màn CHI TIẾT, truyền `expandable` để mô tả thu gọn `clampLines` dòng + nút "Xem thêm/
 // Thu gọn" mở/đóng TẠI CHỖ (kiểu Facebook) — chỉ hiện nút khi mô tả thực sự bị tràn.
 // `bleed`: ảnh tràn hết chiều ngang bài (ngôn ngữ thiết kế bài viết không khung).
-function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false, showCredit = expandable, estimate = false }) {
+function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false, showCredit = expandable, estimate = false, zoomable = false }) {
   // Dòng ghi nguồn ảnh ("📷 Ảnh: …", bài kinh điển) tách khỏi mô tả: feed bỏ qua, chi tiết hiện chữ nhỏ cuối.
   const creditAt = rawCaption ? rawCaption.indexOf("📷 Ảnh:") : -1;
   const caption = creditAt >= 0 ? rawCaption.slice(0, creditAt).trim() : rawCaption;
@@ -4203,7 +4226,7 @@ function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight =
         <div style={{ marginTop: caption ? 6 : 0, marginBottom: media ? 10 : 0, fontFamily: bodyFont, fontSize: 11.5, lineHeight: 1.4, color: C.textFaint }}>{credit}</div>
       )}
       {media && (bleed
-        ? <div style={postBleed}><PostMedia media={media} height={Math.max(mediaHeight, 220)} radius={0} bleed /></div>
+        ? <div style={postBleed}><PostMedia media={media} height={Math.max(mediaHeight, 220)} radius={0} bleed zoomable={zoomable} /></div>
         : <PostMedia media={media} height={mediaHeight} />)}
     </div>
   );
@@ -4637,6 +4660,7 @@ function isRedundantVersusTitle(r) {
 // phiếu (bên dẫn chiếm nhiều chỗ hơn), % TO đặt thẳng trên ảnh (nền mờ màu đội ở đáy). Không VS,
 // không lửa. Chạm một bên = vote. bleed: tràn mép (feed + chi tiết); không bleed: bo góc (màn tạo bài).
 function VersusSplit({ rankie, options, onVote, votedId, isClosed, bleed = false }) {
+  const hold = useRef({ t: null, fired: false, x: 0, y: 0 }); // hook phải đứng TRƯỚC mọi return sớm
   const [a, b] = options;
   if (!a || !b) return null;
   const va = a.votes || 0, vb = b.votes || 0, sum = va + vb;
@@ -4652,6 +4676,15 @@ function VersusSplit({ rankie, options, onVote, votedId, isClosed, bleed = false
   const seam = Math.max(30, Math.min(70, 50 + (pA - 50) * 0.55)); // vị trí đường chéo (% chiều ngang)
   const d = 5; // độ nghiêng: đỉnh lệch phải d%, đáy lệch trái d%
   const ease = "cubic-bezier(.2,.9,.3,1)";
+  // Giữ ~0,45s trên ảnh → xem ảnh toàn màn; khi đó KHÔNG tính là vote.
+  const holdProps = (img) => (!img || /twemoji/.test(img) ? {} : {
+    // stopPropagation: không để thao tác GIỮ lan ra bài (giữ bài = "Lưu lại?")
+    onPointerDown: (e) => { e.stopPropagation(); const h = hold.current; h.fired = false; h.x = e.clientX; h.y = e.clientY; clearTimeout(h.t); h.t = setTimeout(() => { h.fired = true; haptic?.("light"); lightboxStore.open(img); }, 450); },
+    onPointerMove: (e) => { const h = hold.current; if (Math.abs(e.clientX - h.x) > 10 || Math.abs(e.clientY - h.y) > 10) clearTimeout(h.t); },
+    onPointerUp: () => clearTimeout(hold.current.t), onPointerCancel: () => clearTimeout(hold.current.t), onPointerLeave: () => clearTimeout(hold.current.t),
+    onClickCapture: (e) => { if (hold.current.fired) { e.preventDefault(); e.stopPropagation(); hold.current.fired = false; } },
+    onContextMenu: (e) => e.preventDefault(),
+  });
   const side = (o, i, col, pct) => {
     const mine = votedId === o.id;
     const isWinner = decided && i === winnerIdx;
@@ -4663,7 +4696,7 @@ function VersusSplit({ rankie, options, onVote, votedId, isClosed, bleed = false
     const isEmojiImg = o.image && /twemoji/.test(o.image);
     const Wrap = clickable ? "button" : "div";
     return (
-      <Wrap key={o.id || i} onClick={clickable ? (e) => onVote(o.id, e) : undefined} aria-label={clickable ? `Chọn ${o.label}` : undefined}
+      <Wrap key={o.id || i} {...holdProps(o.image)} onClick={clickable ? (e) => onVote(o.id, e) : undefined} aria-label={clickable ? `Chọn ${o.label}` : undefined}
         style={{ position: "absolute", inset: 0, clipPath: clip, WebkitClipPath: clip, transition: `clip-path .6s ${ease}`, padding: 0, border: "none", margin: 0, background: `linear-gradient(160deg, ${col}, ${col}aa)`, cursor: clickable ? "pointer" : "default", display: "block", WebkitTapHighlightColor: "transparent" }}>
         <div style={{ position: "absolute", top: 0, bottom: 0, ...box, transition: `left .6s ${ease}, width .6s ${ease}`, filter: fx }}>
           {o.image && !isEmojiImg ? (
@@ -7764,7 +7797,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
         )}
 
         {(rankie.caption || rankie.media) && (
-          <PostContent caption={rankie.caption} media={rankie.media} clampLines={4} expandable mediaHeight={240} bleed />
+          <PostContent caption={rankie.caption} media={rankie.media} clampLines={4} expandable zoomable mediaHeight={240} bleed />
         )}
 
         <div ref={resultsAreaRef} style={{ position: "relative" }}>
@@ -8376,7 +8409,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
             <span title="Số kết cục" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{resultEntries.length} <Flag size={15} /></span>
           </div>
           {(path.caption || path.media) && (
-            <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={240} bleed />
+            <PostContent caption={path.caption} media={path.media} clampLines={4} expandable zoomable mediaHeight={240} bleed />
           )}
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
@@ -8422,7 +8455,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           <span title="Số câu hỏi" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>{path.questions.length} <ListChecks size={15} /></span>
         </div>
         {(path.caption || path.media) && (
-          <PostContent caption={path.caption} media={path.media} clampLines={4} expandable mediaHeight={240} bleed />
+          <PostContent caption={path.caption} media={path.media} clampLines={4} expandable zoomable mediaHeight={240} bleed />
         )}
         <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap", justifyContent: "center" }}>
           {(() => {
@@ -9484,7 +9517,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
             {deck.deckMode === "exam" && deck.passingScore != null && <span title="Điểm đạt" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>≥{deck.passingScore} <CheckCircle2 size={15} /></span>}
           </div>
           {(deck.caption || deck.media) && (
-            <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={240} bleed />
+            <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable zoomable mediaHeight={240} bleed />
           )}
 
           {/* Bảng kết quả thật (tự cập nhật ~5s) — thay cho giao diện làm bài của khách. */}
@@ -9543,7 +9576,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
           {deck.deckMode === "exam" && deck.passingScore != null && <span title="Điểm đạt" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 14, fontWeight: 600, color: C.textMuted }}>≥{deck.passingScore} <CheckCircle2 size={15} /></span>}
         </div>
         {(deck.caption || deck.media) && (
-          <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable mediaHeight={240} bleed />
+          <PostContent caption={deck.caption} media={deck.media} clampLines={4} expandable zoomable mediaHeight={240} bleed />
         )}
         <button
           onClick={() => setStarted(true)}
@@ -19798,6 +19831,7 @@ export default function RankevApp() {
 
   return (
     <RankieSaveCtx.Provider value={rankieSaveValue}>
+    <LightboxHost />
     <LiveVoteCtx.Provider value={liveVoteValue}>
     <ModerationCtx.Provider value={moderation}>
     <div style={{ display: "flex", justifyContent: "center", background: C.frame, minHeight: "100vh", fontFamily: bodyFont }}>
