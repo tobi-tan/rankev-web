@@ -7,7 +7,7 @@ import {
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
   Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
-  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles, Repeat, BadgeCheck, Compass,
+  MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles, Repeat, BadgeCheck, Compass, Scissors,
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL, pageSession, prefetch } from "./api.js";
@@ -3760,6 +3760,34 @@ const readRecentEmoji = () => { try { return JSON.parse(localStorage.getItem(REC
 const pushRecentEmoji = (em) => { try { localStorage.setItem(RECENT_EMOJI_KEY, JSON.stringify([em, ...readRecentEmoji().filter((x) => x !== em)].slice(0, 16))); } catch { /* ignore */ } };
 const isGifUrl = (u) => typeof u === "string" && /\.gif(\?|#|$)/i.test(u);
 
+// ===== XOÁ NỀN ẢNH ngay trên máy người dùng =====
+// Transformers.js + mô hình ORMBG (Apache-2.0, bản nén 44MB) — CHỈ tải khi bấm "Xoá nền" lần đầu, trình
+// duyệt giữ lại cho lần sau. Không tốn server, ảnh gốc không gửi đi đâu để xử lý. Ảnh kết quả (PNG
+// trong suốt) được cắt sát chủ thể rồi tải lên như ảnh thường; URL gắn "#nobg" để nơi hiển thị đặt
+// chủ thể trên nền màu (kiểu poster lon Coca vs Pepsi).
+let bgRemovePipe = null;
+const isNoBg = (u) => typeof u === "string" && u.includes("#nobg");
+async function removeBackgroundBlob(src, onStage) {
+  const T = await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1");
+  if (!bgRemovePipe) {
+    onStage?.("Đang tải bộ xoá nền (lần đầu ~44MB, các lần sau nhanh)…");
+    bgRemovePipe = await T.pipeline("background-removal", "onnx-community/ormbg-ONNX", { dtype: "uint8", device: "wasm" });
+  }
+  onStage?.("Đang xoá nền…");
+  const out = await bgRemovePipe(src.split("#")[0]);
+  const cv = (Array.isArray(out) ? out[0] : out).toCanvas();
+  const w = cv.width, h = cv.height;
+  const d = cv.getContext("2d").getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) throw new Error("Không tìm thấy chủ thể trong ảnh");
+  const pad = 6; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, sc = Math.min(1, 1200 / Math.max(bw, bh));
+  const o = document.createElement("canvas"); o.width = Math.round(bw * sc); o.height = Math.round(bh * sc);
+  o.getContext("2d").drawImage(cv, x0, y0, bw, bh, 0, 0, o.width, o.height);
+  return await new Promise((res, rej) => o.toBlob((b) => (b ? res(b) : rej(new Error("Không xuất được ảnh"))), "image/png"));
+}
+
 // Chọn file từ máy → xem trước tức thì (blob) → upload → URL thật. Video đi /uploads/video.
 function pickMediaUpload(accept, apply) {
   const input = document.createElement("input");
@@ -3780,6 +3808,25 @@ function pickMediaUpload(accept, apply) {
 }
 
 function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClose, allowVideo = true, allowEmoji = true }) {
+  const [bgStage, setBgStage] = useState(null); // đang xoá nền: chuỗi trạng thái
+  const [bgErr, setBgErr] = useState(null);
+  const canRemoveBg = !!value.image && !isGifUrl(value.image) && !isVideoUrl(value.image) && !isNoBg(value.image) && !value.image.includes("#rk-video");
+  const doRemoveBg = async () => {
+    setBgErr(null);
+    try {
+      const blob = await removeBackgroundBlob(value.image, setBgStage);
+      const preview = URL.createObjectURL(blob);
+      onMedia(preview + "#nobg");
+      setBgStage("Đang tải ảnh lên…");
+      const res = await api.uploadImage(new File([blob], "nobg.png", { type: "image/png" }), "image");
+      if (res?.url) onMedia(res.url + "#nobg");
+      setBgStage(null);
+      onClose();
+    } catch (e) {
+      setBgStage(null);
+      setBgErr("Chưa xoá nền được: " + (e?.message || "lỗi không rõ") + ". Ảnh gốc vẫn giữ nguyên.");
+    }
+  };
   const [tab, setTab] = useState(value.image ? (isGifUrl(value.image) ? "gif" : "media") : allowEmoji ? "emoji" : "media");
   const [data, setData] = useState(EMOJI_DATA);
   const [group, setGroup] = useState(0);
@@ -3852,10 +3899,17 @@ function MediaPickerSheet({ title, value = {}, onEmoji, onMedia, onClear, onClos
       {tab === "media" && (
         <div style={{ padding: "14px 16px 8px" }}>
           {value.image && !isGifUrl(value.image) && (
-            <div style={{ width: 120, height: 120, margin: "0 auto 12px", borderRadius: 14, overflow: "hidden", background: C.surfaceRaised }}>
-              <Pic src={value.image} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ width: 120, height: 120, margin: "0 auto 12px", borderRadius: 14, overflow: "hidden", background: isNoBg(value.image) ? `repeating-conic-gradient(${C.surfaceRaised} 0 25%, ${C.surface} 0 50%) 0 0 / 16px 16px` : C.surfaceRaised }}>
+              <Pic src={value.image} style={{ width: "100%", height: "100%", objectFit: isNoBg(value.image) ? "contain" : "cover" }} />
             </div>
           )}
+          {canRemoveBg && (
+            <button onClick={doRemoveBg} disabled={!!bgStage}
+              style={{ width: "100%", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 14px", borderRadius: 12, border: `1px solid ${C.gold}`, background: C.goldSoft, color: C.gold, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, cursor: bgStage ? "default" : "pointer" }}>
+              <Scissors size={16} /> {bgStage || "Xoá nền — tôn chủ thể lên"}
+            </button>
+          )}
+          {bgErr && <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.coral, textAlign: "center", marginBottom: 10 }}>{bgErr}</div>}
           <div style={{ display: "flex", gap: 10 }}>
             {bigBtn(ImageIcon, "Ảnh", () => pickMediaUpload("image/png,image/jpeg,image/webp", (u) => { media(u); onClose(); }))}
             {allowVideo && bigBtn(Video, "Video", () => pickMediaUpload("video/mp4,video/webm,video/quicktime", (u) => { media(u); onClose(); }))}
@@ -4699,7 +4753,13 @@ function VersusSplit({ rankie, options, onVote, votedId, isClosed, bleed = false
       <Wrap key={o.id || i} {...holdProps(o.image)} onClick={clickable ? (e) => onVote(o.id, e) : undefined} aria-label={clickable ? `Chọn ${o.label}` : undefined}
         style={{ position: "absolute", inset: 0, clipPath: clip, WebkitClipPath: clip, transition: `clip-path .6s ${ease}`, padding: 0, border: "none", margin: 0, background: `linear-gradient(160deg, ${col}, ${col}aa)`, cursor: clickable ? "pointer" : "default", display: "block", WebkitTapHighlightColor: "transparent" }}>
         <div style={{ position: "absolute", top: 0, bottom: 0, ...box, transition: `left .6s ${ease}, width .6s ${ease}`, filter: fx }}>
-          {o.image && !isEmojiImg ? (
+          {o.image && isNoBg(o.image) ? (
+            // ảnh đã xoá nền: chủ thể đứng trên nền màu đội + quầng sáng (kiểu poster)
+            <>
+              <div style={{ position: "absolute", inset: 0, background: `radial-gradient(70% 55% at 50% 45%, rgba(255,255,255,.28), transparent 70%)` }} />
+              <Pic src={o.image} alt="" style={{ position: "absolute", left: "6%", right: "6%", top: "8%", bottom: 0, width: "88%", height: "92%", objectFit: "contain", objectPosition: "50% 100%", filter: "drop-shadow(0 8px 14px rgba(0,0,0,.45))" }} />
+            </>
+          ) : o.image && !isEmojiImg ? (
             <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", paddingBottom: "18%" }}>
