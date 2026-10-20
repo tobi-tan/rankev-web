@@ -17535,6 +17535,153 @@ function OnbExam({ stats, revealed, busy, onDone, mine }) {
   );
 }
 
+// ===== SLIDE GIỚI THIỆU (màn đầu onboarding) — kiểu bài thuyết trình, SỐ LIỆU THẬT từ /stats/showcase =====
+function useCountUp(target, run = true, ms = 1400) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!run || !target) { setV(target || 0); return undefined; }
+    let raf = 0; const t0 = performance.now();
+    const tick = (t) => { const k = Math.min(1, (t - t0) / ms); setV(Math.round(target * (1 - Math.pow(1 - k, 3)))); if (k < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, run, ms]);
+  return v;
+}
+// Trận đối đầu thu nhỏ: 2 ảnh chéo + % THẬT đặt trên ảnh.
+function DuelMini({ d }) {
+  const [a, b] = d.options;
+  const sum = (a.votes || 0) + (b.votes || 0);
+  const pa = sum ? Math.round((a.votes / sum) * 100) : 50;
+  const seam = Math.max(30, Math.min(70, 50 + (pa - 50) * 0.55));
+  const face = (o, col, side) => (
+    <div style={{ position: "absolute", inset: 0, clipPath: side ? `polygon(${seam + 4}% 0, 100% 0, 100% 100%, ${seam - 4}% 100%)` : `polygon(0 0, ${seam + 4}% 0, ${seam - 4}% 100%, 0 100%)`, transition: "clip-path .8s cubic-bezier(.2,.9,.3,1)", background: `linear-gradient(160deg, ${col}, ${col}99)` }}>
+      {o.imageUrl && !/twemoji/.test(o.imageUrl)
+        ? <Pic src={o.imageUrl} w={500} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div style={{ position: "absolute", top: 0, bottom: 0, [side ? "right" : "left"]: 0, width: "50%", display: "grid", placeItems: "center", fontSize: 34 }}>{o.imageUrl ? <Pic src={o.imageUrl} alt="" style={{ width: 46, height: 46 }} /> : (o.emoji || "⭐")}</div>}
+    </div>
+  );
+  return (
+    <div style={{ position: "relative", height: 112, borderRadius: 16, overflow: "hidden", background: "#111" }}>
+      {face(a, hexColor(a.color, "#E23B3B"), 0)}{face(b, hexColor(b.color, "#2F6BFF"), 1)}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0) 62%)" }} />
+      <div style={{ position: "absolute", left: 12, bottom: 8, color: "#fff", textAlign: "left" }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, opacity: 0.9 }}>{a.label}</div>
+        <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 28, lineHeight: 1 }}>{sum ? pa + "%" : "–"}</div>
+      </div>
+      <div style={{ position: "absolute", right: 12, bottom: 8, color: "#fff", textAlign: "right" }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, opacity: 0.9 }}>{b.label}</div>
+        <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 28, lineHeight: 1 }}>{sum ? 100 - pa + "%" : "–"}</div>
+      </div>
+      <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", padding: "2px 9px", borderRadius: 99, background: "rgba(0,0,0,.5)", color: "#fff", fontFamily: bodyFont, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>{fmt(sum)} <Users size={11} /></div>
+    </div>
+  );
+}
+function IntroDeck({ onStart }) {
+  const [data, setData] = useState(null);
+  const [i, setI] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => { let alive = true; api.stats.showcase().then((d) => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, []);
+  const tot = data?.totals;
+  const bigVotes = useCountUp(tot ? tot.votes + tot.plays : 0, i === 0 && !!tot);
+  const N = 4;
+  const go = (k) => { const el = ref.current; if (el) el.scrollTo({ left: k * el.clientWidth, behavior: "smooth" }); };
+  const onScroll = () => { const el = ref.current; if (el) setI(Math.round(el.scrollLeft / (el.clientWidth || 1))); };
+  const slide = { flex: "0 0 100%", scrollSnapAlign: "start", display: "flex", flexDirection: "column", justifyContent: "center", padding: "6px 2px", boxSizing: "border-box", minWidth: 0 };
+  const h2 = { fontFamily: displayFont, fontWeight: 700, fontSize: 26, lineHeight: 1.15, color: C.text, textAlign: "left", marginBottom: 6 };
+  const sub = { fontFamily: bodyFont, fontSize: 14, color: C.textMuted, textAlign: "left", marginBottom: 16, lineHeight: 1.45 };
+  const stat = (Icon, n, label) => (
+    <div style={{ flex: 1, padding: "12px 6px", borderRadius: 14, background: C.surface, border: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: bodyFont, fontWeight: 800, fontSize: 20, color: C.text, fontVariantNumeric: "tabular-nums" }}>{fmtCompact(n)} <Icon size={16} color={C.textMuted} /></div>
+      <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.textFaint, marginTop: 2 }}>{label}</div>
+    </div>
+  );
+  const types = [
+    ["rankie", "Đối đầu & Rankie", "Chạm một bên, thấy ngay % cộng đồng"],
+    ["path", "Path", "Truyện tương tác nhiều kết thúc"],
+    ["exam", "Exam", "Làm đề trên điện thoại, có điểm ngay"],
+    ["survey", "Survey", "Khảo sát qua link / QR"],
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}>
+      <div ref={ref} onScroll={onScroll} style={{ display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none", flex: 1 }}>
+        {/* 1 · Rankev + con số tổng */}
+        <div style={{ ...slide, textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 4, animation: "popIn .4s ease" }}><BrandLogo height={84} /></div>
+          <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 30, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
+          <div style={{ marginTop: 26, fontFamily: displayFont, fontWeight: 800, fontSize: 64, lineHeight: 1, color: C.text, fontVariantNumeric: "tabular-nums", letterSpacing: -2 }}>{tot ? fmt(bigVotes) : "…"}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 15, color: C.textMuted, marginTop: 6 }}>lượt bình chọn & tham gia trên Rankev</div>
+          {tot && <div style={{ display: "flex", gap: 8, marginTop: 22 }}>{stat(Users, tot.users, "người dùng")}{stat(Grid3x3, tot.posts, "bài đăng")}{stat(MessageCircle, tot.comments, "bình luận")}</div>}
+          <div style={{ fontFamily: bodyFont, fontSize: 13, color: C.textFaint, marginTop: 18 }}>Mỗi lựa chọn là một lá phiếu · số liệu cập nhật trực tiếp</div>
+        </div>
+        {/* 2 · Cộng đồng đang nghĩ gì? */}
+        <div style={slide}>
+          <div style={h2}>Cộng đồng đang nghĩ gì?</div>
+          <div style={sub}>3 cuộc đối đầu nhiều phiếu nhất lúc này — số thật, không làm tròn đẹp.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {(data?.duels || []).map((d) => (
+              <div key={d.id}>
+                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 5, textAlign: "left" }}>{d.title}</div>
+                <DuelMini d={d} />
+              </div>
+            ))}
+            {data && !data.duels?.length && <div style={sub}>Chưa có trận nào — bạn sẽ là người mở màn!</div>}
+          </div>
+        </div>
+        {/* 3 · Đang được quan tâm */}
+        <div style={slide}>
+          <div style={h2}>Đang được quan tâm</div>
+          <div style={sub}>Bài nhiều người tham gia nhất và các chủ đề đang lên.</div>
+          {data?.hottest && (
+            <div style={{ position: "relative", height: 190, borderRadius: 18, overflow: "hidden", background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 30%, var(--surface)), var(--surface))`, marginBottom: 14 }}>
+              {data.hottest.imageUrl && <Pic src={data.hottest.imageUrl} w={700} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0) 65%)" }} />
+              <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, color: "#fff", textAlign: "left" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: C.coral, marginBottom: 6 }}><Flame size={12} /> NÓNG NHẤT</div>
+                <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 18, lineHeight: 1.25 }}>{data.hottest.title}</div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, marginTop: 4, opacity: 0.9 }}>{fmt(data.hottest.participants)} <Users size={13} /></div>
+              </div>
+            </div>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {(data?.tags || []).map((t) => (
+              <span key={t.tag} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 99, background: C.surfaceRaised, fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.text }}>#{t.tag} <span style={{ color: C.textFaint, fontWeight: 600 }}>{t.count}</span></span>
+            ))}
+          </div>
+        </div>
+        {/* 4 · 4 cách chơi */}
+        <div style={slide}>
+          <div style={h2}>4 cách để chơi</div>
+          <div style={sub}>Ảnh từ bài thật trên Rankev — chạm “Chơi thử” để thử cả 4.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {types.map(([k, name, desc]) => {
+              const m = POST_TYPE_META[k]; const Icon = m.icon; const img = data?.covers?.[k];
+              const n = data?.byType?.[k];
+              return (
+                <div key={k} style={{ position: "relative", height: 150, borderRadius: 16, overflow: "hidden", background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 22%, var(--surface)), var(--surface))`, textAlign: "left" }}>
+                  {img && <Pic src={img} w={400} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,.1) 70%)" }} />
+                  <span style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: 99, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}><Icon size={15} color="#fff" /></span>
+                  {n > 0 && <span style={{ position: "absolute", top: 10, right: 10, fontFamily: bodyFont, fontSize: 12, fontWeight: 800, color: "#fff" }}>{fmtCompact(n)}</span>}
+                  <div style={{ position: "absolute", left: 10, right: 10, bottom: 8, color: "#fff" }}>
+                    <div style={{ fontFamily: bodyFont, fontWeight: 800, fontSize: 14 }}>{name}</div>
+                    <div style={{ fontFamily: bodyFont, fontSize: 11.5, opacity: 0.85, lineHeight: 1.3 }}>{desc}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", gap: 6, margin: "14px 0 0" }}>
+        {Array.from({ length: N }).map((_, k) => <button key={k} onClick={() => go(k)} aria-label={`Slide ${k + 1}`} style={{ width: k === i ? 20 : 7, height: 7, borderRadius: 99, border: "none", padding: 0, background: k === i ? C.gold : C.border, transition: "width .2s", cursor: "pointer" }} />)}
+      </div>
+      <button onClick={() => (i < N - 1 ? go(i + 1) : onStart())} style={{ ...primaryButton, width: "100%", marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        {i < N - 1 ? "Tiếp" : "Chơi thử 4 màn"} <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+}
+
 function OnboardingFlow({ onDone, theme, setTheme }) {
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState({ type: [] }); // {theme, type:[], rating, age, gender, occupation}
@@ -17650,23 +17797,7 @@ function OnboardingFlow({ onDone, theme, setTheme }) {
         </div>
 
         <div key={s} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", animation: "popIn 0.25s ease" }}>
-          {s === "intro" && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><BrandLogo height={96} /></div>
-              <div style={{ fontFamily: logoFont, fontStyle: "italic", fontWeight: 700, fontSize: 34, color: C.gold, lineHeight: 1.05 }}>Rank everything</div>
-              <div style={{ fontFamily: bodyFont, fontSize: 16, color: C.textMuted, marginTop: 14, lineHeight: 1.5 }}>Mỗi lựa chọn của bạn là một lá phiếu — chọn xong sẽ thấy ngay cả cộng đồng đang nghĩ gì.</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 20 }}>
-                {[["⚔️", "Đối đầu", "Phở hay Bún chả?"], ["🧭", "Path", "Bạn là ai?"], ["📊", "Survey", "Cộng đồng nghĩ gì?"], ["🏆", "Exam", "Đố vui có điểm"]].map(([e, t, sub], i) => (
-                  <div key={t} style={{ padding: "12px 10px", borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, textAlign: "left", animation: `popIn .35s ease ${0.08 * i}s both` }}>
-                    <div style={{ fontSize: 22, animation: `onbFloat 2.6s ease-in-out ${0.3 * i}s infinite` }}>{e}</div>
-                    <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text, marginTop: 4 }}>{t}</div>
-                    <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={next} style={{ ...primaryButton, width: "100%", marginTop: 22, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Chơi thử 4 màn <ChevronRight size={18} /></button>
-            </div>
-          )}
+          {s === "intro" && <IntroDeck onStart={next} />}
 
           {s === "terms" && pollStep("terms", "Bạn đã đọc hết điều khoản và cam kết của chúng tôi rồi chứ?", ONB_TERMS,
             <button onClick={() => setLegalDoc("terms")} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "12px 14px", marginBottom: 14, borderRadius: 12, border: `1px dashed ${C.border}`, background: "transparent", color: C.text, fontFamily: bodyFont, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
