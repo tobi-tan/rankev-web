@@ -4618,6 +4618,76 @@ function isRedundantVersusTitle(r) {
   return ["vs", "hay", "hoặc", "or", "với", "đấu"].some((w) => t === `${a} ${w} ${b}` || t === `${b} ${w} ${a}`);
 }
 
+// ĐỐI ĐẦU KIỂU "CHIA ĐÔI" (user 2026-10-21): 2 ảnh tràn viền, ngăn bằng ĐƯỜNG CHÉO dịch theo tỉ lệ
+// phiếu (bên dẫn chiếm nhiều chỗ hơn), % TO đặt thẳng trên ảnh (nền mờ màu đội ở đáy). Không VS,
+// không lửa. Chạm một bên = vote. bleed: tràn mép (feed + chi tiết); không bleed: bo góc (màn tạo bài).
+function VersusSplit({ rankie, options, onVote, votedId, isClosed, bleed = false }) {
+  const [a, b] = options;
+  if (!a || !b) return null;
+  const va = a.votes || 0, vb = b.votes || 0, sum = va + vb;
+  const pA = sum ? Math.round((va / sum) * 100) : 50;
+  const pB = 100 - pA;
+  const colA = hexColor(rankie.colorA || a.color, "#E23B3B");
+  const colB = hexColor(rankie.colorB || b.color, "#2F6BFF");
+  const forced = rankie?.winnerIdx === 0 || rankie?.winnerIdx === 1 ? rankie.winnerIdx : null;
+  const decided = forced != null || (isClosed && pA !== pB);
+  const winnerIdx = forced != null ? forced : decided ? (pA > pB ? 0 : 1) : -1;
+  const clickable = !!onVote && !isClosed;
+  const iVoted = votedId != null && (votedId === a.id || votedId === b.id);
+  const seam = Math.max(30, Math.min(70, 50 + (pA - 50) * 0.55)); // vị trí đường chéo (% chiều ngang)
+  const d = 5; // độ nghiêng: đỉnh lệch phải d%, đáy lệch trái d%
+  const ease = "cubic-bezier(.2,.9,.3,1)";
+  const side = (o, i, col, pct) => {
+    const mine = votedId === o.id;
+    const isWinner = decided && i === winnerIdx;
+    const isLoser = decided && i !== winnerIdx;
+    const trailing = !decided && sum > 0 && (i === 0 ? pA < pB : pB < pA);
+    const clip = i === 0 ? `polygon(0 0, ${seam + d}% 0, ${seam - d}% 100%, 0 100%)` : `polygon(${seam + d}% 0, 100% 0, 100% 100%, ${seam - d}% 100%)`;
+    const box = i === 0 ? { left: 0, width: `${seam + d}%` } : { left: `${seam - d}%`, width: `${100 - seam + d}%` };
+    const fx = isLoser ? "grayscale(1) brightness(.8)" : trailing ? "brightness(.8) saturate(.9)" : "none";
+    const isEmojiImg = o.image && /twemoji/.test(o.image);
+    const Wrap = clickable ? "button" : "div";
+    return (
+      <Wrap key={o.id || i} onClick={clickable ? (e) => onVote(o.id, e) : undefined} aria-label={clickable ? `Chọn ${o.label}` : undefined}
+        style={{ position: "absolute", inset: 0, clipPath: clip, WebkitClipPath: clip, transition: `clip-path .6s ${ease}`, padding: 0, border: "none", margin: 0, background: `linear-gradient(160deg, ${col}, ${col}aa)`, cursor: clickable ? "pointer" : "default", display: "block", WebkitTapHighlightColor: "transparent" }}>
+        <div style={{ position: "absolute", top: 0, bottom: 0, ...box, transition: `left .6s ${ease}, width .6s ${ease}`, filter: fx }}>
+          {o.image && !isEmojiImg ? (
+            <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", paddingBottom: "18%" }}>
+              {isEmojiImg ? <Pic src={o.image} alt="" style={{ width: "46%", maxWidth: 140, aspectRatio: "1", objectFit: "contain" }} /> : <span style={{ fontSize: 64 }}>{o.emoji || "⭐"}</span>}
+            </div>
+          )}
+        </div>
+        {/* nền mờ màu đội ở đáy để chữ luôn đọc được */}
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, rgba(0,0,0,.82) 0%, ${col}66 30%, transparent 58%)` }} />
+        {mine && <div style={{ position: "absolute", inset: 0, boxShadow: "inset 0 0 0 3px rgba(255,255,255,.9)", pointerEvents: "none" }} />}
+        <div style={{ position: "absolute", bottom: 12, ...(i === 0 ? { left: 14, right: `calc(${100 - (seam - d)}% + 8px)`, textAlign: "left" } : { right: 14, left: `calc(${seam + d}% + 8px)`, textAlign: "right" }), transition: `left .6s ${ease}, right .6s ${ease}`, color: "#fff", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: i === 0 ? "flex-start" : "flex-end", fontFamily: bodyFont, fontWeight: 800, fontSize: 15, textShadow: "0 1px 4px rgba(0,0,0,.6)", minWidth: 0 }}>
+            {i === 1 && mine && <Check size={15} strokeWidth={3} />}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isWinner ? "👑 " : ""}{o.label || `Bên ${i + 1}`}</span>
+            {i === 0 && mine && <Check size={15} strokeWidth={3} />}
+          </div>
+          <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: -1.5, opacity: 0.94, textShadow: "0 2px 10px rgba(0,0,0,.45)", fontVariantNumeric: "tabular-nums" }}>{sum ? `${pct}%` : ""}</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, opacity: 0.78, marginTop: 2 }}>{fmt(o.votes || 0)} phiếu</div>
+        </div>
+      </Wrap>
+    );
+  };
+  // Đường chéo trắng mảnh giữa 2 ảnh (xoay theo tỉ lệ khung 4:3: tan = 2d% × 4/3).
+  const angle = (Math.atan((2 * d / 100) * (4 / 3)) * 180) / Math.PI;
+  return (
+    <div style={{ position: "relative", width: bleed ? undefined : "100%", aspectRatio: "4 / 3", overflow: "hidden", background: "#111", borderRadius: bleed ? 0 : 14, ...(bleed ? postBleed : null), marginBottom: 10 }}>
+      {side(a, 0, colA, pA)}
+      {side(b, 1, colB, pB)}
+      <div aria-hidden style={{ position: "absolute", top: "-10%", height: "120%", left: `${seam}%`, width: 3, marginLeft: -1.5, background: "rgba(255,255,255,.92)", transform: `rotate(${angle}deg)`, transition: `left .6s ${ease}`, pointerEvents: "none", boxShadow: "0 0 10px rgba(0,0,0,.35)" }} />
+      {clickable && !iVoted && (
+        <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", padding: "4px 10px", borderRadius: 999, background: "rgba(0,0,0,.5)", color: "#fff", fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", pointerEvents: "none" }}>Chạm để chọn</div>
+      )}
+    </div>
+  );
+}
+
 // bleed: TRÀN VIỀN như ảnh các bài khác (feed + chi tiết) — 2 ảnh sát mép, khe mảnh ở giữa,
 // màu đội = vạch đáy ảnh, lửa cháy TRONG ảnh (bốc từ đáy + liếm 2 mép). Không bleed (màn tạo bài)
 // giữ khung bo góc viền màu + lửa quanh khung.
@@ -5374,7 +5444,9 @@ function RankieCard({ rankie: rankieIn, onOpen, onOpenAuthor, menuSlot, moreMenu
         <HeadToHead rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} />
       ) : (rankie.chartType === "head_to_head" || rankie.chartType === "hh_classic" || rankie.options.length === 2) ? (
         // Đối đầu trên feed: lá cờ VS bản THẤP (~140px). Kiểu người tạo đã chọn (lửa / cổ điển).
-        <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} variant={rankie.chartType === "hh_classic" ? "overlay" : "fire"} bleed />
+        rankie.chartType === "hh_classic"
+          ? <VersusBanner rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} variant="overlay" bleed />
+          : <VersusSplit rankie={rankie} options={rankie.options} votedId={mainVoteId} onVote={canVoteInline ? inlineVote : undefined} isClosed={closed} bleed />
       ) : rankie.votingType === "rating" ? (
         (() => {
           // Rating options are stored star-count-first (id "5" = 5 stars, etc.) with a
@@ -7465,7 +7537,7 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
   // ĐỐI ĐẦU (2 lựa chọn): thống nhất còn lá cờ VS — 2 kiểu (Cờ lửa / Cờ cổ điển) + Cột.
   // Đã bỏ Kéo co/Kamehameha/Tròn/Bục cho đối đầu (thừa). >2 lựa chọn giữ như cũ.
   const chartTypes = options.length === 2
-    ? [{ id: "head_to_head", label: "🔥 Cờ lửa" }, { id: "hh_classic", label: "Cờ cổ điển" }, { id: "bar", label: "Cột" }]
+    ? [{ id: "head_to_head", label: "Chia đôi" }, { id: "hh_classic", label: "Cờ cổ điển" }, { id: "bar", label: "Cột" }]
     : [
         ...(options.length >= 2 ? [{ id: "podium", label: "Bục vinh danh" }] : []),
         { id: "bar", label: "Cột" },
@@ -7658,7 +7730,9 @@ function RankieDetailView({ rankie, options, setOptions, voted, setVoted, onBack
               />
             ) : (
               // Lá cờ VS: "head_to_head" = Cờ lửa (viền + lửa); "hh_classic" = kiểu cổ điển (phủ màu).
-              <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} variant={activeChart === "hh_classic" ? "overlay" : "fire"} bleed />
+              activeChart === "hh_classic"
+                ? <VersusBanner rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} variant="overlay" bleed />
+                : <VersusSplit rankie={rankie} options={displayOptions} isClosed={isClosed} onVote={chartVoteHandler} votedId={chartVotedId} bleed />
             )
           )}
           {activeChart === "bar" && (
@@ -11713,7 +11787,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
   const votedId = isUnlimited ? null : isMultiple ? null : voted;
 
   const skins = versus
-    ? [{ id: "head_to_head", label: "🔥 Cờ lửa" }, { id: "hh_classic", label: "Cờ cổ điển" }, { id: "h2h_bar", label: "Thanh ngang" }]
+    ? [{ id: "head_to_head", label: "Chia đôi" }, { id: "hh_classic", label: "Cờ cổ điển" }, { id: "h2h_bar", label: "Thanh ngang" }]
     : [{ id: "bar", label: "Cột" }, { id: "podium", label: "Bục" }, { id: "pie", label: "Tròn" }];
   const active = skins.some((s) => s.id === chartType) ? chartType : skins[0].id;
   useEffect(() => { if (!skins.some((s) => s.id === chartType)) setChartType(skins[0].id); }, [versus, n]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -11752,7 +11826,7 @@ function RankieComposerPreview({ options, votingType, chartType, setChartType, v
         })}
       </div>
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, position: "relative" }}>
-        {active === "head_to_head" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusBanner rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} variant="fire" />)}
+        {active === "head_to_head" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusSplit rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} />)}
         {active === "hh_classic" && (isUnlimited ? <HeadToHead rankie={rankieObj} {...vp} /> : <VersusBanner rankie={rankieObj} options={withVotes} isClosed={false} onVote={vote} votedId={votedId} variant="overlay" />)}
         {active === "h2h_bar" && <HeadToHead rankie={rankieObj} {...vp} />}
         {active === "bar" && <BarViz {...vp} />}
