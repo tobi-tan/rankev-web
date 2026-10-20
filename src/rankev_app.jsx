@@ -6672,28 +6672,23 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
       .catch(() => {});
   };
 
+  // Áp lên bình luận gốc HOẶC trả lời có id tương ứng.
+  const patchAny = (id, fn) => setComments((prev) => prev.map((c) => (c.id === id ? fn(c) : c.replies?.some((r) => r.id === id) ? { ...c, replies: c.replies.map((r) => (r.id === id ? fn(r) : r)) } : c)));
   const react = (id, kind) => {
-    setComments((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        let { rankUp, rankDown, myReaction } = c;
-        if (myReaction === "up") rankUp--;
-        if (myReaction === "down") rankDown--;
-        const next = myReaction === kind ? null : kind;
-        if (next === "up") rankUp++;
-        if (next === "down") rankDown++;
-        return { ...c, rankUp, rankDown, myReaction: next };
-      })
-    );
+    patchAny(id, (c) => {
+      let { rankUp = 0, rankDown = 0, myReaction } = c;
+      if (myReaction === "up") rankUp--;
+      if (myReaction === "down") rankDown--;
+      const next = myReaction === kind ? null : kind;
+      if (next === "up") rankUp++;
+      if (next === "down") rankDown++;
+      return { ...c, rankUp, rankDown, myReaction: next };
+    });
     // Bài THẬT: gửi rank lên backend (tự toggle nếu bấm lại) rồi đồng bộ số đếm chuẩn.
     if (apiMode && isUuid(id)) {
       api.comments
         .rank(id, kind)
-        .then((res) =>
-          setComments((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, rankUp: res.rankUp, rankDown: res.rankDown, myReaction: res.myRank === 1 ? "up" : res.myRank === -1 ? "down" : null } : c))
-          )
-        )
+        .then((res) => patchAny(id, (c) => ({ ...c, rankUp: res.rankUp, rankDown: res.rankDown, myReaction: res.myRank === 1 ? "up" : res.myRank === -1 ? "down" : null })))
         .catch(() => {});
     }
   };
@@ -6781,82 +6776,32 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
 
       {/* Composer bình luận gốc */}
       <div style={{ marginBottom: 14 }}>
-        <CommentComposer value={draft} onChange={setDraft} onSubmit={post} placeholder={placeholder} image={draftImage} setImage={setDraftImage} extra={supportPicker} />
+        <CommentComposer value={draft} onChange={setDraft} onSubmit={post} placeholder={placeholder} image={draftImage} setImage={setDraftImage} extra={(draft.trim() || draftImage || draftSupport.length) ? supportPicker : null} />
       </div>
 
-      {/* Danh sách bình luận */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Danh sách bình luận — kiểu TikTok/IG: ảnh đại diện · tên · thời gian, nội dung, hàng "Trả lời · ⇧ số ⇩" */}
+      <div style={{ display: "flex", flexDirection: "column" }}>
         {sorted.length === 0 && (
-          <div style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 14 }}>Chưa có bình luận nào. Hãy là người đầu tiên!</div>
+          <div style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 14, padding: "8px 0" }}>Chưa có bình luận nào. Hãy là người đầu tiên!</div>
         )}
         {sorted.map((c) => {
-          const supportIds = norm(c.supports);
-          const supportLabels = getSupportLabel ? supportIds.map((id) => getSupportLabel(id)).filter(Boolean) : [];
+          const saveItem = { refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, rankUp: c.rankUp, rankDown: c.rankDown, user: c.user, postId } };
           return (
-            <SaveWrap key={c.id} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, rankUp: c.rankUp, rankDown: c.rankDown, user: c.user, postId } }} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10 } /* không khung — như bình luận IG */}>
-              {/* Rank up/down rail */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
-                <button onClick={() => react(c.id, "up")} title="Rank up" style={{ background: "none", border: "none", cursor: "pointer", color: c.myReaction === "up" ? C.teal : C.textFaint, padding: 2, display: "grid", placeItems: "center" }}>
-                  <ChevronsUp size={20} strokeWidth={2.5} />
-                </button>
-                <span style={{ fontFamily: monoFont, fontSize: 12, fontWeight: 700, color: c.rankUp - c.rankDown >= 0 ? C.teal : C.coral }}>{fmt(c.rankUp - c.rankDown)}</span>
-                <button onClick={() => react(c.id, "down")} title="Rank down" style={{ background: "none", border: "none", cursor: "pointer", color: c.myReaction === "down" ? C.coral : C.textFaint, padding: 2, display: "grid", placeItems: "center" }}>
-                  <ChevronsDown size={20} strokeWidth={2.5} />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                  <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 14, marginRight: 2 }}>{c.user}</span>
-                  {supportLabels.length > 0 && (
-                    <>
-                      <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>{supportPrefix || "ủng hộ:"}</span>
-                      {supportLabels.map((sp, idx) => (
-                        <span key={idx} style={{ fontFamily: bodyFont, fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
-                      ))}
-                    </>
-                  )}
-                  <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>· {timeAgo(c.createdAt)}</span>
-                </div>
-                {c.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={c.text} /></div>}
-                {c.image && <div style={{ marginTop: 6, width: 120, height: 120, borderRadius: 10, background: c.image }} />}
-                <div style={{ marginTop: 6, display: "flex", gap: 14, alignItems: "center" }}>
-                  <button onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(""); setReplyImage(null); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: replyTo === c.id ? C.gold : C.textMuted }}>Trả lời</button>
-                  <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>{fmt(c.rankUp)} rank up · {fmt(c.rankDown)} rank down</span>
-                  <span style={{ marginLeft: "auto" }}>
-                    <SaveFlagButton size={13} item={{ refType: "comment", refId: c.id, label: (c.text || "").slice(0, 60) || ("Bình luận của " + c.user), preview: { text: c.text, user: c.user, postId } }} />
-                  </span>
-                </div>
-
-                {/* Có trả lời trên server chưa nạp → nút mở */}
+            <SaveWrap key={c.id} item={saveItem} style={{ padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+              <CommentRow c={c} getSupportLabel={getSupportLabel} supportPrefix={supportPrefix} onReact={react} onReply={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(""); setReplyImage(null); }} replying={replyTo === c.id} saveItem={saveItem} />
+              <div style={{ paddingLeft: 42 }}>
                 {apiMode && !c.repliesLoaded && (c.replyCount || 0) > (c.replies?.length || 0) && (
-                  <button onClick={() => loadReplies(c.id)} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, color: C.textMuted }}>
+                  <button onClick={() => loadReplies(c.id)} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted }}>
                     <span style={{ width: 22, height: 1, background: C.border }} /> Xem {c.replyCount} trả lời
                   </button>
                 )}
-                {/* Replies */}
-                {(c.replies && c.replies.length > 0) && (
-                  <div style={{ marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
-                    {c.replies.map((r) => (
-                      <div key={r.id}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                          <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: 14 }}>{r.user}</span>
-                          {getSupportLabel && norm(r.supports).map((id) => getSupportLabel(id)).filter(Boolean).map((sp, idx) => (
-                            <span key={idx} style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold }}>{sp.label}</span>
-                          ))}
-                          <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12 }}>· {timeAgo(r.createdAt)}</span>
-                        </div>
-                        {r.text && <div style={{ color: C.textMuted, fontFamily: bodyFont, fontSize: 14, lineHeight: 1.4, wordBreak: "break-word" }}><MentionText text={r.text} /></div>}
-                        {r.image && <div style={{ marginTop: 4, width: 96, height: 96, borderRadius: 8, background: r.image }} />}
-                      </div>
-                    ))}
+                {(c.replies || []).map((r) => (
+                  <div key={r.id} style={{ marginTop: 12 }}>
+                    <CommentRow c={r} small getSupportLabel={getSupportLabel} supportPrefix={supportPrefix} onReact={apiMode && isUuid(r.id) ? react : undefined} onReply={() => { setReplyTo(c.id); setReplyDraft(`@${(r.author?.handle || r.user || "").replace(/^@/, "").replace(/\s+/g, "")} `); setReplyImage(null); }} />
                   </div>
-                )}
-
-                {/* Reply composer */}
+                ))}
                 {replyTo === c.id && (
-                  <div style={{ marginTop: 8 }}>
+                  <div style={{ marginTop: 10 }}>
                     <CommentComposer value={replyDraft} onChange={setReplyDraft} onSubmit={() => postReply(c.id)} placeholder={`Trả lời ${c.user}...`} image={replyImage} setImage={setReplyImage} submitLabel="Gửi" compact />
                   </div>
                 )}
@@ -6864,6 +6809,57 @@ function CommentsSection({ initialComments, getSupportLabel, supportOptions, pro
             </SaveWrap>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Nhãn phương án ủng hộ GỌN: 1–2 → nhãn màu nhỏ; ≥3 → 1 nhãn "ủng hộ N" + chấm màu, chạm để xem hết.
+// Luôn nằm trên 1 dòng (trước đây 3–4 nhãn tự xuống dòng rất rối).
+function SupportBadges({ labels, prefix }) {
+  const [open, setOpen] = useState(false);
+  if (!labels.length) return null;
+  const chip = (sp, i) => <span key={i} style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: `${sp.color || C.gold}22`, color: sp.color || C.gold, whiteSpace: "nowrap" }}>{sp.label}</span>;
+  if (labels.length <= 2 || open) {
+    return <span style={{ display: "inline-flex", flexWrap: open ? "wrap" : "nowrap", gap: 4, minWidth: 0, overflow: "hidden" }} onClick={labels.length > 2 ? (e) => { e.stopPropagation(); setOpen(false); } : undefined}>{labels.map(chip)}</span>;
+  }
+  return (
+    <button onClick={(e) => { e.stopPropagation(); setOpen(true); }} title={labels.map((l) => l.label).join(", ")}
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 8px 1px 6px", borderRadius: 999, border: "none", background: C.surfaceRaised, cursor: "pointer", flexShrink: 0 }}>
+      <span style={{ display: "inline-flex" }}>{labels.slice(0, 4).map((sp, i) => <span key={i} style={{ width: 8, height: 8, borderRadius: 99, background: sp.color || C.gold, marginLeft: i ? -2 : 0, boxShadow: `0 0 0 1.5px ${C.surfaceRaised}` }} />)}</span>
+      <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 700, color: C.textMuted, whiteSpace: "nowrap" }}>{(prefix || "ủng hộ").replace(/:$/, "")} {labels.length}</span>
+    </button>
+  );
+}
+
+// Một bình luận / trả lời: ảnh đại diện | tên · ủng hộ · thời gian / nội dung / Trả lời · ⇧ số ⇩ · lưu
+function CommentRow({ c, small = false, getSupportLabel, supportPrefix, onReact, onReply, replying = false, saveItem }) {
+  const norm = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
+  const labels = getSupportLabel ? norm(c.supports).map((id) => getSupportLabel(id)).filter(Boolean) : [];
+  const score = (c.rankUp || 0) - (c.rankDown || 0);
+  const av = small ? 26 : 32;
+  return (
+    <div style={{ display: "flex", gap: 10 }}>
+      <MiniAvatar u={c.author || { avatarEmoji: "🙂" }} size={av} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <span style={{ color: C.text, fontWeight: 700, fontFamily: bodyFont, fontSize: small ? 13 : 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 1, minWidth: 0 }}>{c.user}</span>
+          <SupportBadges labels={labels} prefix={supportPrefix} />
+          <span style={{ color: C.textFaint, fontFamily: bodyFont, fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }}>{timeAgo(c.createdAt)}</span>
+        </div>
+        {c.text && <div style={{ color: C.text, fontFamily: bodyFont, fontSize: small ? 13.5 : 14, lineHeight: 1.45, wordBreak: "break-word", marginTop: 2 }}><MentionText text={c.text} /></div>}
+        {c.image && <div style={{ marginTop: 6, width: small ? 96 : 120, height: small ? 96 : 120, borderRadius: 10, background: c.image }} />}
+        <div style={{ marginTop: 6, display: "flex", gap: 16, alignItems: "center" }}>
+          {onReply && <button onClick={onReply} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: replying ? C.gold : C.textMuted }}>Trả lời</button>}
+          {onReact && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+              <button onClick={() => onReact(c.id, "up")} title="Rank up" aria-label="Rank up" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "grid", placeItems: "center", color: c.myReaction === "up" ? C.teal : C.textFaint }}><ChevronsUp size={18} strokeWidth={2.5} /></button>
+              <span style={{ minWidth: 14, textAlign: "center", fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: c.myReaction === "up" ? C.teal : c.myReaction === "down" ? C.coral : C.textMuted }}>{score ? fmtCompact(score) : ""}</span>
+              <button onClick={() => onReact(c.id, "down")} title="Rank down" aria-label="Rank down" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "grid", placeItems: "center", color: c.myReaction === "down" ? C.coral : C.textFaint }}><ChevronsDown size={18} strokeWidth={2.5} /></button>
+            </span>
+          )}
+          {saveItem && <span style={{ marginLeft: "auto" }}><SaveFlagButton size={13} item={saveItem} /></span>}
+        </div>
       </div>
     </div>
   );
@@ -16153,6 +16149,7 @@ function apiCommentToProto(c) {
     myReaction: c.myRank === 1 ? "up" : c.myRank === -1 ? "down" : null,
     replies: [],
     replyCount: c.replyCount || 0, // trả lời nạp khi bấm "Xem N trả lời" (trước đây bỏ qua → tải lại là mất)
+    author: c.author || null, // ảnh đại diện trong bình luận
     _api: true,
   };
 }
