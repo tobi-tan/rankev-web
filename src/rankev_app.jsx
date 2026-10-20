@@ -4132,7 +4132,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
 // Ở màn CHI TIẾT, truyền `expandable` để mô tả thu gọn `clampLines` dòng + nút "Xem thêm/
 // Thu gọn" mở/đóng TẠI CHỖ (kiểu Facebook) — chỉ hiện nút khi mô tả thực sự bị tràn.
 // `bleed`: ảnh tràn hết chiều ngang bài (ngôn ngữ thiết kế bài viết không khung).
-function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false }) {
+function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false, showCredit = expandable }) {
   // Dòng ghi nguồn ảnh ("📷 Ảnh: …", bài kinh điển) tách khỏi mô tả: feed bỏ qua, chi tiết hiện chữ nhỏ cuối.
   const creditAt = rawCaption ? rawCaption.indexOf("📷 Ảnh:") : -1;
   const caption = creditAt >= 0 ? rawCaption.slice(0, creditAt).trim() : rawCaption;
@@ -4145,9 +4145,15 @@ function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight =
     const el = textRef.current;
     // Đo khi đang thu gọn: chế độ expandable clamp bằng maxHeight (không phải -webkit-line-clamp,
     // vốn cắt luôn box khiến scrollHeight == clientHeight). Nhờ vậy so được nội dung tràn.
-    setOverflowing(el.scrollHeight - el.clientHeight > 2);
+    const measure = () => setOverflowing(el.scrollHeight - el.clientHeight > 2);
+    measure();
+    // Feed hoãn vẽ bài ngoài màn hình (content-visibility) → đo lại khi bài hiện ra / đổi cỡ.
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [caption, expandable, clampLines]);
-  if (!caption && !media && !(expandable && credit)) return null;
+  if (!caption && !media && !(showCredit && credit)) return null;
   // Thu gọn: expandable dùng maxHeight (đo tràn được); feed card dùng -webkit-line-clamp (có "…").
   const collapsedStyle = expandable
     ? { maxHeight: expanded ? "none" : `${clampLines * 1.45}em`, overflow: "hidden" }
@@ -4184,7 +4190,7 @@ function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight =
               )}
         </div>
       )}
-      {expandable && credit && (
+      {showCredit && credit && (
         <div style={{ marginTop: caption ? 6 : 0, marginBottom: media ? 10 : 0, fontFamily: bodyFont, fontSize: 11.5, lineHeight: 1.4, color: C.textFaint }}>{credit}</div>
       )}
       {media && (bleed
@@ -5422,6 +5428,11 @@ function RankieCard({ rankie: rankieIn, onOpen, onOpenAuthor, menuSlot, moreMenu
           {rankie.title}
         </div>
       )}
+      {/* Thứ tự THỐNG NHẤT mọi loại bài: tiêu đề → mô tả → ảnh/biểu đồ (user 2026-10-21).
+          Mô tả ≤3 dòng hiện đủ; dài hơn mới có "xem thêm" — mở ngay trên bài như Facebook. */}
+      {(rankie.caption || rankie.media) && (
+        <PostContent caption={rankie.caption} media={rankie.media} clampLines={3} expandable showCredit={false} mediaHeight={140} bleed />
+      )}
 
       {/* Results lead the card — this is what viewers scan for first.
           Any rankie with exactly two options reads better as a head-to-head
@@ -5515,12 +5526,6 @@ function RankieCard({ rankie: rankieIn, onOpen, onOpenAuthor, menuSlot, moreMenu
         </div>
       )}
 
-      {/* Description comes after the results, and only takes a sliver of space */}
-      {(rankie.caption || rankie.media) && (
-        <div style={{ marginTop: 12 }}>
-          <PostContent caption={rankie.caption} media={rankie.media} clampLines={1} mediaHeight={140} bleed />
-        </div>
-      )}
 
       <EngagementBar
         type="rankie"
@@ -8734,7 +8739,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả; không có mô tả thì hiện số liệu kết quả
         // (lượt tham gia + số câu + số kết quả). Path không có phổ điểm.
         (path.caption || path.media)
-          ? <PostContent caption={path.caption} media={path.media} mediaHeight={170} bleed />
+          ? <PostContent caption={path.caption} media={path.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
           : (
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
               <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
@@ -8749,7 +8754,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
             </div>
           )
       ) : path.caption || path.media ? (
-        <PostContent caption={path.caption} media={path.media} mediaHeight={170} bleed />
+        <PostContent caption={path.caption} media={path.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
       ) : (
         // Người khác → prompt trung tính (không spoil)
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
@@ -9892,10 +9897,10 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả (clamp + "xem thêm"); không có mô tả
         // thì hiện KẾT QUẢ luôn (survey: phân bố đáp án; exam: + phổ điểm) — không cần giấu.
         (deck.caption || deck.media)
-          ? <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} bleed />
+          ? <PostContent caption={deck.caption} media={deck.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
           : <DeckCardResultPreview deck={deck} />
       ) : deck.caption || deck.media ? (
-        <PostContent caption={deck.caption} media={deck.media} mediaHeight={170} bleed />
+        <PostContent caption={deck.caption} media={deck.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
       ) : (
         // Người khác + chưa tham gia → giấu nội dung câu hỏi để tránh spoil
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
