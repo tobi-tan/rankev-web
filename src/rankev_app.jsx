@@ -4132,7 +4132,7 @@ function PostMedia({ media, height = 180, radius = 12, fit = "auto", maxHeight =
 // Ở màn CHI TIẾT, truyền `expandable` để mô tả thu gọn `clampLines` dòng + nút "Xem thêm/
 // Thu gọn" mở/đóng TẠI CHỖ (kiểu Facebook) — chỉ hiện nút khi mô tả thực sự bị tràn.
 // `bleed`: ảnh tràn hết chiều ngang bài (ngôn ngữ thiết kế bài viết không khung).
-function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false, showCredit = expandable }) {
+function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight = 180, showMore = true, expandable = false, bleed = false, showCredit = expandable, estimate = false }) {
   // Dòng ghi nguồn ảnh ("📷 Ảnh: …", bài kinh điển) tách khỏi mô tả: feed bỏ qua, chi tiết hiện chữ nhỏ cuối.
   const creditAt = rawCaption ? rawCaption.indexOf("📷 Ảnh:") : -1;
   const caption = creditAt >= 0 ? rawCaption.slice(0, creditAt).trim() : rawCaption;
@@ -4141,21 +4141,28 @@ function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight =
   const [overflowing, setOverflowing] = useState(false);
   const textRef = useRef(null);
   useLayoutEffect(() => {
-    if (!expandable || !textRef.current) return;
+    if (!expandable || estimate || !textRef.current) return;
     const el = textRef.current;
     // Đo khi đang thu gọn: chế độ expandable clamp bằng maxHeight (không phải -webkit-line-clamp,
     // vốn cắt luôn box khiến scrollHeight == clientHeight). Nhờ vậy so được nội dung tràn.
-    const measure = () => setOverflowing(el.scrollHeight - el.clientHeight > 2);
-    measure();
-    // Feed hoãn vẽ bài ngoài màn hình (content-visibility) → đo lại khi bài hiện ra / đổi cỡ.
-    if (typeof ResizeObserver === "undefined") return undefined;
-    const ro = new ResizeObserver(measure);
+    // Feed hoãn vẽ bài ngoài màn hình (content-visibility → kích thước 0) → chờ tới khi bài có kích
+    // thước thật thì đo MỘT lần rồi ngắt (đo liên tục khi cuộn làm khựng — đọc scrollHeight ép layout).
+    let ro = null;
+    const measure = () => { if (!el.clientHeight) return false; setOverflowing(el.scrollHeight - el.clientHeight > 2); ro?.disconnect(); return true; };
+    if (measure() || typeof ResizeObserver === "undefined") return undefined;
+    ro = new ResizeObserver(() => { measure(); });
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [caption, expandable, clampLines]);
+    return () => ro?.disconnect();
+  }, [caption, expandable, clampLines, estimate]);
   if (!caption && !media && !(showCredit && credit)) return null;
+  // estimate (feed): KHÔNG đo DOM (đọc scrollHeight ép layout cả trang → khựng khi lướt). Ước lượng theo
+  // độ dài (~42 ký tự/dòng trên điện thoại): ngắn → hiện đủ, KHÔNG cắt; dài → cắt + "xem thêm".
+  const longText = !!caption && (caption.length > clampLines * 42 || caption.split("\n").length > clampLines);
+  const isOver = estimate ? longText : overflowing;
   // Thu gọn: expandable dùng maxHeight (đo tràn được); feed card dùng -webkit-line-clamp (có "…").
-  const collapsedStyle = expandable
+  const collapsedStyle = estimate
+    ? (longText && !expanded ? { display: "-webkit-box", WebkitLineClamp: clampLines, WebkitBoxOrient: "vertical", overflow: "hidden" } : {})
+    : expandable
     ? { maxHeight: expanded ? "none" : `${clampLines * 1.45}em`, overflow: "hidden" }
     : { display: "-webkit-box", WebkitLineClamp: clampLines, WebkitBoxOrient: "vertical", overflow: "hidden" };
   return (
@@ -4176,7 +4183,7 @@ function PostContent({ caption: rawCaption, media, clampLines = 2, mediaHeight =
             {caption}
           </div>
           {expandable
-            ? overflowing && (
+            ? isOver && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
                   style={{ background: "none", border: "none", padding: "2px 0 0", cursor: "pointer", fontFamily: bodyFont, fontSize: 14, color: C.textFaint, fontWeight: 600 }}
@@ -5431,7 +5438,7 @@ function RankieCard({ rankie: rankieIn, onOpen, onOpenAuthor, menuSlot, moreMenu
       {/* Thứ tự THỐNG NHẤT mọi loại bài: tiêu đề → mô tả → ảnh/biểu đồ (user 2026-10-21).
           Mô tả ≤3 dòng hiện đủ; dài hơn mới có "xem thêm" — mở ngay trên bài như Facebook. */}
       {(rankie.caption || rankie.media) && (
-        <PostContent caption={rankie.caption} media={rankie.media} clampLines={3} expandable showCredit={false} mediaHeight={140} bleed />
+        <PostContent caption={rankie.caption} media={rankie.media} clampLines={3} expandable estimate showCredit={false} mediaHeight={140} bleed />
       )}
 
       {/* Results lead the card — this is what viewers scan for first.
@@ -5949,6 +5956,10 @@ function SeriesFeedCarousel({ chapters, seriesName, renderCard, onOpenChapter, m
   );
 }
 
+// Dòng feed ghi nhớ: so từng phần tử deps (Object.is) — giống nhau thì bỏ qua vẽ lại.
+const FeedRow = React.memo(function FeedRow({ render }) { return render(); },
+  (a, b) => a.deps.length === b.deps.length && a.deps.every((d, i) => Object.is(d, b.deps[i])));
+
 function FeedView({ classics = [], feedItems, seriesMap, votedMap, participatedKeys, participationByKey, pathUnlocks, sessionCounts, deckSessionCounts, pathSessionCounts, onBumpShares, presentationHistory, onOpenPresentationHistory, bookmarks, onToggleBookmark, onOpenRankie, onOpenPath, onOpenDeck, onOpenAuthor, onOpenTournament, onOpenSearch, onShareToProfile, typeFilter, setTypeFilter, contacts, rankTiers, onSetRank, liveOptions, onVoteInline, fanCounts, onOpenSession, notifCount = 0, onOpenNotifications, onRefresh, refreshing = false }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState(null); // rankie currently open in the share sheet
@@ -5958,6 +5969,16 @@ function FeedView({ classics = [], feedItems, seriesMap, votedMap, participatedK
   // "Tất cả": rút chúng khỏi luồng chính, rồi chèn XEN KẼ từng bài (chỉ trận chưa vote, nóng trước).
   const isOfficialClassic = (it) => it?.type === "rankie" && it.author?.handle === "@rankev" && (it.tags || []).includes("kinhdien");
   const streamItems = typeFilter === "all" ? feedItems.filter((it) => !isOfficialClassic(it)) : feedItems;
+  // Mỗi dòng feed CHỈ vẽ lại khi dữ liệu của chính nó đổi (FeedRow) — trước đây tải thêm trang /
+  // vote một bài là vẽ lại CẢ danh sách (khựng tới ~0,8s trên máy yếu).
+  const rowDeps = (it) => {
+    if (!it) return [];
+    const id = it.id, aid = it.author?.id;
+    return [it, votedMap?.[id], liveOptions?.[id], bookmarks?.[`rankie:${id}`], bookmarks?.[`path:${id}`], bookmarks?.[`deck:${id}`],
+      participatedKeys?.has?.(`path:${id}`), participatedKeys?.has?.(`deck:${id}`), participationByKey?.[`path:${id}`], participationByKey?.[`deck:${id}`],
+      pathUnlocks?.[id], sessionCounts?.[id], deckSessionCounts?.[id], pathSessionCounts?.[id], rankTiers?.[aid], fanCounts?.[aid],
+      it.seriesId ? seriesMap?.[it.seriesId] : null, presentationHistory, typeFilter, it._hiddenNow];
+  };
   const classicsQueue = (() => { const ids = new Set(streamItems.map((i) => i.id)); return classics.filter((c) => !ids.has(c.id)); })();
   const renderCard = (it) => (
     it.type === "tournament" ? (
@@ -6129,14 +6150,16 @@ function FeedView({ classics = [], feedItems, seriesMap, votedMap, participatedK
           const suggestSlot = typeFilter === "all" && feedIdx >= suggestFirst && (feedIdx - suggestFirst) % 6 === 0 ? (feedIdx - suggestFirst) / 6 : -1;
           const suggestItem = suggestSlot >= 0 ? classicsQueue[suggestSlot] : null;
           const classicsCard = suggestItem ? (
-            <SaveWrap key={"sg-" + suggestItem.id} item={postSaveItem(suggestItem)}>
+            <FeedRow key={"sg-" + suggestItem.id} deps={rowDeps(suggestItem)} render={() => (
+            <SaveWrap item={postSaveItem(suggestItem)}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px 0", fontFamily: bodyFont, fontSize: 12, fontWeight: 600, color: C.textFaint }}>
                 <Sparkles size={13} color={C.gold} /> Gợi ý cho bạn
               </div>
               {renderCard(suggestItem)}
             </SaveWrap>
+            )} />
           ) : null;
-          const node = (() => {
+          const node = <FeedRow key={item.seriesId || item.id} deps={rowDeps(item)} render={() => {
           // (khung chứa có class rk-feedlist: mỗi thẻ content-visibility:auto — xem CSS toàn cục)
           // Series nhiều chapter → carousel vuốt ngang ngay trên feed (kiểu ảnh nhiều slide của IG).
           const chapters = item.seriesId ? (seriesMap?.[item.seriesId]?.posts || []) : [];
@@ -6158,7 +6181,7 @@ function FeedView({ classics = [], feedItems, seriesMap, votedMap, participatedK
               {renderCard(feedSourceFor(item) === "sponsored" ? { ...item, _sponsored: true } : item)}
             </SaveWrap>
           );
-          })();
+          }} />;
           return classicsCard ? <React.Fragment key={"wrap-" + (item.id || item.seriesId)}>{classicsCard}{node}</React.Fragment> : node;
         })}
         {typeFilter === "all" && (() => {
@@ -8739,7 +8762,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả; không có mô tả thì hiện số liệu kết quả
         // (lượt tham gia + số câu + số kết quả). Path không có phổ điểm.
         (path.caption || path.media)
-          ? <PostContent caption={path.caption} media={path.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
+          ? <PostContent caption={path.caption} media={path.media} clampLines={3} expandable estimate showCredit={false} mediaHeight={170} bleed />
           : (
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
               <div style={{ textAlign: "center", flexShrink: 0, minWidth: 44 }}>
@@ -8754,7 +8777,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
             </div>
           )
       ) : path.caption || path.media ? (
-        <PostContent caption={path.caption} media={path.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
+        <PostContent caption={path.caption} media={path.media} clampLines={3} expandable estimate showCredit={false} mediaHeight={170} bleed />
       ) : (
         // Người khác → prompt trung tính (không spoil)
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
@@ -9897,10 +9920,10 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả (clamp + "xem thêm"); không có mô tả
         // thì hiện KẾT QUẢ luôn (survey: phân bố đáp án; exam: + phổ điểm) — không cần giấu.
         (deck.caption || deck.media)
-          ? <PostContent caption={deck.caption} media={deck.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
+          ? <PostContent caption={deck.caption} media={deck.media} clampLines={3} expandable estimate showCredit={false} mediaHeight={170} bleed />
           : <DeckCardResultPreview deck={deck} />
       ) : deck.caption || deck.media ? (
-        <PostContent caption={deck.caption} media={deck.media} clampLines={3} expandable showCredit={false} mediaHeight={170} bleed />
+        <PostContent caption={deck.caption} media={deck.media} clampLines={3} expandable estimate showCredit={false} mediaHeight={170} bleed />
       ) : (
         // Người khác + chưa tham gia → giấu nội dung câu hỏi để tránh spoil
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.surfaceRaised, border: `1px solid ${C.border}`, marginBottom: 12 }}>
@@ -13907,7 +13930,17 @@ function ChatDetailView({ conversation, currentUserId, onOpenShare, onAfterSend,
 }
 
 
-function BottomNav({ active, setView, chatUnread = 0, hidden = false }) {
+// Ẩn/hiện thanh menu dưới khi cuộn — kho ngoài React để KHÔNG vẽ lại feed.
+const navHideStore = (() => {
+  let v = false; const subs = new Set();
+  return {
+    get: () => v,
+    set: (next) => { if (next === v) return; v = next; subs.forEach((f) => f()); },
+    subscribe: (f) => { subs.add(f); return () => subs.delete(f); },
+  };
+})();
+function BottomNav({ active, setView, chatUnread = 0 }) {
+  const hidden = React.useSyncExternalStore(navHideStore.subscribe, navHideStore.get, navHideStore.get);
   const items = [
     { id: "feed", icon: Home, label: "Bảng tin" },
     { id: "create", icon: PlusCircle, label: "Tạo mới" },
@@ -17836,7 +17869,9 @@ export default function RankevApp() {
   const scrollContainerRef = useRef(null);
   const feedScrollTopRef = useRef(0);
   // Ẩn thanh menu dưới khi lướt XUỐNG, hiện lại khi lướt LÊN (giống các app khác).
-  const [navHidden, setNavHidden] = useState(false);
+  // Kho NGOÀI React (navHideStore): trước đây là state của App → mỗi lần đổi chiều cuộn vẽ lại
+  // CẢ feed (KeepAlive nhận props mới) → khựng khi lướt. Giờ chỉ BottomNav đăng ký nghe.
+  const setNavHidden = navHideStore.set;
   const lastNavScrollRef = useRef(0);
   const updateNavOnScroll = () => {
     const y = currentFeedScroll();
@@ -17854,15 +17889,22 @@ export default function RankevApp() {
   viewRef.current = view;
   // Trên các máy khác nhau, có khi WINDOW cuộn, có khi div nội bộ cuộn → lấy giá trị lớn
   // hơn để lưu đúng vị trí dù ở chế độ nào.
-  const currentFeedScroll = () => Math.max(window.scrollY || window.pageYOffset || 0, scrollContainerRef.current?.scrollTop || 0);
+  // window.scrollY rẻ; chỉ đọc scrollTop của khung trong (ép layout) khi window KHÔNG cuộn.
+  const currentFeedScroll = () => { const w = window.scrollY || 0; return w > 0 ? w : (scrollContainerRef.current?.scrollTop || 0); };
   const handleScrollContainer = () => {
     if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
     updateNavOnScroll();
   };
   useEffect(() => {
+    // Gộp: nhiều sự kiện scroll trong 1 khung hình → xử lý 1 lần (rAF).
+    let scrollRaf = 0;
     const onWindowScroll = () => {
-      if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
-      updateNavOnScroll();
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0;
+        if (viewRef.current === "feed") feedScrollTopRef.current = currentFeedScroll();
+        updateNavOnScroll();
+      });
     };
     window.addEventListener("scroll", onWindowScroll, { passive: true });
     // Ghi vị trí feed ngay lúc CHẠM (trước khi rời feed sang màn khác) — không phụ thuộc hoàn
@@ -20057,7 +20099,7 @@ export default function RankevApp() {
               return;
             }
             setOpenConversation(null); if (v === "create") setEditStructPost(null); setView(v);
-          }} chatUnread={chatUnread} hidden={navHidden} />
+          }} chatUnread={chatUnread} />
         )}
       </div>
     </div>
