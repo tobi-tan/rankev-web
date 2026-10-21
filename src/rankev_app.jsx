@@ -6,12 +6,13 @@ import {
   ImagePlus, X, Monitor, Play, Pause, Eye, EyeOff, ChevronsUp, ChevronsDown, Layers, Search, SlidersHorizontal, ChevronDown, BarChart3,
   MoreVertical, Pin, PinOff, Trash2, Copy, Edit3, Link2, Download, ArchiveRestore, AlertTriangle, Save,
   Send, Phone, Video, ArrowLeft, Smile, Image as ImageIcon, Grid3x3,
-  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, AtSign, Hash, CalendarClock,
+  Megaphone, MonitorOff, Star, LogOut, RefreshCw, Settings, Paperclip, Bookmark, Library, Sun, Moon, Bell, BellRing, AtSign, Hash, CalendarClock,
   MoreHorizontal, Ban, Flag, UserX, ShieldCheck, List, FileText, Mail, MoveVertical, MoveHorizontal, Swords, Sparkles, Repeat, BadgeCheck, Compass, Scissors,
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL, pageSession, prefetch } from "./api.js";
 import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE, nativeGoogleIdToken, shareImageBlob } from "./native.js";
+import { pushStatus, enablePush, disablePush, resyncPush, iosNeedsInstall } from "./push.js";
 const SHARE_HOST = SHARE_BASE.replace(/^https?:\/\//, ""); // hiển thị gọn: rankev-web.vercel.app
 
 // ---------- DESIGN TOKENS ----------
@@ -299,6 +300,45 @@ function timeAgoShort(ts) {
 }
 
 // Panel thông báo (toàn màn trong khung app). Hiện: @nhắc tên trong bình luận.
+// Bật/tắt thông báo đẩy cho trình duyệt này (đầu bảng Thông báo). Không hỗ trợ → ẩn.
+function PushToggle() {
+  const [st, setSt] = useState("loading"); // loading | on | off | denied | unavailable | busy
+  useEffect(() => { pushStatus().then(setSt).catch(() => setSt("unavailable")); }, []);
+  if (st === "loading") return null;
+  if (st === "unavailable") {
+    if (!iosNeedsInstall()) return null;
+    return (
+      <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${C.border}`, background: C.goldSoft, fontFamily: bodyFont, fontSize: 13, color: C.text, lineHeight: 1.4 }}>
+        <BellRing size={18} color={C.gold} style={{ flexShrink: 0 }} />
+        <span>Muốn nhận thông báo trên iPhone? Bấm <b>Chia sẻ</b> → <b>Thêm vào MH chính</b>, rồi mở Rankev từ biểu tượng đó.</span>
+      </div>
+    );
+  }
+  const on = st === "on";
+  const toggle = async () => {
+    if (st === "busy" || st === "denied") return;
+    setSt("busy");
+    try { if (on) { await disablePush(); setSt("off"); } else setSt(await enablePush()); }
+    catch { setSt(on ? "on" : "off"); }
+  };
+  return (
+    <div onClick={toggle} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${C.border}`, cursor: st === "denied" ? "default" : "pointer", background: on ? "transparent" : C.goldSoft }}>
+      <BellRing size={20} color={C.gold} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>Thông báo đẩy</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textMuted, marginTop: 1, lineHeight: 1.35 }}>
+          {st === "denied" ? "Trình duyệt đang chặn — bật lại trong cài đặt trang (biểu tượng ổ khoá cạnh địa chỉ)." : "@nhắc tên, tin nhắn, bài mới — kể cả khi đã đóng Rankev."}
+        </div>
+      </div>
+      {st !== "denied" && (
+        <span role="switch" aria-checked={on} style={{ width: 44, height: 26, borderRadius: 99, flexShrink: 0, background: on ? C.teal : C.surfaceRaised, border: `1px solid ${on ? C.teal : C.border}`, position: "relative", transition: "background .2s", opacity: st === "busy" ? 0.6 : 1 }}>
+          <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
+        </span>
+      )}
+    </div>
+  );
+}
+
 function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9998, background: C.frame, display: "flex", justifyContent: "center" }}>
@@ -310,6 +350,7 @@ function NotificationsPanel({ items = [], onClose, onOpenItem, onOpenHandle }) {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
+          <PushToggle />
           {items.length === 0 ? (
             <div style={{ textAlign: "center", padding: "64px 24px", color: C.textFaint }}>
               <Bell size={40} color={C.textFaint} style={{ opacity: 0.5 }} />
@@ -19584,6 +19625,8 @@ export default function RankevApp() {
   // giữ nguyên giá trị mock làm fallback khi API lỗi.
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  // Thiết bị đã bật thông báo đẩy → gắn vào tài khoản vừa đăng nhập.
+  useEffect(() => { if (authed) resyncPush().catch(() => {}); }, [authed]);
   // Lịch sử tham gia THẬT (Path/Survey/Exam) — thẻ "kết quả của bạn" trên feed còn sau khi tải lại.
   useEffect(() => {
     if (!authed) return undefined;
@@ -19739,7 +19782,8 @@ export default function RankevApp() {
     setApiPosts([]); setApiCursor(null); setBookmarks({}); setAuthed(false); setView("feed");
   }, []);
   const handleLogout = useCallback(() => {
-    auth.logout().finally(() => {
+    // thiết bị dùng chung: tắt thông báo đẩy của tài khoản này trước khi thoát
+    disablePush().catch(() => {}).finally(() => auth.logout()).finally(() => {
       // Dọn dữ liệu thật khỏi state → về màn đăng nhập, mock lại làm nền.
       setApiPosts([]);
       setApiCursor(null);

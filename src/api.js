@@ -373,6 +373,13 @@ export const notifications = {
 
 // Onboarding "rank everything": vote có hiện kết quả cộng đồng.
 // Số liệu THẬT cho slide giới thiệu (tổng phiếu, trận nóng, bài nóng, hashtag…)
+// Thông báo đẩy (Web Push)
+export const push = {
+  config() { return apiFetch('/push/config', { auth: false }); },
+  subscribe(sub) { return apiFetch('/push/subscriptions', { method: 'POST', body: { endpoint: sub.endpoint, keys: sub.keys } }); },
+  unsubscribe(endpoint) { return apiFetch('/push/subscriptions', { method: 'DELETE', body: { endpoint } }); },
+};
+
 export const stats = {
   showcase() { return apiFetch('/stats/showcase', { auth: false }); },
 };
@@ -555,7 +562,7 @@ export function subscribeLiveState(sessionId, onState) {
 }
 
 export default {
-  stats,
+  stats, push,
   BASE_URL, WS_URL, apiFetch, isLoggedIn, getAccessToken, clearTokens, setAuthLostHandler,
   auth, admin, posts, rankies, tournaments, messaging, moderation, search, paths, decks, comments, bookmarks, saves, social, series, sessions, live, tags, notifications, onboarding,
   uploadImage, uploadVideo, subscribeRankie, subscribeLive, subscribeLiveState, subscribeChat, voteRealtime, ApiError,
