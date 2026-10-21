@@ -8824,11 +8824,135 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
 }
 
 // Path shown as a post in the feed
+// ===== THẺ "KẾT QUẢ CỦA BẠN" trên feed (thiết kế mới 2026-10-22) =====
+const fmtScore = (n) => Number(n || 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+// Nạp đầy đủ câu hỏi của Survey/Exam (feed chỉ có bản tóm tắt) — chỉ khi cần hiện "câu hỏi → bạn chọn".
+const deckFullCache = new Map();
+function useDeckQuestions(deck, enabled) {
+  const [qs, setQs] = useState(() => (deck.questions?.length ? deck.questions : deckFullCache.get(deck.id) || null));
+  useEffect(() => {
+    if (!enabled || qs || !isUuid(deck.id)) return undefined;
+    let alive = true;
+    api.posts.get(deck.id).then((full) => { const q = apiDeckToProto(full).questions || []; deckFullCache.set(deck.id, q); if (alive) setQs(q); }).catch(() => {});
+    return () => { alive = false; };
+  }, [enabled, deck.id, qs]);
+  return qs;
+}
+// Path: ảnh kết quả LỚN tràn viền + tên + nhận xét + số kết thúc đã mở (chấm).
+function PathResultHero({ name, data, discovered, total, hideCount }) {
+  const img = data?.image;
+  return (
+    <div style={{ ...postBleed, position: "relative", aspectRatio: img ? "4 / 3" : undefined, minHeight: img ? undefined : 170, overflow: "hidden", marginBottom: 12, background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 45%, var(--surface)), var(--surface))` }}>
+      {img ? <Pic src={img} w={900} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div style={{ position: "absolute", inset: "0 0 30%", display: "grid", placeItems: "center", fontSize: 72 }}>{data?.emoji || "🏁"}</div>}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.25) 50%, rgba(0,0,0,0) 70%)" }} />
+      <span style={{ position: "absolute", top: 12, left: 16, display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, background: "rgba(0,0,0,.5)", color: "#fff", fontFamily: bodyFont, fontSize: 11, fontWeight: 800, letterSpacing: 0.4 }}>🏁 KẾT QUẢ CỦA BẠN</span>
+      <div style={{ position: "absolute", left: 16, right: 16, bottom: 14, color: "#fff" }}>
+        <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 26, lineHeight: 1.1, textShadow: "0 2px 10px rgba(0,0,0,.4)" }}>{name}</div>
+        {data?.comment && <div style={{ fontFamily: bodyFont, fontSize: 13.5, lineHeight: 1.4, opacity: 0.9, marginTop: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{data.comment}</div>}
+        {total > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontFamily: bodyFont, fontSize: 12, fontWeight: 700 }}>
+            <GitBranch size={13} />
+            {!hideCount && <span style={{ display: "inline-flex", gap: 3 }}>{Array.from({ length: Math.min(total, 12) }).map((_, i) => <span key={i} style={{ width: 7, height: 7, borderRadius: 99, background: i < discovered ? C.gold : "rgba(255,255,255,.35)" }} />)}</span>}
+            <span>{hideCount ? `Đã mở ${discovered} kết thúc` : `${discovered}/${total} kết thúc`}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+// Survey / Exam: khối điểm (exam) hoặc "đã trả lời" (survey) trên ảnh bìa + "câu hỏi → bạn chọn".
+function DeckResultCard({ deck, result }) {
+  const isExam = deck.deckMode === "exam";
+  const nq = deck.questionCount ?? deck.questions?.length ?? 0;
+  const answers = result?.answers || null;
+  const showQa = !!answers && nq > 0 && nq <= 40;
+  const qs = useDeckQuestions(deck, showQa);
+  const cover = deck.media?.url || null;
+  // điểm: ưu tiên số (score10 / score+maxScore), không có thì đọc từ chuỗi "x/10 điểm"
+  const m = /([\d.,]+)\s*\/\s*([\d.,]+)/.exec(result?.detail || "");
+  const max = result?.maxScore || (m ? parseFloat(m[2].replace(",", ".")) : null);
+  const score = result?.score10 != null ? result.score10 : result?.score != null ? result.score : m ? parseFloat(m[1].replace(",", ".")) : null;
+  const score10 = score != null && max ? (score / max) * 10 : score;
+  const pass = result?.passingScore != null && score != null ? score >= result.passingScore : null;
+  const cm = /(\d+)\s*\/\s*(\d+)\s*câu đúng/.exec(result?.detail || "");
+  const correct = result?.correctCount ?? (cm ? +cm[1] : null);
+  const gradable = result?.totalGradable ?? (cm ? +cm[2] : null);
+  const label = (q) => {
+    const a = answers?.[q.id];
+    if (a == null || a === "" || (Array.isArray(a) && !a.length)) return null;
+    const ids = Array.isArray(a) ? a : [a];
+    const opts = ids.map((id) => q.options?.find((o) => o.id === id)).filter(Boolean);
+    if (!opts.length) return { text: String(a) };
+    // đáp án đúng: từ lịch sử (server, sau khi nộp) hoặc từ đề (bài của mình / vừa làm)
+    const right = result?.correct?.[q.id] || ((q.options || []).some((o) => o.correct === true) ? q.options.filter((o) => o.correct).map((o) => o.id) : null);
+    return { text: opts.map((o) => `${o.emoji ? o.emoji + " " : ""}${o.label}`).join(", "), ok: isExam && right ? ids.length === right.length && ids.every((id) => right.includes(id)) : null };
+  };
+  const list = qs || [];
+  const shown = list.length <= 5 ? list : list.slice(0, 3);
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ ...postBleed, position: "relative", minHeight: 150, overflow: "hidden", background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 40%, var(--surface)), var(--surface))` }}>
+        {cover && <Pic src={cover} w={900} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+        <div style={{ position: "absolute", inset: 0, background: cover ? "linear-gradient(90deg, rgba(0,0,0,.82), rgba(0,0,0,.35))" : "transparent" }} />
+        <div style={{ position: "relative", padding: "18px 16px", color: cover ? "#fff" : C.text }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, background: cover ? "rgba(255,255,255,.16)" : C.goldSoft, fontFamily: bodyFont, fontSize: 11, fontWeight: 800, letterSpacing: 0.4 }}>{isExam ? "📝 BÀI LÀM CỦA BẠN" : "✅ BẠN ĐÃ TRẢ LỜI"}</span>
+          {isExam && score10 != null ? (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
+                <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 48, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{fmtScore(score10)}</span>
+                <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 18, opacity: 0.8 }}>/10</span>
+                {pass != null && <span style={{ marginLeft: 8, padding: "3px 10px", borderRadius: 99, background: pass ? C.teal : C.coral, color: "#fff", fontFamily: bodyFont, fontSize: 12, fontWeight: 800 }}>{pass ? "ĐẠT" : "CHƯA ĐẠT"}</span>}
+              </div>
+              <div style={{ height: 6, borderRadius: 99, background: "rgba(255,255,255,.18)", marginTop: 10, overflow: "hidden", maxWidth: 260 }}>
+                <div style={{ width: `${Math.max(3, Math.min(100, score10 * 10))}%`, height: "100%", borderRadius: 99, background: pass === false ? C.coral : C.gold }} />
+              </div>
+              {correct != null && gradable != null && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, fontFamily: bodyFont, fontSize: 13, fontWeight: 700, opacity: 0.9 }}><Check size={14} /> {correct}/{gradable} câu đúng</div>}
+            </>
+          ) : (
+            <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 30, lineHeight: 1.1, marginTop: 8 }}>{nq || ""} <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 15, opacity: 0.85 }}>câu đã trả lời</span></div>
+          )}
+        </div>
+      </div>
+      {showQa && shown.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+          {shown.map((q, i) => {
+            const a = label(q);
+            return (
+              <div key={q.id || i} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {q.image ? <Pic src={q.image} w={160} alt="" style={{ width: 46, height: 46, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+                  : <span style={{ width: 26, height: 26, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: C.surfaceRaised, fontFamily: bodyFont, fontSize: 12, fontWeight: 800, color: C.textMuted }}>{i + 1}</span>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.textMuted, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(q.text || "").replace(/^Câu \d+\.\s*/, "")}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: bodyFont, fontSize: 14, fontWeight: 700, color: a?.ok === false ? C.coral : a?.ok ? C.teal : C.text, minWidth: 0 }}>
+                    {a?.ok === true && <Check size={14} strokeWidth={3} />}{a?.ok === false && <X size={14} strokeWidth={3} />}
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a ? a.text : "—"}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {list.length > shown.length && <div style={{ fontFamily: bodyFont, fontSize: 12.5, fontWeight: 700, color: C.textMuted, paddingLeft: 36 }}>+{list.length - shown.length} câu nữa · xem chi tiết</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory, onShare, joined = false, bookmarked = false, onToggleBookmark, myResult, unlockedEndings = [], sessionCount = 0, sessionList = [], onSeeAllSessions, onOpenSession, rankTier = 0, onSetRank, fanCount = 0 }) {
   const isOwner = path.mine || path.author?.id === "me";
   const nq = path.questionCount ?? path.questions?.length ?? 0;
-  const myResultData = myResult?.detail ? path.results?.[myResult.detail] : null;
-  const allEndings = Object.keys(path.results || {});
+  // Feed chỉ có bản tóm tắt (không kèm kết thúc) → đã chơi thì nạp bản đầy đủ để hiện ảnh/nhận xét kết quả.
+  const [fullResults, setFullResults] = useState(() => (path.results ? null : pathFullCache.get(path.id)?.proto?.results || null));
+  const results = path.results && Object.keys(path.results).length ? path.results : fullResults || {};
+  useEffect(() => {
+    if (!myResult?.detail || results[myResult.detail] || !isUuid(path.id)) return undefined;
+    let alive = true;
+    prefetchPath(path.id).then((e) => { if (alive && e?.proto?.results) setFullResults(e.proto.results); });
+    return () => { alive = false; };
+  }, [myResult?.detail, path.id]);
+  const myResultData = myResult?.detail ? results[myResult.detail] || (Object.keys(results).length ? { emoji: "🏁" } : null) : null;
+  const allEndings = Object.keys(results);
   const resultCount = path.resultCount ?? allEndings.length;
   const discovered = allEndings.filter((e) => (unlockedEndings || []).includes(e) || e === myResult?.detail).length;
   const hideCount = !!path.hideEndingCount;
@@ -8860,22 +8984,8 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
       </div>
 
       {myResultData ? (
-        // Đã tham gia — hiện kết quả gần nhất của chính mình, giống cách Rankie hiện "lựa chọn của bạn"
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
-          <Illustration emoji={myResultData.emoji} image={myResultData.image} size={38} radius={10} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
-              Kết quả gần nhất của bạn
-            </div>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{myResult.detail}</div>
-            {allEndings.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, fontFamily: bodyFont, fontSize: 12, color: C.gold, fontWeight: 600 }}>
-                <GitBranch size={11} />
-                {hideCount ? `Đã khám phá ${discovered} kết quả` : `Đã khám phá ${discovered}/${allEndings.length} kết quả`}
-              </div>
-            )}
-          </div>
-        </div>
+        // Đã tham gia — ảnh kết quả LỚN + tên + nhận xét + số kết thúc đã mở
+        <PathResultHero name={myResult.detail} data={myResultData} discovered={discovered} total={allEndings.length} hideCount={hideCount} />
       ) : isOwner ? (
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả; không có mô tả thì hiện số liệu kết quả
         // (lượt tham gia + số câu + số kết quả). Path không có phổ điểm.
@@ -9544,6 +9654,7 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
       category: deck.category,
       detail: deck.deckMode === "exam" ? `${score10}/10 điểm · ${correctCount}/${gradableCount} câu đúng` : `${answeredCount} câu đã trả lời`,
       answers: { ...answers },
+      score10: deck.deckMode === "exam" ? score10 : null, correctCount, totalGradable: gradableCount, passingScore: deck.passingScore ?? null, maxScore: deck.deckMode === "exam" ? 10 : null,
     });
     setSubmitted(true);
     setFreshSubmit(true);
@@ -10022,18 +10133,8 @@ function DeckCard({ deck, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
       <div style={{ fontFamily: displayFont, fontWeight: 600, fontSize: 18, color: C.text, marginBottom: 12 }}>{deck.title}</div>
 
       {myResult?.detail ? (
-        // Đã tham gia — hiện kết quả gần nhất của chính mình, giống Rankie/Path
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, marginBottom: 12 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: C.surface, display: "grid", placeItems: "center", flexShrink: 0 }}>
-            {deck.deckMode === "exam" ? <Edit3 size={17} color={C.text} /> : <Layers size={17} color={C.text} />}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint }}>
-              Kết quả gần nhất của bạn
-            </div>
-            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 14, color: C.text }}>{myResult.detail}</div>
-          </div>
-        </div>
+        // Đã tham gia — khối điểm / đã trả lời trên ảnh bìa + "câu hỏi → bạn chọn"
+        <DeckResultCard deck={deck} result={myResult} />
       ) : isOwner ? (
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả (clamp + "xem thêm"); không có mô tả
         // thì hiện KẾT QUẢ luôn (survey: phân bố đáp án; exam: + phổ điểm) — không cần giấu.
@@ -19275,6 +19376,27 @@ export default function RankevApp() {
   // giữ nguyên giá trị mock làm fallback khi API lỗi.
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  // Lịch sử tham gia THẬT (Path/Survey/Exam) — thẻ "kết quả của bạn" trên feed còn sau khi tải lại.
+  useEffect(() => {
+    if (!authed) return undefined;
+    let alive = true;
+    api.social.history().then((r) => {
+      if (!alive) return;
+      const mapped = ((r && r.items) || []).filter((it) => it.type === "path" || it.type === "deck").map((it) => {
+        const type = it.type;
+        const exam = it.deckMode === "exam";
+        const score10 = exam && it.score != null && it.maxScore ? Math.round((it.score / it.maxScore) * 1000) / 100 : null;
+        return {
+          key: `${type}:${it.postId}`, type, deckMode: it.deckMode, itemId: it.postId, title: it.title, category: it.category,
+          detail: type === "path" ? it.endingName || it.detail : exam && score10 != null ? `${score10}/10 điểm · ${it.correctCount ?? 0}/${it.totalGradable ?? 0} câu đúng` : it.detail,
+          answers: it.answers || null, correct: it.correct || null, score10, correctCount: it.correctCount, totalGradable: it.totalGradable, passingScore: it.passingScore != null && it.maxScore ? (it.passingScore / it.maxScore) * 10 : it.passingScore, maxScore: exam ? 10 : null,
+          timestamp: Date.parse(it.participatedAt) || 0,
+        };
+      });
+      setParticipationHistory((prev) => { const have = new Set(prev.map((h) => h.key)); return [...prev, ...mapped.filter((m) => !have.has(m.key))]; });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [authed]);
   // Bản đệm Path chứa ending đã mở khoá của người xem → đổi phiên đăng nhập thì bỏ.
   useEffect(() => { pathFullCache.clear(); }, [authed]);
 
