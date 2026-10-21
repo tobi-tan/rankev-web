@@ -20,6 +20,7 @@
     "@capgo/capacitor-social-login": "8.5.11",
     "emojibase-data": "^17.0.0",
     "lucide-react": "^0.400.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7"

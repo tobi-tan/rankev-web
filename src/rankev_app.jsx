@@ -4679,7 +4679,7 @@ function ShareModal({ item, onClose, onShareToProfile, contacts = [], onShared }
           )}
           {panel === "qr" && (
             <div style={{ marginTop: 12, display: "flex", gap: 14, alignItems: "center", animation: "popIn .18s ease" }}>
-              <div style={{ width: 72, height: 72, background: "#fff", borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0 }}><QrCode size={50} color="#111" /></div>
+              <QrImg text={link} size={96} style={{ borderRadius: 10 }} />
               <div style={{ minWidth: 0, fontFamily: bodyFont, fontSize: 12, color: C.teal, wordBreak: "break-all" }}>{link}</div>
             </div>
           )}
@@ -10445,6 +10445,25 @@ function LiveJoinView({ code: initialCode = "", onExit }) {
 }
 
 // Presenter: mở phiên trực tiếp, hiện MÃ + link, xem kết quả người thật (poll 3s).
+// Mã QR THẬT (quét được) — thư viện qrcode nạp lười, chỉ khi cần.
+function QrImg({ text, size = 180, style }) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    if (!text) return undefined;
+    let alive = true;
+    import("qrcode")
+      .then((m) => (m.default || m).toDataURL(text, { margin: 1, width: Math.round(size * 2), errorCorrectionLevel: "M", color: { dark: "#111111", light: "#ffffff" } }))
+      .then((u) => { if (alive) setSrc(u); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [text, size]);
+  return (
+    <div style={{ width: size, height: size, background: "#fff", borderRadius: 12, padding: Math.round(size * 0.05), display: "grid", placeItems: "center", flexShrink: 0, boxSizing: "border-box", ...style }}>
+      {src ? <img src={src} alt="Mã QR" style={{ width: "100%", height: "100%", imageRendering: "pixelated", display: "block" }} /> : <QrCode size={size * 0.5} color="#111" />}
+    </div>
+  );
+}
+
 function LivePresenterView({ deck, onBack, onSessionEnd }) {
   const [sess, setSess] = useState(null); // { id, code }
   const [results, setResults] = useState(null);
@@ -10489,7 +10508,8 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
     setSaved(true);
   };
 
-  const joinUrl = sess ? `${window.location.origin}/?join=${sess.code}` : "";
+  const joinUrl = sess ? `${SHARE_BASE}/?join=${sess.code}` : "";
+  const [projector, setProjector] = useState(false); // chiếu QR toàn màn hình (máy chiếu lớp học)
   const parts = results?.participants || [];
   const sorted = [...parts].sort((a, b) => (b.score || 0) - (a.score || 0));
 
@@ -10524,14 +10544,36 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
 
   const codeCard = (
     <div style={{ ...cardSurface, textAlign: "center", marginBottom: 14 }}>
-      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>MÃ THAM GIA</div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><QrImg text={joinUrl} size={190} /></div>
+      <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, marginBottom: 6 }}>QUÉT QR · HOẶC NHẬP MÃ</div>
       <div style={{ fontFamily: monoFont, fontWeight: 700, fontSize: 40, letterSpacing: 6, color: C.gold }}>{sess?.code || "····"}</div>
-      <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>Người tham gia vào <b style={{ color: C.text }}>rankev-web.vercel.app</b> → nhập mã, hoặc mở link:</div>
+      <div style={{ fontFamily: bodyFont, fontSize: 14, color: C.textMuted, marginTop: 8 }}>Không cần tài khoản · vào <b style={{ color: C.text }}>{SHARE_HOST}</b> → nhập mã, hoặc mở link:</div>
       <button onClick={() => { if (joinUrl) { navigator.clipboard?.writeText(joinUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } }}
         style={{ marginTop: 8, width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surfaceRaised, color: copied ? C.teal : C.textMuted, fontFamily: bodyFont, fontSize: 14, cursor: "pointer", wordBreak: "break-all" }}>
         {copied ? "✓ Đã sao chép link" : joinUrl || "…"}
       </button>
+      {sess && (
+        <button onClick={() => setProjector(true)} style={{ marginTop: 8, width: "100%", padding: "11px", borderRadius: 10, border: "none", background: C.gold, color: "#1a1a1a", fontFamily: bodyFont, fontSize: 14, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Monitor size={16} /> Chiếu toàn màn hình
+        </button>
+      )}
     </div>
+  );
+  // Màn chiếu cho lớp học: QR to + mã + số người đã vào/nộp (cập nhật realtime). Chạm để đóng.
+  const projectorView = projector && sess && createPortal(
+    <div onClick={() => setProjector(false)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#0E1512", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2.2vh", padding: 16, cursor: "pointer" }}>
+      <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: "min(5vh, 6vw, 40px)", textAlign: "center", maxWidth: 900, lineHeight: 1.2 }}>{deck.title}</div>
+      <QrImg text={joinUrl} size={520} style={{ borderRadius: 18, width: "min(48vh, 82vw, 520px)", height: "min(48vh, 82vw, 520px)" }} />
+      <div style={{ fontFamily: monoFont, fontWeight: 800, fontSize: "min(11vh, 12vw, 96px)", letterSpacing: "0.12em", color: C.gold, lineHeight: 1 }}>{sess.code}</div>
+      <div style={{ fontFamily: bodyFont, fontSize: "min(3vh, 4vw, 22px)", opacity: 0.8 }}>{SHARE_HOST} · nhập mã để vào</div>
+      <div style={{ display: "flex", gap: 28, fontFamily: bodyFont, fontWeight: 800, fontSize: "min(4vh, 5vw, 30px)" }}>
+        <span>{results?.joined ?? 0} <span style={{ opacity: 0.6, fontWeight: 600 }}>đã vào</span></span>
+        {phase !== "waiting" && <span>{results?.submitted ?? 0} <span style={{ opacity: 0.6, fontWeight: 600 }}>đã nộp</span></span>}
+        {phase === "live" && mmss && <span style={{ color: C.gold }}>⏱ {mmss}</span>}
+      </div>
+      <div style={{ fontFamily: bodyFont, fontSize: 12, opacity: 0.45 }}>Chạm để đóng</div>
+    </div>,
+    document.body,
   );
 
   return (
@@ -10549,6 +10591,7 @@ function LivePresenterView({ deck, onBack, onSessionEnd }) {
 
         {/* Mã tham gia: hiện ở phòng chờ + khi đang thi (cho người vào muộn). */}
         {phase !== "ended" && codeCard}
+        {projectorView}
 
         {/* ---- PHÒNG CHỜ: chọn thời lượng + danh sách người vào + nút Bắt đầu ---- */}
         {phase === "waiting" && (
