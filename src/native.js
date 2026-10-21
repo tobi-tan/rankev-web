@@ -68,6 +68,34 @@ export async function systemShare({ title, url, text }) {
   if (typeof navigator !== "undefined" && navigator.share) { try { await navigator.share({ title, text, url }); return true; } catch { return false; } }
   return false;
 }
+/** Chia sẻ một ảnh (Blob PNG). Trả về "shared" | "cancel" | "downloaded". */
+export async function shareImageBlob(blob, { title, text, url, filename = "rankev.png" } = {}) {
+  if (isNative && Share) {
+    try {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(blob); });
+      const w = await Filesystem.writeFile({ path: filename, data, directory: Directory.Cache });
+      await Share.share({ title, text: [text, url].filter(Boolean).join(" "), files: [w.uri], dialogTitle: title });
+      return "shared";
+    } catch (e) {
+      if (/cancel/i.test(String(e?.message || e))) return "cancel";
+    }
+  }
+  try {
+    const file = new File([blob], filename, { type: blob.type || "image/png" });
+    if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title, text: [text, url].filter(Boolean).join(" ") });
+      return "shared";
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") return "cancel";
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return "downloaded";
+}
 export const canSystemShare = () => isNative || (typeof navigator !== "undefined" && !!navigator.share);
 
 /**

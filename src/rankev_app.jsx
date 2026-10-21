@@ -11,7 +11,7 @@ import {
   ListChecks, Timer, Target, Split, MousePointerClick, PenLine, CheckCircle2, CalendarDays, TrendingUp, TrendingDown, MonitorPlay,
 } from "lucide-react";
 import api, { auth, setAuthLostHandler, BASE_URL, pageSession, prefetch } from "./api.js";
-import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE, nativeGoogleIdToken } from "./native.js";
+import { isNative, initNative, haptic, systemShare, canSystemShare, SHARE_BASE, nativeGoogleIdToken, shareImageBlob } from "./native.js";
 const SHARE_HOST = SHARE_BASE.replace(/^https?:\/\//, ""); // hiển thị gọn: rankev-web.vercel.app
 
 // ---------- DESIGN TOKENS ----------
@@ -8598,6 +8598,8 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
           </div>
         )}
 
+        <ShareResultButton style={{ marginBottom: 14 }} card={() => ({ kicker: "🏁 KẾT QUẢ CỦA TÔI", heading: step, sub: r.comment, title: path.title, image: r.image, emoji: r.emoji, link: `${SHARE_BASE}/path/${path.id}` })} />
+
         {/* Companions — tài liệu PATH: ≤5 endings mỗi ending là 1 cộng đồng riêng;
             >5 endings tự chuyển sang cộng đồng chung (global) cho toàn Path. */}
         <PathCompanions path={path} ending={step} useGlobal={allEndings.length > 5} />
@@ -8824,6 +8826,150 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
 }
 
 // Path shown as a post in the feed
+// ===== ẢNH KẾT QUẢ ĐỂ CHIA SẺ (1080×1350, kiểu story/IG) =====
+// Vẽ bằng canvas: ảnh kết quả (hoặc emoji) + tên kết quả/điểm + nhận xét + QR dẫn về bài.
+function loadCanvasImg(src) {
+  return new Promise((res) => {
+    if (!src) return res(null);
+    const im = new Image();
+    im.crossOrigin = "anonymous"; // ảnh khác miền không có CORS → bỏ qua (canvas không bị "bẩn")
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = optImg(src.split("#")[0], 1080);
+  });
+}
+function wrapLines(ctx, text, maxW, maxLines) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    const t = cur ? cur + " " + w : w;
+    if (ctx.measureText(t).width <= maxW || !cur) cur = t;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) {
+    const keep = lines.slice(0, maxLines);
+    let last = keep[maxLines - 1];
+    while (last && ctx.measureText(last + "…").width > maxW) last = last.slice(0, -1);
+    keep[maxLines - 1] = last + "…";
+    return keep;
+  }
+  return lines;
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+async function renderResultCard({ kicker, heading, sub, title, image, emoji, stat, statBg, accent = "#D4A94A", link }) {
+  const W = 1080, H = 1350, HERO = 780;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const F = SYS_FONT;
+  try { await document.fonts?.ready; } catch { /* */ }
+  const [img, qr] = await Promise.all([
+    loadCanvasImg(image),
+    link ? import("qrcode").then((m) => (m.default || m).toDataURL(link, { margin: 1, width: 360, errorCorrectionLevel: "M" })).then(loadCanvasImg).catch(() => null) : null,
+  ]);
+  ctx.fillStyle = "#0E1512"; ctx.fillRect(0, 0, W, H);
+  // ảnh / emoji (cắt gọn trong vùng ảnh — ảnh dọc không tràn xuống phần chữ)
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, W, HERO); ctx.clip();
+  if (img) {
+    const s = Math.max(W / img.width, HERO / img.height);
+    const dw = img.width * s, dh = img.height * s;
+    ctx.drawImage(img, (W - dw) / 2, (HERO - dh) / 2, dw, dh);
+  } else {
+    const g = ctx.createLinearGradient(0, 0, W, HERO);
+    g.addColorStop(0, accent); g.addColorStop(1, "#1B2A22");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, HERO);
+    ctx.font = `300px ${F}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(emoji || "🏁", W / 2, HERO * 0.42);
+  }
+  const fade = ctx.createLinearGradient(0, HERO * 0.35, 0, HERO);
+  fade.addColorStop(0, "rgba(14,21,18,0)"); fade.addColorStop(0.85, "rgba(14,21,18,.92)"); fade.addColorStop(1, "rgba(14,21,18,1)");
+  ctx.fillStyle = fade; ctx.fillRect(0, 0, W, HERO);
+  ctx.restore();
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  // nhãn
+  if (kicker) {
+    ctx.font = `800 30px ${F}`;
+    const kw = ctx.measureText(kicker).width + 48;
+    roundRectPath(ctx, 60, 60, kw, 60, 30); ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.fillText(kicker, 84, 101);
+  }
+  // tiêu đề kết quả (tự thu nhỏ cho vừa 2 dòng)
+  let size = 104, lines;
+  for (;;) { ctx.font = `800 ${size}px ${F}`; lines = wrapLines(ctx, heading, W - 120, 2); if (size <= 60 || lines.every((l) => ctx.measureText(l).width <= W - 120) && !lines[lines.length - 1].endsWith("…")) break; size -= 6; }
+  let y = HERO - 40 - (lines.length - 1) * size * 1.05;
+  ctx.fillStyle = "#fff";
+  ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 18;
+  for (const l of lines) { ctx.fillText(l, 60, y); y += size * 1.05; }
+  ctx.shadowBlur = 0;
+  y = HERO + 30;
+  if (stat) {
+    ctx.font = `800 34px ${F}`;
+    const sw = ctx.measureText(stat).width + 44;
+    roundRectPath(ctx, 60, y, sw, 62, 31); ctx.fillStyle = statBg || accent; ctx.fill();
+    ctx.fillStyle = statBg ? "#fff" : "#14140f"; ctx.fillText(stat, 82, y + 43);
+    y += 92;
+  }
+  if (sub) {
+    ctx.font = `500 38px ${F}`; ctx.fillStyle = "rgba(255,255,255,.82)";
+    for (const l of wrapLines(ctx, sub, W - 120, stat ? 2 : 3)) { y += 50; ctx.fillText(l, 60, y); }
+    y += 20;
+  }
+  if (title) {
+    ctx.font = `600 30px ${F}`; ctx.fillStyle = "rgba(212,169,74,.9)";
+    for (const l of wrapLines(ctx, title, W - 120, 1)) { y += 44; ctx.fillText(l, 60, y); }
+  }
+  // chân thẻ: thương hiệu + QR
+  const FY = H - 250;
+  ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(60, FY - 30, W - 120, 2);
+  ctx.font = `800 64px ${F}`; ctx.fillStyle = "#D4A94A"; ctx.fillText("Rankev", 60, FY + 70);
+  ctx.font = `600 32px ${F}`; ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillText(qr ? "Bạn thì sao? Quét mã để chơi" : "Bạn thì sao? Vào Rankev để chơi", 60, FY + 128);
+  ctx.font = `500 26px ${F}`; ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.fillText(SHARE_HOST, 60, FY + 172);
+  if (qr) {
+    roundRectPath(ctx, W - 60 - 210, FY - 6, 210, 210, 22); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.drawImage(qr, W - 60 - 198, FY + 6, 186, 186);
+  }
+  return new Promise((res) => cv.toBlob((b) => res(b), "image/png"));
+}
+// Nút "chia sẻ ảnh kết quả": card = hàm trả về thông tin thẻ (để chỉ tính khi bấm).
+function ShareResultButton({ card, compact, style }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null);
+  const go = async (e) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const c = card();
+      const blob = await renderResultCard(c);
+      if (!blob) throw new Error("no blob");
+      const r = await shareImageBlob(blob, { title: c.heading, text: `${c.kicker ? c.kicker + ": " : ""}${c.heading} — ${c.title || "Rankev"}`, url: c.link, filename: "rankev-ket-qua.png" });
+      if (r === "downloaded") { setNote("Đã lưu ảnh"); setTimeout(() => setNote(null), 2000); }
+    } catch {
+      setNote("Chưa tạo được ảnh"); setTimeout(() => setNote(null), 2200);
+    } finally { setBusy(false); }
+  };
+  if (compact) {
+    return (
+      <button onClick={go} onPointerDown={(e) => e.stopPropagation()} title="Chia sẻ ảnh kết quả" aria-label="Chia sẻ ảnh kết quả"
+        style={{ width: 36, height: 36, borderRadius: 99, border: "none", background: "rgba(0,0,0,.5)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer", ...style }}>
+        {busy ? <span style={{ fontSize: 12 }}>…</span> : note ? <Check size={16} /> : <Share2 size={16} />}
+      </button>
+    );
+  }
+  return (
+    <button onClick={go} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: C.gold, color: "#1a1a1a", fontFamily: bodyFont, fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, ...style }}>
+      <Share2 size={16} /> {busy ? "Đang tạo ảnh…" : note || "Chia sẻ ảnh kết quả"}
+    </button>
+  );
+}
+
 // ===== THẺ "KẾT QUẢ CỦA BẠN" trên feed (thiết kế mới 2026-10-22) =====
 const fmtScore = (n) => Number(n || 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 // Nạp đầy đủ câu hỏi của Survey/Exam (feed chỉ có bản tóm tắt) — chỉ khi cần hiện "câu hỏi → bạn chọn".
@@ -8839,7 +8985,7 @@ function useDeckQuestions(deck, enabled) {
   return qs;
 }
 // Path: ảnh kết quả LỚN tràn viền + tên + nhận xét + số kết thúc đã mở (chấm).
-function PathResultHero({ name, data, discovered, total, hideCount }) {
+function PathResultHero({ name, data, discovered, total, hideCount, path }) {
   const img = data?.image;
   return (
     <div style={{ ...postBleed, position: "relative", aspectRatio: img ? "4 / 3" : undefined, minHeight: img ? undefined : 170, overflow: "hidden", marginBottom: 12, background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 45%, var(--surface)), var(--surface))` }}>
@@ -8847,6 +8993,7 @@ function PathResultHero({ name, data, discovered, total, hideCount }) {
         : <div style={{ position: "absolute", inset: "0 0 30%", display: "grid", placeItems: "center", fontSize: 72 }}>{data?.emoji || "🏁"}</div>}
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.25) 50%, rgba(0,0,0,0) 70%)" }} />
       <span style={{ position: "absolute", top: 12, left: 16, display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, background: "rgba(0,0,0,.5)", color: "#fff", fontFamily: bodyFont, fontSize: 11, fontWeight: 800, letterSpacing: 0.4 }}>🏁 KẾT QUẢ CỦA BẠN</span>
+      {path && <ShareResultButton compact style={{ position: "absolute", top: 8, right: 12 }} card={() => ({ kicker: "🏁 KẾT QUẢ CỦA TÔI", heading: name, sub: data?.comment, title: path.title, image: data?.image, emoji: data?.emoji, link: `${SHARE_BASE}/path/${path.id}` })} />}
       <div style={{ position: "absolute", left: 16, right: 16, bottom: 14, color: "#fff" }}>
         <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 26, lineHeight: 1.1, textShadow: "0 2px 10px rgba(0,0,0,.4)" }}>{name}</div>
         {data?.comment && <div style={{ fontFamily: bodyFont, fontSize: 13.5, lineHeight: 1.4, opacity: 0.9, marginTop: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{data.comment}</div>}
@@ -8860,6 +9007,21 @@ function PathResultHero({ name, data, discovered, total, hideCount }) {
       </div>
     </div>
   );
+}
+// Thông tin thẻ chia sẻ cho Survey/Exam.
+function deckShareCard(deck, { score10, pass, correct, gradable } = {}) {
+  const isExam = deck.deckMode === "exam";
+  return {
+    kicker: isExam ? "📝 ĐIỂM CỦA TÔI" : "✅ TÔI ĐÃ THAM GIA",
+    heading: isExam && score10 != null ? `${fmtScore(score10)}/10 điểm` : deck.title,
+    stat: isExam ? [pass == null ? null : pass ? "ĐẠT" : "CHƯA ĐẠT", correct != null && gradable ? `${correct}/${gradable} câu đúng` : null].filter(Boolean).join(" · ") || null : null,
+    statBg: isExam && pass === false ? "#E2725B" : isExam && pass ? "#2E9E7E" : undefined,
+    sub: isExam ? null : deck.caption,
+    title: isExam ? deck.title : null,
+    image: deck.media?.url || null,
+    emoji: isExam ? "📝" : "📋",
+    link: `${SHARE_BASE}/deck/${deck.id}`,
+  };
 }
 // Survey / Exam: khối điểm (exam) hoặc "đã trả lời" (survey) trên ảnh bìa + "câu hỏi → bạn chọn".
 function DeckResultCard({ deck, result }) {
@@ -8897,6 +9059,7 @@ function DeckResultCard({ deck, result }) {
         <div style={{ position: "absolute", inset: 0, background: cover ? "linear-gradient(90deg, rgba(0,0,0,.82), rgba(0,0,0,.35))" : "transparent" }} />
         <div style={{ position: "relative", padding: "18px 16px", color: cover ? "#fff" : C.text }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 99, background: cover ? "rgba(255,255,255,.16)" : C.goldSoft, fontFamily: bodyFont, fontSize: 11, fontWeight: 800, letterSpacing: 0.4 }}>{isExam ? "📝 BÀI LÀM CỦA BẠN" : "✅ BẠN ĐÃ TRẢ LỜI"}</span>
+          <ShareResultButton compact style={{ position: "absolute", top: 12, right: 12 }} card={() => deckShareCard(deck, { score10, pass, correct, gradable })} />
           {isExam && score10 != null ? (
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
@@ -8985,7 +9148,7 @@ function PathCard({ path, onOpen, onOpenAuthor, menuSlot, moreMenu, hideCategory
 
       {myResultData ? (
         // Đã tham gia — ảnh kết quả LỚN + tên + nhận xét + số kết thúc đã mở
-        <PathResultHero name={myResult.detail} data={myResultData} discovered={discovered} total={allEndings.length} hideCount={hideCount} />
+        <PathResultHero name={myResult.detail} data={myResultData} discovered={discovered} total={allEndings.length} hideCount={hideCount} path={path} />
       ) : isOwner ? (
         // Bài của MÌNH → có mô tả thì CHỈ hiện mô tả; không có mô tả thì hiện số liệu kết quả
         // (lượt tham gia + số câu + số kết quả). Path không có phổ điểm.
@@ -9977,6 +10140,8 @@ function DeckView({ deck, onPresent, onComplete, onCommentAdded, onShareToProfil
         )}
         </>
         )}
+
+        <ShareResultButton style={{ marginTop: 20 }} card={() => deckShareCard(deck, { score10, pass: deck.deckMode === "exam" && deck.passingScore != null ? score10 >= deck.passingScore : null, correct: correctCount, gradable: gradableCount })} />
 
         {/* Làm lại — chỉ Survey mới cho làm lại tự do; Exam có tính điểm nên vẫn cho phép
             nhưng không tự động ghi đè lịch sử tham gia trước đó cho tới khi nộp lại. */}
