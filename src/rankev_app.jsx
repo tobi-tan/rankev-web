@@ -12107,6 +12107,20 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
   // Mỗi câu hỏi có nhiều đáp án; mỗi đáp án dẫn tới 1 ENDING (kết thúc) hoặc 1 CÂU HỎI
   // khác (đi tiếp). Người tạo chỉ trả lời "sau lựa chọn này, điều gì xảy ra?" — không cần
   // hiểu sơ đồ/flowchart. Chọn "tới câu hỏi mới" sẽ tự sinh câu hỏi bên dưới.
+  // Xoá nền ảnh của từng bên đối đầu (✂ trên lá cờ). bgBusy[i] = chuỗi trạng thái đang xử lý.
+  const [bgBusy, setBgBusy] = useState({});
+  const removeOptBg = async (i, src) => {
+    const stage = (t) => setBgBusy((b) => ({ ...b, [i]: t }));
+    try {
+      const blob = await removeBackgroundBlob(src, stage);
+      updateOpt(i, { image: URL.createObjectURL(blob) + "#nobg" });
+      stage("Đang tải lên…");
+      const res = await api.uploadImage(new File([blob], "nobg.png", { type: "image/png" }), "image");
+      if (res?.url) updateOpt(i, { image: res.url + "#nobg" });
+    } catch (e) {
+      window.alert("Chưa xoá nền được: " + (e?.message || "lỗi không rõ") + ". Ảnh gốc vẫn giữ nguyên.");
+    } finally { setBgBusy((b) => ({ ...b, [i]: null })); }
+  };
   const pathUid = useRef(0);
   const nextPathId = (p) => `${p}${Date.now()}_${pathUid.current++}`;
   const [pathEndings, setPathEndings] = useState(pb?.endings || [
@@ -12870,13 +12884,17 @@ function CreateView({ onCreate, onUpdate, editItem = null, mySeries = [], onStar
                 const col = ["#E23B3B", "#2F6BFF"][i];
                 return (
                   <div key={i} style={{ position: "relative", flex: 1, minWidth: 0, minHeight: 190, borderRadius: 14, overflow: "hidden", background: `linear-gradient(160deg, ${col}, ${col}cc)`, boxShadow: `0 8px 20px ${col}44`, clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 92%, 0 100%)", display: "flex", flexDirection: "column" }}>
-                    {o.image && <>
-                      <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${col}66, ${col}dd)` }} />
-                    </>}
+                    {o.image && (isNoBg(o.image)
+                      ? <Pic src={o.image} alt="" style={{ position: "absolute", left: "8%", right: "8%", top: "10%", bottom: 0, width: "84%", height: "90%", objectFit: "contain", objectPosition: "50% 100%", filter: "drop-shadow(0 6px 12px rgba(0,0,0,.45))" }} />
+                      : <>
+                        <Pic src={o.image} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${col}66, ${col}dd)` }} />
+                      </>)}
+                    {bgBusy[i] && <div style={{ position: "absolute", inset: 0, zIndex: 4, display: "grid", placeItems: "center", padding: 12, background: "rgba(0,0,0,.55)", color: "#fff", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, textAlign: "center" }}>✂ {bgBusy[i]}</div>}
                     {/* Nút đính kèm / xoá ảnh */}
                     <div style={{ position: "absolute", top: 8, [i === 0 ? "left" : "right"]: 8, zIndex: 3, display: "flex", gap: 6 }}>
                       <button onClick={() => mockUpload(i)} title="Ảnh nền banner" style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.5)", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><ImagePlus size={15} /></button>
+                      {o.image && !isNoBg(o.image) && !isVideoUrl(o.image) && !isGifUrl(o.image) && <button onClick={() => !bgBusy[i] && removeOptBg(i, o.image)} title="Xoá nền" aria-label="Xoá nền" style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.5)", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><Scissors size={14} /></button>}
                       {o.image && <button onClick={() => updateOpt(i, { image: null })} title="Xoá ảnh" style={{ width: 30, height: 30, borderRadius: 99, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.5)", color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={15} /></button>}
                     </div>
                     <textarea
