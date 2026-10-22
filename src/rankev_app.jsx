@@ -8618,7 +8618,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         {r.image ? (
           // Có ảnh đính kèm → hiện LỚN dạng ảnh bìa kết quả, chữ nằm dưới.
           <div style={{ background: C.goldSoft, border: `1px solid color-mix(in srgb, var(--gold) 33%, transparent)`, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
-            <Pic src={r.image} alt={step} style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block", animation: "popIn 0.4s ease" }} />
+            <Pic src={r.image} alt={step} style={{ width: "100%", maxHeight: "min(62vh, 500px)", objectFit: "cover", display: "block", animation: "popIn 0.4s ease" }} />
             <div style={{ padding: 14 }}>
               <div style={{ fontFamily: bodyFont, fontSize: 12, color: C.textFaint, letterSpacing: 0.5, marginBottom: 3 }}>KẾT QUẢ CỦA BẠN</div>
               <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 22, color: C.text, lineHeight: 1.15 }}>{step}</div>
@@ -8831,7 +8831,7 @@ function PathView({ path = samplePath, startAtIntro = false, onComplete, onPrese
         <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", marginBottom: 16, minHeight: interactive ? 0 : 150 }}>
           <Pic src={q.sceneImage} style={interactive
             ? { width: "100%", height: "auto", display: "block" }
-            : { width: "100%", display: "block", maxHeight: 260, objectFit: "cover" }} />
+            : { width: "100%", display: "block", maxHeight: "min(62vh, 500px)", objectFit: "cover" }} />
           <div style={{ position: "absolute", inset: 0, background: interactive
             ? "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.1) 30%, rgba(0,0,0,0.35) 100%)"
             : "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 55%, rgba(0,0,0,0) 100%)" }} />
@@ -9029,7 +9029,7 @@ function useDeckQuestions(deck, enabled) {
 function PathResultHero({ name, data, discovered, total, hideCount, path }) {
   const img = data?.image;
   return (
-    <div style={{ ...postBleed, position: "relative", aspectRatio: img ? "4 / 3" : undefined, minHeight: img ? undefined : 170, overflow: "hidden", marginBottom: 12, background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 45%, var(--surface)), var(--surface))` }}>
+    <div style={{ ...postBleed, position: "relative", aspectRatio: img ? "4 / 5" : undefined, minHeight: img ? undefined : 170, overflow: "hidden", marginBottom: 12, background: `linear-gradient(160deg, color-mix(in srgb, var(--gold) 45%, var(--surface)), var(--surface))` }}>
       {img ? <Pic src={img} w={900} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
         : <div style={{ position: "absolute", inset: "0 0 30%", display: "grid", placeItems: "center", fontSize: 72 }}>{data?.emoji || "🏁"}</div>}
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.25) 50%, rgba(0,0,0,0) 70%)" }} />
